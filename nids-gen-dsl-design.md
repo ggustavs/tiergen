@@ -664,7 +664,7 @@ Detectors for the evaluation harness
 ## 18. Working agreements
 
 - Read this file first. Do not reopen decisions in section 4 without a dated note there.
-- Python 3.12+, uv workspace, `mypy --strict` or `pyright` strict, `ruff`. Every check has a unit test; every IR type has a JSON round-trip property test.
+- Python 3.12+, uv workspace, `pyright` strict, `ruff`. Members build with hatchling and share the PEP 420 namespace `tiergen.*`: no `tiergen/__init__.py` anywhere, a `py.typed` in every package (2026-09-18: pyright chosen over mypy for Protocol and namespace-package handling; hatchling because its editable installs are path-based, which pyright resolves). Every check has a unit test; every IR type has a JSON round-trip property test.
 - The IR is JSON. No callables in it; signatures, implementations, sensors, resources by name.
 - Nothing in `core/`, `protocols/`, `check/`, `semantics/`, `fit/` or `interfaces/` may assume Linux, Docker or network access. They install and run anywhere.
 - Backend interfaces live in `interfaces/` and are defined before their implementations. A backend is one package under `backends/`; no cross-imports between backend implementations; shared code in each family's `_base`.
