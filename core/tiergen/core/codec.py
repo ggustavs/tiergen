@@ -41,6 +41,15 @@ def from_json[T](cls: type[T], data: JsonValue) -> T:
     return cast(T, _decode(cls, data, ""))
 
 
+def decode(tp: Any, data: JsonValue, path: str = "") -> Any:
+    """Decode ``data`` as any supported annotation, for example ``tuple[float, ...]``.
+
+    ``path`` prefixes the path in errors. The result is untyped because an annotation is
+    not a ``type``; the caller knows what it asked for.
+    """
+    return _decode(tp, data, path)
+
+
 def _field(path: str, name: str) -> str:
     return f"{path}.{name}" if path else name
 
