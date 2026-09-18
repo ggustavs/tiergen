@@ -1,6 +1,7 @@
 """hq_lan, ill formed on purpose. Four checks fail:
 
-- check 1: workstations have a `multiple` tie to file servers, and there are none
+- check 1: workstations and the attacker have a `single` tie to a domain controller, and
+  there is none
 - check 4: a row of the attacker's transition matrix sums to 0.9
 - check 5: the workstation's rate curve names a resource that does not exist
 - check 12: the attack is scheduled after the run has ended"""
@@ -71,7 +72,7 @@ Atk = kind(
 
 S = scenario(
     "hq_lan_broken",
-    instances={Ws: 60, Dc: 1, Fs: 0, Web: 1, Atk: 1},
+    instances={Ws: 60, Dc: 0, Fs: 2, Web: 1, Atk: 1},
     bindings={
         # A VM from a template is a custom host: its manifest says what it serves.
         Dc: binding(

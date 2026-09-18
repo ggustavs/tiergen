@@ -2,6 +2,9 @@
 
 from collections.abc import Callable, Iterator, Mapping
 
+from tiergen.check import (
+    c01_ties,
+)
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic
 from tiergen.core.ir import Scenario
@@ -12,7 +15,7 @@ from tiergen.protocols import SIGNATURES, Signature
 
 Check = Callable[[Context], Iterator[Diagnostic]]
 
-CHECKS: tuple[tuple[str, Check], ...] = ()
+CHECKS: tuple[tuple[str, Check], ...] = (("C01", c01_ties.check),)
 """Checks 9 and 10 need an infrastructure backend and arrive with M1."""
 
 
