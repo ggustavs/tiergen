@@ -43,6 +43,15 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
       - run: uv run pytest
+      - name: The installed command checks the examples
+        run: |
+          uv run tiergen check examples/hq_lan/scenario.py
+          uv run tiergen check examples/hq_lan_capgap/scenario.py
+          if uv run tiergen check examples/hq_lan_broken/scenario.py; then
+            echo "hq_lan_broken passed the checks; it must fail" >&2
+            exit 1
+          fi
+          uv run tiergen impls list
 
   lock:
     runs-on: ubuntu-latest
