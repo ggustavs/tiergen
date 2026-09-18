@@ -1,0 +1,15 @@
+{
+  "sensor": "zeek",
+  "capabilities_used": [
+    "APP_EVENTS",
+    "TLS_JA4",
+    "HTTP_USER_AGENT",
+    "SMB_DIALECT"
+  ],
+  "coverage": {
+    "APP_EVENTS": 0.97,
+    "TLS_JA4": 0.88,
+    "HTTP_USER_AGENT": 0.93,
+    "SMB_DIALECT": 0.91
+  }
+}

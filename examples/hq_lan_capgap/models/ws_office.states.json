@@ -1,0 +1,6 @@
+[
+  "idle",
+  "web_get",
+  "smb_read",
+  "krb_tgs"
+]

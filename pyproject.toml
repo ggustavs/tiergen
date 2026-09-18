@@ -53,7 +53,7 @@ tiergen-impl-smbclient-win = { workspace = true }
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli"]
+include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli", "examples"]
 
 [tool.ruff]
 line-length = 100
@@ -97,4 +97,5 @@ testpaths = [
     "backends/sensor/suricata/tests",
     "check/tests",
     "cli/tests",
+    "examples/tests",
 ]

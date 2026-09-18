@@ -1,0 +1,26 @@
+[
+  {
+    "family": "exponential",
+    "params": [
+      120.0
+    ]
+  },
+  {
+    "family": "exponential",
+    "params": [
+      8.0
+    ]
+  },
+  {
+    "family": "exponential",
+    "params": [
+      20.0
+    ]
+  },
+  {
+    "family": "exponential",
+    "params": [
+      1.0
+    ]
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "protocol": "kerberos",
+    "port": 88,
+    "transport": "tcp"
+  },
+  {
+    "protocol": "ldap",
+    "port": 389,
+    "transport": "tcp"
+  },
+  {
+    "protocol": "smb",
+    "port": 445,
+    "transport": "tcp"
+  },
+  {
+    "protocol": "dns",
+    "port": 53,
+    "transport": "udp"
+  }
+]

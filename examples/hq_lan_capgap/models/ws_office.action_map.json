@@ -1,0 +1,15 @@
+{
+  "idle": null,
+  "web_get": {
+    "signature": "http.get",
+    "tie": "web"
+  },
+  "smb_read": {
+    "signature": "smb.read",
+    "tie": "fs"
+  },
+  "krb_tgs": {
+    "signature": "kerberos.tgs",
+    "tie": "dc"
+  }
+}
