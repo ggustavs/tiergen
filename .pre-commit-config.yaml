@@ -1,0 +1,31 @@
+# Hooks run the locked tool versions through uv, so local and CI results agree.
+# Install once per clone: uv run pre-commit install
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        stages: [pre-commit]
+      - id: commit-message
+        name: conventional commit message
+        entry: uv run commit-check --message
+        language: system
+        stages: [commit-msg]
+      - id: branch-name
+        name: conventional branch name
+        entry: uv run commit-check --branch
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true

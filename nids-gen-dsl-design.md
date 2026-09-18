@@ -678,7 +678,8 @@ Detectors for the evaluation harness
 - The fidelity report decides realism arguments. If a proposed change cannot be expressed as a metric it moves, it is not a realism change.
 - No live malware; attacks only through emulation adapters and documented primitives.
 - Reproducibility: every dataset ships `manifest.json` with image digests, implementation and sensor versions, seeds and the IR.
-- Documentation and commit messages in plain prose. Engineer-facing docs describe the workflow in section 3, not the internals.
+- Commits follow Conventional Commits 1.0.0 with a fixed scope list; branches follow Conventional Branch 1.1.0; `main` is linear, pull requests merge by rebase. `commit-check` enforces all of it from `cchk.toml`, in local hooks and in CI. `CONTRIBUTING.md` has the details (2026-09-18).
+- Documentation and commit bodies in plain prose. Engineer-facing docs describe the workflow in section 3, not the internals.
 - When this file is wrong, fix it in the same commit.
 
 First tasks for M0:
