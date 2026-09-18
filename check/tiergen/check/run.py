@@ -13,6 +13,7 @@ from tiergen.check import (
     c08_impls,
     c11_labels,
     c12_schedule,
+    c13_sensors,
     c14_cross_sensor,
     c15_coverage,
 )
@@ -37,6 +38,7 @@ CHECKS: tuple[tuple[str, Check], ...] = (
     ("C08", c08_impls.check),
     ("C11", c11_labels.check),
     ("C12", c12_schedule.check),
+    ("C13", c13_sensors.check),
     ("C14", c14_cross_sensor.check),
     ("C15", c15_coverage.check),
 )
