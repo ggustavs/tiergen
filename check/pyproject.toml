@@ -3,7 +3,13 @@ name = "tiergen-check"
 version = "0.0.1"
 description = "Static checker over the scenario IR."
 requires-python = ">=3.12"
-dependencies = ["tiergen-core", "tiergen-protocols", "tiergen-interfaces", "tiergen-impls-base"]
+dependencies = [
+    "tiergen-core",
+    "tiergen-protocols",
+    "tiergen-interfaces",
+    "tiergen-impls-base",
+    "z3-solver",
+]
 
 [build-system]
 requires = ["hatchling"]

@@ -53,6 +53,7 @@ tiergen-impl-smbclient-win = { workspace = true }
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+extraPaths = ["check/tests"]
 include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli", "examples"]
 
 [tool.ruff]
@@ -83,6 +84,8 @@ exclude = ["*.md"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+# check/tests/support.py is shared by the per-check test modules.
+pythonpath = ["check/tests"]
 testpaths = [
     "core/tests",
     "protocols/tests",

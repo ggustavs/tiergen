@@ -498,6 +498,14 @@ Each is a named check with unit tests and, where the input space allows, a hypot
 14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`.
 15. Coverage sanity: every capability `fit` relied on has measured coverage above a floor the scenario sets (default 0.5); below it, warn that the fitted distribution for that capability is sparse.
 
+2026-09-18, as implemented in `check/` (checks 9 and 10 wait for an infrastructure backend):
+- Check 1 reads multiplicities as ScalaLoci does: `single` is exactly one peer, `optional` zero or one, `multiple` any number including none. Only `single` constrains instance counts: a kind with instances and a `single` tie needs at least one instance of the target. With fixed counts Z3 decides plain arithmetic; it is kept because counts are the first thing likely to become ranges.
+- Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic. Sensor configurations and the topology are opaque: they only have to exist.
+- Check 6 also pairs kinds with bindings: a kind with instances needs exactly one. On a default host an endpoint counts as served only if every weighted alternative of some service selection serves it.
+- Check 7's third clause is reported as `not computed`, naming the capability and the host, until an `InfraBackend` can say what it grants.
+- Check 12 target syntax: `kind`, or `kind[i]` with `0 <= i < instances[kind]`. `start` and `stop` take a behaviour of the target kind, `set_rate` a non-negative multiplier, `run_sequence` `adapter_id:catalog_entry`, which check 8 resolves against the adapter's manifest.
+- Diagnostics have three severities: `error`, `warning`, and `not_computed`.
+
 Runtime checks before capture: clock sync within tolerance on every host; attribution backend loaded per host platform; capture and sensor interfaces up; every service healthcheck passes.
 
 ---
