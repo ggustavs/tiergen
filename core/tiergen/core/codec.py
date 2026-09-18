@@ -1,10 +1,11 @@
 """A generic JSON codec for frozen dataclasses, driven by their type annotations.
 
 Supported annotations: ``None``, ``bool``, ``int``, ``float``, ``str``, ``Literal[...]``,
-``tuple[T, ...]``, fixed-length ``tuple[A, B]``, ``dict[str, T]``, dataclasses, and unions
-of these. A union is decoded by JSON shape (null, bool, number, string, array, object):
-the first arm that accepts the value's shape is used, so the arms of a union should have
-distinct shapes.
+``tuple[T, ...]``, fixed-length ``tuple[A, B]``, ``dict[str, T]``, dataclasses, unions of
+these, and ``JsonValue`` itself for a field that carries arbitrary JSON unchanged.
+
+A union is decoded by JSON shape (null, bool, number, string, array, object): the first arm
+that accepts the value's shape is used, so the arms of a union should have distinct shapes.
 
 Decoding is strict. An unknown key, a missing field without a default, a value of the
 wrong shape and a non-finite float all raise ``CodecError`` carrying the path of the
@@ -83,6 +84,9 @@ def _shape(data: JsonValue) -> str:
     return "object"
 
 
+_ALL_SHAPES = frozenset({"null", "bool", "number", "string", "array", "object"})
+
+
 def _is_union(tp: Any) -> bool:
     origin = get_origin(tp)
     return origin is Union or origin is types.UnionType
@@ -90,6 +94,8 @@ def _is_union(tp: Any) -> bool:
 
 def _shapes(tp: Any) -> frozenset[str]:
     """The JSON shapes a value of type ``tp`` can take."""
+    if tp is JsonValue:
+        return _ALL_SHAPES
     if tp is None or tp is type(None):
         return frozenset({"null"})
     if tp is bool:
@@ -125,6 +131,8 @@ def _decode(tp: Any, data: JsonValue, path: str) -> Any:
         expected = " or ".join(sorted(_shapes(tp)))
         raise CodecError(path, f"expected {expected} for {_describe(tp)}, got {shape}")
 
+    if tp is JsonValue:
+        return _checked_passthrough(data, path)
     if _is_union(tp):
         arm = next(arm for arm in get_args(tp) if shape in _shapes(arm))
         return _decode(arm, data, path)
@@ -167,6 +175,17 @@ def _decode(tp: Any, data: JsonValue, path: str) -> Any:
         }
 
     return _decode_dataclass(tp, cast(dict[str, JsonValue], data), path)
+
+
+def _checked_passthrough(data: JsonValue, path: str) -> JsonValue:
+    """Arbitrary JSON is kept as is, but a non-finite float is still refused."""
+    if isinstance(data, float) and not math.isfinite(data):
+        raise CodecError(path, f"non-finite float {data!r}")
+    if isinstance(data, list):
+        return [_checked_passthrough(item, f"{path}[{i}]") for i, item in enumerate(data)]
+    if isinstance(data, dict):
+        return {k: _checked_passthrough(v, f"{path}[{k!r}]") for k, v in data.items()}
+    return data
 
 
 def _decode_dataclass(cls: type, data: dict[str, JsonValue], path: str) -> Any:
