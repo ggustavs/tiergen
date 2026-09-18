@@ -28,10 +28,10 @@ ties = st.builds(ir.Tie, names, names, st.sampled_from(["single", "optional", "m
 distributions = st.builds(ir.Distribution, names, or_resource(tuples(floats)))
 semi_markovs = st.builds(
     ir.SemiMarkov,
-    states=tuples(names),
+    states=or_resource(tuples(names)),
     initial=or_resource(tuples(weights)),
     transitions=or_resource(tuples(tuples(weights))),
-    dwell=tuples(distributions),
+    dwell=or_resource(tuples(distributions)),
     rate=st.none() | names,
 )
 actions = st.builds(ir.Action, names, names)
