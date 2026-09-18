@@ -10,6 +10,8 @@ members = [
     "tiergen-impls-base",
     "tiergen-interfaces",
     "tiergen-protocols",
+    "tiergen-sensor-suricata",
+    "tiergen-sensor-zeek",
     "tiergen-workspace",
 ]
 
@@ -406,6 +408,28 @@ dependencies = [
 requires-dist = [{ name = "tiergen-core", editable = "core" }]
 
 [[package]]
+name = "tiergen-sensor-suricata"
+version = "0.0.1"
+source = { editable = "backends/sensor/suricata" }
+dependencies = [
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+
+[[package]]
+name = "tiergen-sensor-zeek"
+version = "0.0.1"
+source = { editable = "backends/sensor/zeek" }
+dependencies = [
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+
+[[package]]
 name = "tiergen-workspace"
 version = "0.0.0"
 source = { virtual = "." }
@@ -416,6 +440,8 @@ dependencies = [
     { name = "tiergen-impls-base" },
     { name = "tiergen-interfaces" },
     { name = "tiergen-protocols" },
+    { name = "tiergen-sensor-suricata" },
+    { name = "tiergen-sensor-zeek" },
 ]
 
 [package.dev-dependencies]
@@ -436,6 +462,8 @@ requires-dist = [
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-interfaces", editable = "interfaces" },
     { name = "tiergen-protocols", editable = "protocols" },
+    { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
+    { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
 ]
 
 [package.metadata.requires-dev]
