@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator, Mapping
 
 from tiergen.check import (
     c01_ties,
+    c03_actions,
     c04_process,
     c05_resources,
     c12_schedule,
@@ -22,6 +23,7 @@ Check = Callable[[Context], Iterator[Diagnostic]]
 
 CHECKS: tuple[tuple[str, Check], ...] = (
     ("C01", c01_ties.check),
+    ("C03", c03_actions.check),
     ("C04", c04_process.check),
     ("C05", c05_resources.check),
     ("C12", c12_schedule.check),
