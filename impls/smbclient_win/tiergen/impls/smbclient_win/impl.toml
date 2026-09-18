@@ -1,0 +1,11 @@
+id = "smb.windows_native"
+version = "0.0.1"
+kind = "primitive"
+provides = ["smb.read", "smb.write", "smb.list", "kerberos.as", "kerberos.tgs"]
+
+[host]
+platforms = ["windows"]
+
+[fingerprint]
+role = "client"
+product = "windows-smb"

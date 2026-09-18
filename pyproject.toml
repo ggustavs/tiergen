@@ -12,6 +12,11 @@ dependencies = [
     "tiergen-cli",
     "tiergen-sensor-zeek",
     "tiergen-sensor-suricata",
+    "tiergen-impl-httpx",
+    "tiergen-impl-nmap",
+    "tiergen-impl-nginx",
+    "tiergen-impl-samba",
+    "tiergen-impl-smbclient-win",
 ]
 
 [dependency-groups]
@@ -39,6 +44,11 @@ tiergen-check = { workspace = true }
 tiergen-cli = { workspace = true }
 tiergen-sensor-zeek = { workspace = true }
 tiergen-sensor-suricata = { workspace = true }
+tiergen-impl-httpx = { workspace = true }
+tiergen-impl-nmap = { workspace = true }
+tiergen-impl-nginx = { workspace = true }
+tiergen-impl-samba = { workspace = true }
+tiergen-impl-smbclient-win = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -53,6 +63,11 @@ src = [
     "protocols",
     "interfaces",
     "impls/_base",
+    "impls/httpx",
+    "impls/nmap",
+    "impls/nginx",
+    "impls/samba",
+    "impls/smbclient_win",
     "backends/sensor/zeek",
     "backends/sensor/suricata",
     "check",
@@ -73,6 +88,11 @@ testpaths = [
     "protocols/tests",
     "interfaces/tests",
     "impls/_base/tests",
+    "impls/httpx/tests",
+    "impls/nmap/tests",
+    "impls/nginx/tests",
+    "impls/samba/tests",
+    "impls/smbclient_win/tests",
     "backends/sensor/zeek/tests",
     "backends/sensor/suricata/tests",
     "check/tests",

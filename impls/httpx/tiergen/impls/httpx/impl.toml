@@ -1,0 +1,12 @@
+id = "http.httpx"
+version = "0.0.1"
+kind = "primitive"
+provides = ["http.get", "http.post_form"]
+
+[host]
+platforms = ["linux", "windows"]
+
+[fingerprint]
+role = "client"
+product = "python-httpx"
+user_agent = "auto"

@@ -1,0 +1,9 @@
+id = "scan.nmap"
+version = "0.0.1"
+kind = "primitive"
+provides = ["scan.tcp_syn", "scan.tcp_connect", "scan.udp"]
+
+[host]
+platforms = ["linux"]
+binaries = ["nmap"]
+capabilities = ["net_raw"]          # SYN and UDP scans open raw sockets
