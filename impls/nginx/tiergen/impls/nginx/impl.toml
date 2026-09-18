@@ -1,0 +1,18 @@
+id = "http.nginx"
+version = "0.0.1"
+kind = "service"
+provides = ["http.serve"]
+
+[host]
+platforms = ["linux"]
+binaries = ["nginx"]
+
+[fingerprint]
+role = "server"
+product = "nginx"
+
+[service]
+served = [
+    { protocol = "http", port = 80, transport = "tcp" },
+    { protocol = "https", port = 443, transport = "tcp" },
+]

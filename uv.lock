@@ -7,6 +7,11 @@ members = [
     "tiergen-check",
     "tiergen-cli",
     "tiergen-core",
+    "tiergen-impl-httpx",
+    "tiergen-impl-nginx",
+    "tiergen-impl-nmap",
+    "tiergen-impl-samba",
+    "tiergen-impl-smbclient-win",
     "tiergen-impls-base",
     "tiergen-interfaces",
     "tiergen-protocols",
@@ -371,6 +376,61 @@ version = "0.0.1"
 source = { editable = "core" }
 
 [[package]]
+name = "tiergen-impl-httpx"
+version = "0.0.1"
+source = { editable = "impls/httpx" }
+dependencies = [
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-impls-base", editable = "impls/_base" }]
+
+[[package]]
+name = "tiergen-impl-nginx"
+version = "0.0.1"
+source = { editable = "impls/nginx" }
+dependencies = [
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-impls-base", editable = "impls/_base" }]
+
+[[package]]
+name = "tiergen-impl-nmap"
+version = "0.0.1"
+source = { editable = "impls/nmap" }
+dependencies = [
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-impls-base", editable = "impls/_base" }]
+
+[[package]]
+name = "tiergen-impl-samba"
+version = "0.0.1"
+source = { editable = "impls/samba" }
+dependencies = [
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-impls-base", editable = "impls/_base" }]
+
+[[package]]
+name = "tiergen-impl-smbclient-win"
+version = "0.0.1"
+source = { editable = "impls/smbclient_win" }
+dependencies = [
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-impls-base", editable = "impls/_base" }]
+
+[[package]]
 name = "tiergen-impls-base"
 version = "0.0.1"
 source = { editable = "impls/_base" }
@@ -437,6 +497,11 @@ dependencies = [
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
     { name = "tiergen-core" },
+    { name = "tiergen-impl-httpx" },
+    { name = "tiergen-impl-nginx" },
+    { name = "tiergen-impl-nmap" },
+    { name = "tiergen-impl-samba" },
+    { name = "tiergen-impl-smbclient-win" },
     { name = "tiergen-impls-base" },
     { name = "tiergen-interfaces" },
     { name = "tiergen-protocols" },
@@ -459,6 +524,11 @@ requires-dist = [
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },
     { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-impl-httpx", editable = "impls/httpx" },
+    { name = "tiergen-impl-nginx", editable = "impls/nginx" },
+    { name = "tiergen-impl-nmap", editable = "impls/nmap" },
+    { name = "tiergen-impl-samba", editable = "impls/samba" },
+    { name = "tiergen-impl-smbclient-win", editable = "impls/smbclient_win" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-interfaces", editable = "interfaces" },
     { name = "tiergen-protocols", editable = "protocols" },

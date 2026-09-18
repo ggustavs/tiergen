@@ -1,0 +1,15 @@
+id = "smb.samba"
+version = "0.0.1"
+kind = "service"
+provides = ["smb.serve"]
+
+[host]
+platforms = ["linux"]
+binaries = ["smbd"]
+
+[fingerprint]
+role = "server"
+product = "samba"
+
+[service]
+served = [{ protocol = "smb", port = 445, transport = "tcp" }]

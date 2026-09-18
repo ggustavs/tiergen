@@ -1,0 +1,16 @@
+[project]
+name = "tiergen-impl-nmap"
+version = "0.0.1"
+description = "Port scans through nmap."
+requires-python = ">=3.12"
+dependencies = ["tiergen-impls-base"]
+
+[project.entry-points."tiergen.impls"]
+"scan.nmap" = "tiergen.impls.nmap:DESCRIPTOR"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]
