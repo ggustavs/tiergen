@@ -294,6 +294,12 @@ Interfaces in `impls/_base`:
 - `ServiceImpl`: `start(ctx)`, `healthcheck(ctx)`, `stop(ctx)`, `served() -> tuple[Endpoint, ...]`. Doubles as the binding manifest for default-compiled server actors.
 - `AdapterImpl`: `catalog() -> Iterable[CatalogEntry]` so the checker validates references statically; `run(ctx, catalog_id, **params)`. Catalog entries are data, never one file per ability.
 
+2026-09-18, as implemented in `impls/_base` and `protocols/`:
+- `impl.toml` decodes into a frozen `ImplDescriptor`, and the checker reads descriptors only. A service manifest adds `[service] served = [{ protocol = "http", port = 80, transport = "tcp" }]` so check 6 can compare a default host's services with its kind's interface; an adapter lists its catalog in the manifest so check 8 stays static.
+- `PrimitiveImpl.run` is `run(ctx, signature, **params)`. One package provides several signatures, so the call has to say which.
+- Serving is a signature too: `http.serve`, `dns.serve`, `smb.serve`, `kerberos.serve`, `ssh.serve`, role `server`, which is what a binding selects a `ServiceImpl` under (the sketch's `internet.serve` has the same shape). Server signatures never appear in an action map. A client signature lists the endpoint protocols a tie's target may serve, so `http.get` fits an `https` endpoint; scans list none.
+- Manifests are decoded with `tomllib` and the IR's own codec, not pydantic. `impls/_base` is in every implementation's dependency closure, and the manifest is written by tool authors, not at the engineer boundary section 14 reserves pydantic for.
+
 **Selection is data.** A binding resolves each `(kind, signature)` to one implementation or a weighted set sampled per instance. Weights come from `fit` (4.10) or the engineer. Resolved id and variant go into every label.
 
 **Conformance test per implementation.** Each primitive implementation ships a test that runs it against a reference service implementation in a two-host fixture and asserts that the observed connections from the invocation match the signature's traffic shape. The test also records the implementation's measured fingerprints (JA4, user agent, SSH strings) and per-primitive connection profiles (bytes, packets, duration distributions), which `predict` uses. It catches tools that quietly open extra connections that would otherwise become unattributed traffic.
