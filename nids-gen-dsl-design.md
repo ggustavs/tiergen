@@ -424,6 +424,8 @@ class Scenario:
 
 Embedded DSL, *sketch*, as `fit` would propose it and the engineer would edit:
 
+2026-09-18: the builders are in `core/tiergen/core/dsl.py` and import as `from tiergen.core.dsl import ...`; `tiergen` is a namespace shared by every package and has no module of its own to import from. Differences from the sketch below: `semi_markov` takes a required `initial`; action maps hold `action(signature, tie)` values or `None`; `kind()` returns a handle that works as a dictionary key and tie target, and `scenario` takes its kinds from the keys of `instances`; a custom host names its endpoint manifest with `host(..., manifest=resource(...))`. `internet.serve` and `attack.run` are not M0 signatures; the runnable versions of this scenario are under `examples/`.
+
 ```python
 from tiergen import kind, endpoint, tie, semi_markov, resource, host, binding, scenario, sensor, at, hours
 
