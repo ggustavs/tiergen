@@ -312,7 +312,7 @@ Interfaces in `impls/_base`:
 
 2026-09-18, three changes the checks in section 8 forced:
 - `Action(signature, tie)` replaces the bare signature string in `Behaviour.action_map`. Check 2 asks whether a signature is directed at a tie whose target serves a compatible endpoint, and a signature alone does not say which tie.
-- `Behaviour.action_map`, `ImplSelection.choices` and `Scenario.fit_provenance` also accept a resource name, as `initial`, `transitions` and `rate` already did. The DSL example below passes `resource(...)` for all three.
+- `SemiMarkov.states`, `SemiMarkov.dwell`, `Behaviour.action_map`, `ImplSelection.choices` and `Scenario.fit_provenance` also accept a resource name, as `initial`, `transitions` and `rate` already did. The DSL example below passes `resource(...)` for all five.
 - `Scenario.coverage_floor`, default 0.5, is the floor check 15 refers to.
 
 ```python
@@ -339,10 +339,10 @@ class Distribution:
 
 @dataclass(frozen=True, slots=True)
 class SemiMarkov:
-    states: tuple[str, ...]
+    states: tuple[str, ...] | str
     initial: tuple[float, ...] | str
     transitions: tuple[tuple[float, ...], ...] | str
-    dwell: tuple[Distribution, ...]              # one per state
+    dwell: tuple[Distribution, ...] | str        # one per state
     rate: str | None                             # resource: hourly multipliers, 24 or 168 values
 
 @dataclass(frozen=True, slots=True)

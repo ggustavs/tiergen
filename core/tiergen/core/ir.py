@@ -58,14 +58,15 @@ class Distribution:
 class SemiMarkov:
     """A semi-Markov process over ``states``, one dwell distribution per state.
 
-    ``initial`` and ``transitions`` are inline or resource names. ``rate`` names a resource
-    of hourly multipliers, 24 or 168 values, or is None for a constant rate.
+    ``states``, ``initial``, ``transitions`` and ``dwell`` are each inline or a resource
+    name, so a fitted process can live entirely in resources. ``rate`` names a resource of
+    hourly multipliers, 24 or 168 values, or is None for a constant rate.
     """
 
-    states: tuple[str, ...]
+    states: tuple[str, ...] | str
     initial: tuple[float, ...] | str
     transitions: tuple[tuple[float, ...], ...] | str
-    dwell: tuple[Distribution, ...]
+    dwell: tuple[Distribution, ...] | str
     rate: str | None
 
 
