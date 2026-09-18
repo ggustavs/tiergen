@@ -1,6 +1,6 @@
 # tiergen: site-specific NIDS dataset generation from a multi-tier DSL
 
-Working name `tiergen` (placeholder). Status: design, nothing implemented. Version 3, September 2026.
+Working name `tiergen` (placeholder). Status: M0 implemented (IR, event model, interfaces, signatures, checker, `tiergen check` and `tiergen impls list`); nothing generates traffic yet. Version 3, September 2026.
 
 This file is the project's memory. It records decisions and their rationale so later work (mine or Claude Code's) does not relitigate them without new evidence. *open* marks undecided items, *sketch* marks illustrative material that will change.
 

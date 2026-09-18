@@ -5,6 +5,9 @@ description = "The tiergen command line."
 requires-python = ">=3.12"
 dependencies = ["tiergen-check", "tiergen-impls-base"]
 
+[project.scripts]
+tiergen = "tiergen.cli.main:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
