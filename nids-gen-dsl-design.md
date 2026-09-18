@@ -300,7 +300,12 @@ Interfaces in `impls/_base`:
 
 ## 7. IR sketch
 
-*Sketch.* Frozen slotted dataclasses; every node has a stable `id`; `to_json`/`from_json` on the root.
+*Sketch.* Frozen slotted dataclasses; every node has a stable `id`; `to_json`/`from_json` on the root. The implemented form is `core/tiergen/core/ir.py`; where the two differ, the code is right and this sketch is stale.
+
+2026-09-18, three changes the checks in section 8 forced:
+- `Action(signature, tie)` replaces the bare signature string in `Behaviour.action_map`. Check 2 asks whether a signature is directed at a tie whose target serves a compatible endpoint, and a signature alone does not say which tie.
+- `Behaviour.action_map`, `ImplSelection.choices` and `Scenario.fit_provenance` also accept a resource name, as `initial`, `transitions` and `rate` already did. The DSL example below passes `resource(...)` for all three.
+- `Scenario.coverage_floor`, default 0.5, is the floor check 15 refers to.
 
 ```python
 from dataclasses import dataclass
@@ -333,10 +338,15 @@ class SemiMarkov:
     rate: str | None                             # resource: hourly multipliers, 24 or 168 values
 
 @dataclass(frozen=True, slots=True)
+class Action:
+    signature: str
+    tie: str                                     # the tie whose targets the signature is run against
+
+@dataclass(frozen=True, slots=True)
 class Behaviour:
     name: str
     process: SemiMarkov                          # later: Process union
-    action_map: dict[str, str | None]            # action -> signature, None = silent
+    action_map: dict[str, Action | None] | str   # state -> Action, None = silent; inline or resource
 
 @dataclass(frozen=True, slots=True)
 class ActorKind:
@@ -356,7 +366,7 @@ class Host:
 @dataclass(frozen=True, slots=True)
 class ImplSelection:
     signature: str
-    choices: dict[str, float]                    # "impl_id[:variant]" -> weight
+    choices: dict[str, float] | str              # "impl_id[:variant]" -> weight; inline or resource
 
 @dataclass(frozen=True, slots=True)
 class Binding:
@@ -399,8 +409,9 @@ class Scenario:
     duration_s: float
     capture_points: tuple[str, ...]
     sensors: tuple[SensorSpec, ...]              # one or more; labels emitted per sensor
-    fit_provenance: FitProvenance | None         # what fit relied on; enables the cross-sensor check
+    fit_provenance: FitProvenance | str | None   # what fit relied on; inline or resource; enables the cross-sensor check
     seed: int
+    coverage_floor: float = 0.5                  # check 15: below this, a capability fit relied on is sparse
 ```
 
 Embedded DSL, *sketch*, as `fit` would propose it and the engineer would edit:
