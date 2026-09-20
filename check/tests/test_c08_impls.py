@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 import pytest
-from support import IMPLS, RESOURCES, good, only, run, with_binding
+from support import IMPLS, INFRA, RESOURCES, good, only, run, with_binding
 
 from tiergen.check import run_checks
 from tiergen.core import ir
@@ -66,7 +66,7 @@ def test_run_sequence_names_an_installed_adapter_and_one_of_its_catalog_entries(
 
     def c08(arg: str) -> list[str]:
         s = replace(good(), schedule=(ir.ScheduleEvent(0, "cli", "run_sequence", arg),))
-        return [d.message for d in run_checks(s, store, impls, {}) if d.check == "C08"]
+        return [d.message for d in run_checks(s, store, impls, {}, INFRA) if d.check == "C08"]
 
     assert c08("attack.kit:recon") == []
     assert "no catalog entry 'exfil'" in c08("attack.kit:exfil")[0]

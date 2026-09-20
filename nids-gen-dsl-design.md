@@ -205,7 +205,7 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 | Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie, params)` or to `None` for a silent state. The signature is what to run, the tie whose targets to run it against, and `params` a value for each parameter the signature declares: a literal, or a weighted choice sampled per invocation, inline or from a resource. |
 | Signature | A protocol-level primitive (`http.get`, `smb.read`) with a role, typed parameters and an expected traffic shape (connections, transport, port, permitted follow-on signatures, reuse semantics). A client signature lists the endpoint protocols its target may serve. A server signature (`http.serve`) stands for serving and is what a binding selects a service implementation under. Defined in `protocols/`. The IR references signatures, never tools. |
 | Implementation | A per-tool package providing signatures (`PrimitiveImpl`), running a service (`ServiceImpl`) or adapting an external framework (`AdapterImpl`). It has a manifest, `impl.toml`, and a runtime. Registered by what it provides. |
-| Descriptor | The static half of a sensor or an implementation, as data: `SensorDescriptor`, and `ImplDescriptor` decoded from `impl.toml`. Discovered through entry points. The checker reads descriptors and never imports a runtime. |
+| Descriptor | The static half of a sensor, an implementation or an infrastructure backend, as data: `SensorDescriptor`; `ImplDescriptor`, decoded from `impl.toml`; `InfraDescriptor`, the hosts a backend offers and the capabilities it can grant each. Discovered through entry points. The checker reads descriptors and never imports a runtime. |
 | Sensor | A passive traffic sensor behind the interface in 4.3: ingest and label, a pinned version and config, and a declared capability set. Zeek and Suricata are the first two. |
 | Common event model | Schema-neutral events every sensor maps into. Required core `ConnEvent`: sensor-native connection id, 5-tuple, start and duration, bytes and packets per direction, state. Optional `AppEvent` (under `APP_EVENTS`): parent connection id, timestamp, protocol, normalised fields, capability-gated fingerprints. Every event keeps raw passthrough that core consumers may not read. |
 | Capability | A named, typed extension a sensor declares above the required core: `APP_EVENTS`, `TLS_JA4`, `HTTP_USER_AGENT`, `SSH_STRINGS`, `SMB_DIALECT`, `X509`, extensible. Each carries a schema and a coverage claim. Consumers query capabilities and degrade explicitly when one is absent. |
@@ -229,7 +229,7 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 tiergen/                  uv workspace; one distribution per directory, all sharing the namespace tiergen.*
   core/                 ✔ IR, JSON codec, embedded DSL builders, resources, scenario loader, common event model, labels
   protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
-  interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, SensorDescriptor, entry-point discovery; no impls
+  interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
   check/                ✔ static checker: checks 1-8 and 11-15, diagnostics, runner; Z3 behind one typed module
   cli/                  ✔ the `tiergen` command: `check`, `impls list`
   examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken; each a scenario.py plus models/
@@ -241,7 +241,7 @@ tiergen/                  uv workspace; one distribution per directory, all shar
       zeek/  suricata/  ◐ descriptor only; ingest and label runtime in M1
     infra/
       _base/              address planning, manifest helpers
-      docker/  libvirt/   InfraBackend implementations (nomad/, k8s/ later)
+      docker/  libvirt/ ◐ descriptor only; InfraBackend implementations in M1 (nomad/, k8s/ later)
     attrib/
       _base/              join logic
       linux_ebpf/  windows_etw/   AttributionBackend implementations (nfstream fallback)
@@ -645,7 +645,7 @@ A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a messa
 4. Initial distribution and transition rows are stochastic; the matrix is square over the states; all states are reachable from the initial support; one dwell per state; a rate resource has 24 or 168 entries.
 5. Resource references resolve, and resolved shapes match declared shapes, distribution parameters included. Sensor configurations and the topology are opaque: they only have to exist.
 6. Every kind with instances has exactly one binding, and the host satisfies the kind's interface. A default host serves what its selected service implementations serve, and an endpoint counts only if every weighted alternative of some selection serves it. A custom host (`image:`, `template:`) serves what its manifest resource lists.
-7. Binding platform is in the kind's allowed platforms; every chosen implementation supports that platform. Whether the host capabilities an implementation needs (`net_raw`, admin) are grantable by the infra backend for that host type is `not_computed` until M1, naming the capability and the host.
+7. Binding platform is in the kind's allowed platforms. The binding's backend is installed and offers that platform and host type. Every chosen implementation supports the platform, and the host capabilities it needs (`net_raw`, admin) are ones the backend's descriptor says it can grant such a host. A VM owns its kernel, so there a backend has nothing to grant and nothing to refuse.
 8. Every client signature a kind's actions use has a selection in its binding; every choice names an installed implementation that provides the signature, and a variant it has; weights are positive; a `run_sequence` names an installed adapter and an entry of its catalog.
 9. *(M1)* Management network disjoint from all data-plane networks; every capture point is data-plane; every sensor's capture interface is data-plane.
 10. *(M1)* Address plan collision-free; every instance has a data-plane address; topology realisable by the chosen infra backend; egress policy consistent with the presence of an `internet_stub` kind or an allowlist resource; every `egress_overrides` key is a fitted external destination.

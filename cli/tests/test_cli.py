@@ -15,8 +15,7 @@ def _scenario(name: str) -> str:
 def test_check_passes_a_well_formed_scenario(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["check", _scenario("hq_lan")]) == 0
     out = capsys.readouterr().out
-    assert "hq_lan: 0 errors, 0 warnings, 1 not computed" in out
-    assert "net_raw" in out
+    assert out == "hq_lan: 0 errors, 0 warnings, 0 not computed\n"
 
 
 def test_check_passes_with_a_warning(capsys: pytest.CaptureFixture[str]) -> None:

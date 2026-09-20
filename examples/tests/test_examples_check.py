@@ -6,13 +6,9 @@ from tiergen.check import Diagnostic, run_checks
 from tiergen.core.loader import load_scenario
 from tiergen.core.resources import DirResources
 from tiergen.impls._base import load_impls
-from tiergen.interfaces.registry import load_sensors
+from tiergen.interfaces.registry import load_infra, load_sensors
 
 EXAMPLES = Path(__file__).parent.parent
-
-# nmap needs net_raw, and whether the host can be granted it is an infrastructure question
-# M0 cannot answer. Every example has the attacker, so every example has this line.
-NET_RAW = ("C07", "not_computed", "bindings[4].impls[0].choices['scan.nmap']")
 
 
 def _check(name: str) -> list[Diagnostic]:
@@ -22,6 +18,7 @@ def _check(name: str) -> list[Diagnostic]:
         DirResources(directory / "models"),
         load_impls(),
         load_sensors(),
+        load_infra(),
     )
 
 
@@ -30,13 +27,13 @@ def _summary(found: list[Diagnostic]) -> list[tuple[str, str, str]]:
 
 
 def test_hq_lan_is_well_formed() -> None:
-    assert _summary(_check("hq_lan")) == [NET_RAW]
+    assert _check("hq_lan") == []
 
 
 def test_hq_lan_capgap_warns_about_smb_dialect_and_nothing_else() -> None:
     found = _check("hq_lan_capgap")
-    assert _summary(found) == [NET_RAW, ("C14", "warning", "sensors[1].capabilities")]
-    assert all(word in found[1].message for word in ("SMB_DIALECT", "zeek", "suricata"))
+    assert _summary(found) == [("C14", "warning", "sensors[1].capabilities")]
+    assert all(word in found[0].message for word in ("SMB_DIALECT", "zeek", "suricata"))
 
 
 def test_hq_lan_broken_fails_the_four_checks_it_was_broken_for() -> None:

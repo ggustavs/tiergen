@@ -11,7 +11,7 @@ from tiergen.core.codec import CodecError
 from tiergen.core.loader import ScenarioLoadError, load_scenario
 from tiergen.core.resources import DirResources
 from tiergen.impls._base import load_impls
-from tiergen.interfaces.registry import load_sensors
+from tiergen.interfaces.registry import load_infra, load_sensors
 
 OK, FAILED, UNUSABLE = 0, 1, 2
 HEADINGS = (("error", "errors"), ("warning", "warnings"), ("not_computed", "not computed"))
@@ -61,7 +61,7 @@ def _check(scenario_path: Path, models: Path | None, emit_json: Path | None) -> 
         emit_json.write_text(json.dumps(scenario.to_json(), indent=2) + "\n", encoding="utf-8")
 
     resources = DirResources(models if models is not None else scenario_path.parent / "models")
-    found = run_checks(scenario, resources, load_impls(), load_sensors())
+    found = run_checks(scenario, resources, load_impls(), load_sensors(), load_infra())
     _report(scenario.name, found)
     return FAILED if any(d.severity == "error" for d in found) else OK
 
