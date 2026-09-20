@@ -13,6 +13,8 @@ members = [
     "tiergen-impl-samba",
     "tiergen-impl-smbclient-win",
     "tiergen-impls-base",
+    "tiergen-infra-docker",
+    "tiergen-infra-libvirt",
     "tiergen-interfaces",
     "tiergen-protocols",
     "tiergen-sensor-suricata",
@@ -448,6 +450,28 @@ requires-dist = [
 ]
 
 [[package]]
+name = "tiergen-infra-docker"
+version = "0.0.1"
+source = { editable = "backends/infra/docker" }
+dependencies = [
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+
+[[package]]
+name = "tiergen-infra-libvirt"
+version = "0.0.1"
+source = { editable = "backends/infra/libvirt" }
+dependencies = [
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+
+[[package]]
 name = "tiergen-interfaces"
 version = "0.0.1"
 source = { editable = "interfaces" }
@@ -505,6 +529,8 @@ dependencies = [
     { name = "tiergen-impl-samba" },
     { name = "tiergen-impl-smbclient-win" },
     { name = "tiergen-impls-base" },
+    { name = "tiergen-infra-docker" },
+    { name = "tiergen-infra-libvirt" },
     { name = "tiergen-interfaces" },
     { name = "tiergen-protocols" },
     { name = "tiergen-sensor-suricata" },
@@ -532,6 +558,8 @@ requires-dist = [
     { name = "tiergen-impl-samba", editable = "impls/samba" },
     { name = "tiergen-impl-smbclient-win", editable = "impls/smbclient_win" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
+    { name = "tiergen-infra-docker", editable = "backends/infra/docker" },
+    { name = "tiergen-infra-libvirt", editable = "backends/infra/libvirt" },
     { name = "tiergen-interfaces", editable = "interfaces" },
     { name = "tiergen-protocols", editable = "protocols" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
