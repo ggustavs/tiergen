@@ -11,7 +11,7 @@ from tiergen.core import dsl, ir
 from tiergen.core.codec import JsonValue
 from tiergen.core.resources import DictResources
 from tiergen.impls._base import HostRequirements, ImplDescriptor, ServiceTable
-from tiergen.interfaces import Capability, SensorDescriptor
+from tiergen.interfaces import Capability, HostOffer, InfraDescriptor, SensorDescriptor
 
 IMPLS = {
     d.id: d
@@ -54,6 +54,12 @@ IMPLS = {
 SENSORS = {
     "rich": SensorDescriptor("rich", ("1.0",), ("offline", "live"), frozenset(Capability)),
     "poor": SensorDescriptor("poor", ("2.0",), ("offline",), frozenset({Capability.APP_EVENTS})),
+}
+INFRA = {
+    "docker": InfraDescriptor("docker", (HostOffer("linux", "container", frozenset({"net_raw"})),)),
+    "libvirt": InfraDescriptor(
+        "libvirt", (HostOffer("linux", "vm", None), HostOffer("windows", "vm", None))
+    ),
 }
 RESOURCES: dict[str, JsonValue] = {
     "cli.transitions": [[0.5, 0.5], [1.0, 0.0]],
@@ -101,7 +107,7 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
         instances={cli: 3, srv: 1},
         bindings={
             cli: dsl.binding(
-                dsl.host("windows", "container", backend="docker"),
+                dsl.host("linux", "container", backend="docker"),
                 {"http.get": {"http.cli:a": 2.0, "http.cli:b": 1.0}},
             ),
             srv: dsl.binding(
@@ -131,7 +137,7 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
 
 def run(scenario: ir.Scenario, resources: dict[str, JsonValue] | None = None) -> list[Diagnostic]:
     store = DictResources(RESOURCES if resources is None else resources, OPAQUE)
-    return run_checks(scenario, store, IMPLS, SENSORS)
+    return run_checks(scenario, store, IMPLS, SENSORS, INFRA)
 
 
 def only(

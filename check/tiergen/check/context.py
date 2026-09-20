@@ -23,7 +23,7 @@ from tiergen.core.ir import (
 )
 from tiergen.core.resources import Resources
 from tiergen.impls._base import ImplDescriptor
-from tiergen.interfaces import SensorDescriptor
+from tiergen.interfaces import InfraDescriptor, SensorDescriptor
 from tiergen.protocols import Signature
 
 Floats = tuple[float, ...]
@@ -42,6 +42,7 @@ class Context:
     resources: Resources
     impls: Mapping[str, ImplDescriptor]
     sensors: Mapping[str, SensorDescriptor]
+    infra: Mapping[str, InfraDescriptor]
     signatures: Mapping[str, Signature]
 
     def resolve(self, value: object, tp: Any) -> Any:

@@ -9,6 +9,14 @@ no version numbers.
 
 ### Added
 
+- **interfaces**, **backends/infra**: `InfraDescriptor`, the hosts a backend offers and the host
+  capabilities it can grant each, registered under `tiergen.infra`. `docker` offers Linux
+  containers; `libvirt` offers Linux and Windows VMs, which own their kernel, so there is
+  nothing to grant. Both are descriptors only so far.
+- **check**: check 7's third clause is real. It was `not_computed` in M0 for want of a backend
+  to ask. Check 7 also reports a backend that is not installed or does not offer the bound
+  platform and host type, which the design had under check 10; it sits better beside the
+  other questions about whether a host suits its binding.
 - **core**: typed topology and `Host.backend`. **Breaking:** IR JSON written before this does
   not load. `Scenario.topology` was an opaque resource name and is now a `Topology`, inline or
   a resource: networks by CIDR on the data or management plane, which data-plane networks each

@@ -23,7 +23,7 @@ from tiergen.check.diagnostics import Diagnostic
 from tiergen.core.ir import Scenario
 from tiergen.core.resources import Resources
 from tiergen.impls._base import ImplDescriptor
-from tiergen.interfaces import SensorDescriptor
+from tiergen.interfaces import InfraDescriptor, SensorDescriptor
 from tiergen.protocols import SIGNATURES, Signature
 
 Check = Callable[[Context], Iterator[Diagnostic]]
@@ -52,8 +52,9 @@ def run_checks(
     resources: Resources,
     impls: Mapping[str, ImplDescriptor],
     sensors: Mapping[str, SensorDescriptor],
+    infra: Mapping[str, InfraDescriptor],
     signatures: Mapping[str, Signature] = SIGNATURES,
 ) -> list[Diagnostic]:
     """Every diagnostic for ``scenario``, in check order."""
-    ctx = Context(scenario, resources, impls, sensors, signatures)
+    ctx = Context(scenario, resources, impls, sensors, infra, signatures)
     return [diagnostic for _, check in CHECKS for diagnostic in check(ctx)]
