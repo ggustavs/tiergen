@@ -34,7 +34,12 @@ semi_markovs = st.builds(
     dwell=or_resource(tuples(distributions)),
     rate=st.none() | names,
 )
-actions = st.builds(ir.Action, names, names)
+scalars = names | st.integers(-1000, 1000) | floats | st.booleans()
+choices = st.builds(ir.Choice, tuples(scalars), tuples(weights))
+choice_refs = st.builds(ir.ChoiceRef, names)
+actions = st.builds(
+    ir.Action, names, names, st.dictionaries(names, scalars | choices | choice_refs, max_size=3)
+)
 behaviours = st.builds(
     ir.Behaviour,
     names,
@@ -99,6 +104,8 @@ CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
     (ir.Tie, ties),
     (ir.Distribution, distributions),
     (ir.SemiMarkov, semi_markovs),
+    (ir.Choice, choices),
+    (ir.ChoiceRef, choice_refs),
     (ir.Action, actions),
     (ir.Behaviour, behaviours),
     (ir.ActorKind, actor_kinds),

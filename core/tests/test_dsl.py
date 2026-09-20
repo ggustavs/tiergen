@@ -142,3 +142,30 @@ def test_a_file_must_define_exactly_one_scenario(tmp_path: Path, body: str) -> N
     py.write_text(body)
     with pytest.raises(ScenarioLoadError):
         load_scenario(py)
+
+
+def test_action_parameters_are_literals_or_choices() -> None:
+    from tiergen.core.dsl import choice, choice_from
+
+    act = action(
+        "http.post_form",
+        "web",
+        {
+            "path": choice(["/a", "/b"], [3, 1]),
+            "body_bytes": 512,
+            "token": choice_from("cli.tokens"),
+        },
+    )
+    assert act.params == {
+        "path": ir.Choice(("/a", "/b"), (3, 1)),
+        "body_bytes": 512,
+        "token": ir.ChoiceRef("cli.tokens"),
+    }
+    assert ir.Action("x", "y").params == {}
+    assert from_json_action(act) == act
+
+
+def from_json_action(act: ir.Action) -> ir.Action:
+    from tiergen.core.codec import from_json, to_json
+
+    return from_json(ir.Action, json.loads(json.dumps(to_json(act))))

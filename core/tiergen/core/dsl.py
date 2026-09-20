@@ -14,6 +14,8 @@ from tiergen.core.ir import (
     ActorKind,
     Behaviour,
     Binding,
+    Choice,
+    ChoiceRef,
     Distribution,
     EgressPolicy,
     Endpoint,
@@ -22,6 +24,8 @@ from tiergen.core.ir import (
     HostType,
     ImplSelection,
     Multiplicity,
+    ParamScalar,
+    ParamValue,
     Platform,
     Scenario,
     ScheduleEvent,
@@ -79,9 +83,23 @@ def dist(family: str, params: Sequence[float] | str) -> Distribution:
     return Distribution(family, params if isinstance(params, str) else tuple(params))
 
 
-def action(signature: str, tie: str) -> Action:
-    """Run ``signature`` against the peers reached over the tie named ``tie``."""
-    return Action(signature, tie)
+def choice(options: Sequence[ParamScalar], weights: Sequence[float]) -> Choice:
+    """A parameter value sampled per invocation, ``options[i]`` with weight ``weights[i]``."""
+    return Choice(tuple(options), tuple(weights))
+
+
+def choice_from(resource: str) -> ChoiceRef:
+    """A choice held in a resource: ``{"options": [...], "weights": [...]}``."""
+    return ChoiceRef(resource)
+
+
+def action(signature: str, tie: str, params: Mapping[str, ParamValue] | None = None) -> Action:
+    """Run ``signature`` against the peers reached over the tie named ``tie``.
+
+    ``params`` gives each of the signature's parameters a literal, a ``choice`` or a
+    ``choice_from``.
+    """
+    return Action(signature, tie, dict(params or {}))
 
 
 def semi_markov(
