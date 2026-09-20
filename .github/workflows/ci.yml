@@ -53,6 +53,29 @@ jobs:
           fi
           uv run tiergen impls list
 
+  # core, protocols, check and interfaces claim to run anywhere (design doc, section 18).
+  # A separate job, not a matrix axis: an os axis would rename test (3.12) and test (3.14),
+  # which the ruleset on main requires by name.
+  test-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run pytest
+      - name: The installed command checks the examples
+        run: |
+          uv run tiergen check examples/hq_lan/scenario.py
+          if uv run tiergen check examples/hq_lan_broken/scenario.py; then
+            echo "hq_lan_broken passed the checks; it must fail" >&2
+            exit 1
+          fi
+
   lock:
     runs-on: ubuntu-latest
     steps:

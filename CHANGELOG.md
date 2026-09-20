@@ -2,8 +2,15 @@
 
 What was built, and where it departed from `nids-gen-dsl-design.md` and why. The design
 document describes the project as it stands; this file keeps the history, so the design does
-not have to. Entries are per milestone. Nothing is released yet, so there are no version
-numbers.
+not have to. Entries are per milestone, newest first. Nothing is released yet, so there are
+no version numbers.
+
+## M1: vertical slice, mixed platform (in progress)
+
+### Added
+
+- **workspace**: a `test-windows` CI job. Section 18 says `core`, `protocols`, `check` and
+  `interfaces` run anywhere, and until now nothing tested it.
 
 ## M0: core and interfaces (2026-09-20)
 
