@@ -1,7 +1,8 @@
 """Check 6: each kind with instances has one host binding, and the host serves the kind's interface.
 
 A default host serves what its selected service implementations serve. A custom host, an
-image or a VM template, serves what its manifest resource lists.
+image or a VM template, serves what its manifest resource lists, and needs no manifest if
+its kind serves nothing.
 """
 
 from collections.abc import Iterator
@@ -58,6 +59,8 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
             served = _served_by_default_host(ctx, binding)
             source = "its selected service implementations"
         elif host.ref.startswith(CUSTOM) and host.ref.split(":", 1)[1]:
+            if host.manifest is None and not kind.serves:
+                continue  # nothing to serve, nothing to declare
             if host.manifest is None:
                 yield error(
                     ID,

@@ -56,7 +56,7 @@ actor_kinds = st.builds(
     tuples(platforms, max_size=2),
 )
 hosts = st.builds(
-    ir.Host, platforms, st.sampled_from(["container", "vm"]), names, st.none() | names
+    ir.Host, platforms, st.sampled_from(["container", "vm"]), names, names, st.none() | names
 )
 impl_selections = st.builds(
     ir.ImplSelection, names, or_resource(st.dictionaries(names, weights, max_size=3))
@@ -81,13 +81,22 @@ sensor_specs = st.builds(
 fit_provenances = st.builds(
     ir.FitProvenance, names, tuples(names), st.dictionaries(names, weights, max_size=3)
 )
+networks = st.builds(ir.Network, names, names, st.sampled_from(["data", "management"]))
+capture_points = st.builds(ir.CapturePoint, names, names)
+topologies = st.builds(
+    ir.Topology,
+    tuples(networks),
+    st.dictionaries(names, tuples(names), max_size=3),
+    tuples(capture_points),
+    st.dictionaries(names, names, max_size=2),
+)
 scenarios = st.builds(
     ir.Scenario,
     name=names,
     kinds=tuples(actor_kinds, max_size=2),
     instances=st.dictionaries(names, st.integers(0, 500), max_size=3),
     bindings=tuples(bindings, max_size=2),
-    topology=names,
+    topology=names | topologies,
     egress=st.sampled_from(["stub", "allowlist", "none"]),
     egress_overrides=st.dictionaries(names, names, max_size=2),
     schedule=tuples(schedule_events),
@@ -115,6 +124,9 @@ CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
     (ir.ScheduleEvent, schedule_events),
     (ir.SensorSpec, sensor_specs),
     (ir.FitProvenance, fit_provenances),
+    (ir.Network, networks),
+    (ir.CapturePoint, capture_points),
+    (ir.Topology, topologies),
     (ir.Scenario, scenarios),
 ]
 

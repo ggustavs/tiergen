@@ -3,6 +3,7 @@ from dataclasses import replace
 from support import RESOURCES, good, only, surf
 
 from tiergen.core import dsl
+from tiergen.core.codec import JsonValue
 
 
 def test_missing_resource() -> None:
@@ -22,9 +23,16 @@ def test_opaque_resource_where_json_is_needed() -> None:
     assert "is not JSON" in d.message
 
 
-def test_opaque_references_only_need_to_exist() -> None:
+def test_topology_is_a_typed_resource() -> None:
     [d] = only("C05", replace(good(), topology="lan.nowhere"))
+    assert (d.path, "does not exist" in d.message) == ("topology", True)
+    bad: JsonValue = {"networks": [{"name": "lan", "cidr": "10.0.0.0/24", "plane": "control"}]}
+    [d] = only("C05", good(), {**RESOURCES, "lan.topology": bad})
     assert d.path == "topology"
+    assert "networks[0].plane" in d.message
+
+
+def test_opaque_references_only_need_to_exist() -> None:
     s = good()
     [d] = only("C05", replace(s, sensors=(replace(s.sensors[0], config="lan.nocfg"), s.sensors[1])))
     assert d.path == "sensors[0].config"
@@ -44,7 +52,10 @@ def test_every_reference_kind_is_followed() -> None:
         bindings=(
             replace(s.bindings[0], impls=(replace(s.bindings[0].impls[0], choices="r.mix"),)),
             replace(
-                s.bindings[1], host=dsl.host("linux", "vm", "template:t", manifest="r.manifest")
+                s.bindings[1],
+                host=dsl.host(
+                    "linux", "vm", "template:t", manifest="r.manifest", backend="libvirt"
+                ),
             ),
         ),
     )

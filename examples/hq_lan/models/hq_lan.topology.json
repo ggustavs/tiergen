@@ -1,6 +1,40 @@
 {
-  "data_plane": [
-    "10.10.0.0/24"
+  "networks": [
+    {
+      "name": "lan",
+      "cidr": "10.10.0.0/24",
+      "plane": "data"
+    },
+    {
+      "name": "mgmt",
+      "cidr": "10.99.0.0/24",
+      "plane": "management"
+    }
   ],
-  "management": "10.99.0.0/24"
+  "attachments": {
+    "domain_controller": [
+      "lan"
+    ],
+    "file_server": [
+      "lan"
+    ],
+    "intranet_web": [
+      "lan"
+    ],
+    "workstation": [
+      "lan"
+    ],
+    "attacker": [
+      "lan"
+    ]
+  },
+  "capture_points": [
+    {
+      "name": "core-switch-span",
+      "network": "lan"
+    }
+  ],
+  "addresses": {
+    "domain_controller[0]": "10.10.0.10"
+  }
 }

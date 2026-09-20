@@ -62,7 +62,7 @@ def test_run_sequence_names_an_installed_adapter_and_one_of_its_catalog_entries(
         catalog=(CatalogEntry("recon", "Recon"),),
     )
     impls = {**IMPLS, adapter.id: adapter}
-    store = DictResources(RESOURCES, frozenset({"lan.topology", "lan.rich", "lan.poor"}))
+    store = DictResources(RESOURCES, frozenset({"lan.rich", "lan.poor"}))
 
     def c08(arg: str) -> list[str]:
         s = replace(good(), schedule=(ir.ScheduleEvent(0, "cli", "run_sequence", arg),))

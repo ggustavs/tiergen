@@ -74,12 +74,19 @@ S = scenario(
     "hq_lan",
     instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Atk: 1},
     bindings={
-        # A VM from a template is a custom host: its manifest says what it serves.
+        # A VM from a template is a custom host: its manifest says what it serves. The
+        # workstation is one too, and serves nothing, so it needs no manifest.
         Dc: binding(
-            host("windows", "vm", "template:win2022-dc", manifest=resource("hq_lan.dc_manifest"))
+            host(
+                "windows",
+                "vm",
+                "template:win2022-dc",
+                backend="libvirt",
+                manifest=resource("hq_lan.dc_manifest"),
+            )
         ),
         Ws: binding(
-            host("windows", "container"),
+            host("windows", "vm", "template:win11-workstation", backend="libvirt"),
             {
                 "http.get": {"http.httpx": 1.0},
                 "smb.read": {"smb.windows_native": 1.0},
@@ -87,9 +94,15 @@ S = scenario(
             },
         ),
         # Default hosts serve through the service implementations selected here.
-        Fs: binding(host("linux", "container"), {"smb.serve": {"smb.samba": 1.0}}),
-        Web: binding(host("linux", "container"), {"http.serve": {"http.nginx": 1.0}}),
-        Atk: binding(host("linux", "container"), {"scan.tcp_syn": {"scan.nmap": 1.0}}),
+        Fs: binding(
+            host("linux", "container", backend="docker"), {"smb.serve": {"smb.samba": 1.0}}
+        ),
+        Web: binding(
+            host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1.0}}
+        ),
+        Atk: binding(
+            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+        ),
     },
     topology=resource("hq_lan.topology"),
     egress="none",

@@ -10,7 +10,15 @@ from typing import Any
 from tiergen.check.context import Context, Floats
 from tiergen.check.diagnostics import Diagnostic, error
 from tiergen.core.codec import CodecError, decode
-from tiergen.core.ir import Action, Choice, ChoiceRef, Distribution, Endpoint, FitProvenance
+from tiergen.core.ir import (
+    Action,
+    Choice,
+    ChoiceRef,
+    Distribution,
+    Endpoint,
+    FitProvenance,
+    Topology,
+)
 
 ID = "C05"
 
@@ -50,7 +58,8 @@ def references(ctx: Context) -> Iterator[tuple[str, str, Any]]:
         for j, selection in enumerate(binding.impls):
             if isinstance(selection.choices, str):
                 yield f"bindings[{i}].impls[{j}].choices", selection.choices, dict[str, float]
-    yield "topology", s.topology, OPAQUE
+    if isinstance(s.topology, str):
+        yield "topology", s.topology, Topology
     for i, sensor in enumerate(s.sensors):
         yield f"sensors[{i}].config", sensor.config, OPAQUE
     if isinstance(s.fit_provenance, str):

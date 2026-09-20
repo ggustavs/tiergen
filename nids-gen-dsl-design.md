@@ -198,7 +198,7 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 |---|---|
 | Actor kind | A type of participant (`Workstation`, `DomainController`, `FileServer`, `WebServer`, `Printer`, `Attacker`, `InternetStub`) with an interface, behaviours and allowed platforms. Analogue of a ScalaLoci peer type. |
 | Actor instance | One running actor of a kind, with a host, platform and data-plane address. |
-| Host | Where an instance runs: Linux or Windows, container or VM. Carries platform, image or template, resources. |
+| Host | Where an instance runs: Linux or Windows, container or VM, and the infrastructure backend that provides it. Carries platform, host type, backend, image or template. |
 | Interface (actor) | Endpoints an actor serves (protocol, port, transport) and ties it requires. |
 | Tie | A typed relation from one kind to another with multiplicity `single`, `optional` or `multiple`. Who may talk to whom. |
 | Behaviour | A stochastic process over actions attached to a kind, with a time-of-day rate function. |
@@ -211,6 +211,7 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 | Capability | A named, typed extension a sensor declares above the required core: `APP_EVENTS`, `TLS_JA4`, `HTTP_USER_AGENT`, `SSH_STRINGS`, `SMB_DIALECT`, `X509`, extensible. Each carries a schema and a coverage claim. Consumers query capabilities and degrade explicitly when one is absent. |
 | Coverage | The fraction of applicable events on which a sensor actually populates a capability's field, measured at fit time. Distinguishes a trustworthy distribution from a sparse one. |
 | Binding | For a kind in a scenario: the host (default container, image, VM template) and the implementation selection per signature, fixed or weighted. |
+| Topology | The networks of a scenario, each a CIDR on the data plane or the management plane; which data-plane networks each kind joins; the named capture points; and any pinned addresses. Every instance also joins the management network. Addresses not pinned are allocated from the CIDR in a fixed order, so the address plan is a function of the IR. |
 | Scenario | Kinds, instance counts, bindings, topology, egress policy, schedule, duration, capture points, sensor set, fit provenance, coverage floor. |
 | Resource | A named value a scenario refers to instead of carrying inline; fitted parameters are resources. JSON resources live as `models/<name>.json` and have a declared shape. Opaque resources, such as a sensor's configuration, only have to exist. |
 | Schedule | Time-indexed events: start or stop behaviours, change rates, run scripted sequences (attacks). |
@@ -356,6 +357,7 @@ EgressPolicy = Literal["stub", "allowlist", "none"]
 ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
+Plane = Literal["data", "management"]
 ParamScalar = str | int | float | bool
 
 @dataclass(frozen=True, slots=True)
@@ -418,8 +420,9 @@ class ActorKind:
 class Host:
     platform: Platform
     host_type: HostType
+    backend: str                                 # infrastructure backend that provides it: "docker" | "libvirt"
     ref: str                                     # "default" | "image:<ref>" | "template:<ref>"
-    manifest: str | None                         # resource: endpoints a custom host serves
+    manifest: str | None                         # resource: endpoints a custom host serves; None if it serves nothing
 
 @dataclass(frozen=True, slots=True)
 class ImplSelection:
@@ -455,17 +458,35 @@ class FitProvenance:
     coverage: dict[str, float]                   # measured coverage per capability used
 
 @dataclass(frozen=True, slots=True)
+class Network:
+    name: str
+    cidr: str
+    plane: Plane                                 # data-plane networks are captured; the management one never is
+
+@dataclass(frozen=True, slots=True)
+class CapturePoint:
+    name: str
+    network: str                                 # every frame on this network
+
+@dataclass(frozen=True, slots=True)
+class Topology:
+    networks: tuple[Network, ...]
+    attachments: dict[str, tuple[str, ...]]      # kind -> its data-plane networks; management is implicit
+    capture_points: tuple[CapturePoint, ...]
+    addresses: dict[str, str] = field(default_factory=dict)   # "kind[i]" -> pinned address; the rest is allocated
+
+@dataclass(frozen=True, slots=True)
 class Scenario:
     name: str
     kinds: tuple[ActorKind, ...]
     instances: dict[str, int]
     bindings: tuple[Binding, ...]
-    topology: str                                # resource
+    topology: Topology | str
     egress: EgressPolicy
     egress_overrides: dict[str, str]             # hostname or service -> real endpoint, for per-service swap
     schedule: tuple[ScheduleEvent, ...]
     duration_s: float
-    capture_points: tuple[str, ...]
+    capture_points: tuple[str, ...]              # the topology's capture points active in this run
     sensors: tuple[SensorSpec, ...]              # one or more; labels emitted per sensor
     fit_provenance: FitProvenance | str | None   # what fit relied on; enables the cross-sensor check
     seed: int
@@ -546,12 +567,19 @@ S = scenario(
     "hq_lan",
     instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Atk: 1},
     bindings={
-        # A VM from a template is a custom host: its manifest says what it serves.
+        # A VM from a template is a custom host: its manifest says what it serves. The
+        # workstation is one too, and serves nothing, so it needs no manifest.
         Dc: binding(
-            host("windows", "vm", "template:win2022-dc", manifest=resource("hq_lan.dc_manifest"))
+            host(
+                "windows",
+                "vm",
+                "template:win2022-dc",
+                backend="libvirt",
+                manifest=resource("hq_lan.dc_manifest"),
+            )
         ),
         Ws: binding(
-            host("windows", "container"),
+            host("windows", "vm", "template:win11-workstation", backend="libvirt"),
             {
                 "http.get": {"http.httpx": 1.0},
                 "smb.read": {"smb.windows_native": 1.0},
@@ -559,9 +587,15 @@ S = scenario(
             },
         ),
         # Default hosts serve through the service implementations selected here.
-        Fs: binding(host("linux", "container"), {"smb.serve": {"smb.samba": 1.0}}),
-        Web: binding(host("linux", "container"), {"http.serve": {"http.nginx": 1.0}}),
-        Atk: binding(host("linux", "container"), {"scan.tcp_syn": {"scan.nmap": 1.0}}),
+        Fs: binding(
+            host("linux", "container", backend="docker"), {"smb.serve": {"smb.samba": 1.0}}
+        ),
+        Web: binding(
+            host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1.0}}
+        ),
+        Atk: binding(
+            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+        ),
     },
     topology=resource("hq_lan.topology"),
     egress="none",
@@ -591,7 +625,7 @@ S = scenario(
 )
 ```
 
-The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC is a VM from a template, a custom host, so a manifest resource says what it serves. The file server and web server are default hosts, which serve through the service implementations selected for them.
+The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC and the workstations are VMs from templates, custom hosts provided by libvirt. The DC's manifest resource says what it serves; a workstation serves nothing and needs none. The file server, web server and attacker are default hosts provided by Docker, which serve through the service implementations selected for them.
 
 `examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes four deliberate mistakes and fails checks 1, 4, 5 and 12.
 
@@ -751,8 +785,8 @@ No dates. Each milestone ends with something an engineer can run.
 - *open* Long-lived browser per user (realistic, interval-based per-request labels) versus browser per invocation (clean attribution, unrealistic reuse). Probably long-lived with confidence fields.
 - *open* Keep a per-invocation netns isolation mode as an option for DetGen-style microstructure control.
 - *closed 2026-09-20* Action parameters live in the IR: `Action.params` gives each parameter a literal or a weighted choice, inline or from a resource, and check 16 holds them to the signature. Leaving values to each implementation would have hidden them from `check` and `predict`, made them differ between implementations of one signature, and amounted to the invented parameters section 18 forbids. Still open: numeric parameters drawn from a distribution, not a finite choice (body sizes), which `Distribution` could serve once something needs it.
-- *open* The IR names no infrastructure backend and no management network, yet checks 9 and 10 and check 7's third clause need both. Either they are IR fields, and part of the reproducibility manifest for free, or they are run configuration beside the IR.
-- *open* `Scenario.topology` names a resource with no schema; check 5 only asks that it exists. The schema has to come with the address plan in M1.
+- *closed 2026-09-20* Infrastructure lives in the IR. `Host.backend` names the backend that provides a host, next to the platform and host type it already carried; the M1 slice uses two at once, Docker for containers and libvirt for VMs. Networks, the management network included, are in a typed `Topology`. Checks 9, 10 and 7 stay static over the IR, and the run manifest is complete with the IR alone. The cost, accepted: a scenario names its substrate, and moving it to another means editing bindings. A separate run configuration would have kept scenarios portable at the price of a second artifact and schema.
+- *closed 2026-09-20* `Topology` has a schema (section 7), and addresses are allocated deterministically from each network's CIDR with optional pins, in `core/tiergen/core/addressing.py`. An allocation order is not a statistic, so "no defaults" is untouched. Still open: links, gateways and per-link conditions (`tc netem`), which the schema has no place for yet.
 - *open* `Fingerprint` in `impl.toml` covers what the 6.1 sample shows, JA4 and user agent. SSH strings, SMB dialects and OS strings have no slot, and 4.10 needs them.
 - *open* Whether to require signed commits on pull-request branches through a second ruleset. `main` cannot require them: GitHub recreates every commit in a rebase-merge and cannot sign what it recreates.
 

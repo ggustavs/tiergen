@@ -19,6 +19,7 @@ from tiergen.core.ir import (
     ImplSelection,
     Scenario,
     SemiMarkov,
+    Topology,
 )
 from tiergen.core.resources import Resources
 from tiergen.impls._base import ImplDescriptor
@@ -89,6 +90,9 @@ class Context:
 
     def provenance(self) -> FitProvenance | None:
         return cast(FitProvenance | None, self.resolve(self.scenario.fit_provenance, FitProvenance))
+
+    def topology(self) -> Topology | None:
+        return cast(Topology | None, self.resolve(self.scenario.topology, Topology))
 
     def kind(self, name: str) -> ActorKind | None:
         return next((k for k in self.scenario.kinds if k.name == name), None)
