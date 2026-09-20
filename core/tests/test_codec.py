@@ -103,3 +103,35 @@ def test_non_finite_floats_are_rejected(bad: float) -> None:
 def test_non_string_mapping_key_is_rejected() -> None:
     with pytest.raises(CodecError, match="not a string"):
         to_json({1: "x"})
+
+
+@dataclass(frozen=True, slots=True)
+class Circle:
+    radius: float
+
+
+@dataclass(frozen=True, slots=True)
+class Square:
+    side: float
+
+
+@dataclass(frozen=True, slots=True)
+class Drawing:
+    count: int | float
+    shape: Circle | Square
+
+
+def test_arms_that_share_a_shape_are_tried_in_order() -> None:
+    whole = from_json(Drawing, {"count": 2, "shape": {"radius": 1.0}})
+    assert (whole.count, type(whole.count), whole.shape) == (2, int, Circle(1.0))
+    part = from_json(Drawing, {"count": 2.5, "shape": {"side": 3.0}})
+    assert (part.count, part.shape) == (2.5, Square(3.0))
+    assert from_json(Drawing, to_json(part)) == part
+
+
+def test_a_value_that_fits_no_arm_reports_every_arm() -> None:
+    with pytest.raises(CodecError) as info:
+        from_json(Drawing, {"count": 1, "shape": {"edge": 3.0}})
+    assert info.value.path == "shape"
+    assert "Circle" in info.value.message
+    assert "Square" in info.value.message
