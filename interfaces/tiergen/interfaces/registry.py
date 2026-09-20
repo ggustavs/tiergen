@@ -8,9 +8,11 @@ without being able to run any of it.
 from importlib.metadata import entry_points
 from typing import Protocol
 
+from tiergen.interfaces.infra import InfraDescriptor
 from tiergen.interfaces.sensor import SensorDescriptor
 
 GROUP = "tiergen.sensors"
+INFRA_GROUP = "tiergen.infra"
 
 
 class _HasId(Protocol):
@@ -39,3 +41,8 @@ def load_group[T: _HasId](group: str, cls: type[T]) -> dict[str, T]:
 def load_sensors() -> dict[str, SensorDescriptor]:
     """Every installed sensor descriptor, by id."""
     return load_group(GROUP, SensorDescriptor)
+
+
+def load_infra() -> dict[str, InfraDescriptor]:
+    """Every installed infrastructure backend descriptor, by id."""
+    return load_group(INFRA_GROUP, InfraDescriptor)
