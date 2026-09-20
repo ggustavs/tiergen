@@ -43,9 +43,12 @@ def _small() -> ir.Scenario:
         "small",
         instances={cli: 3, srv: 1},
         bindings={
-            srv: binding(host("linux", "container"), {"http.serve": {"http.nginx": 1}}),
+            srv: binding(
+                host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1}}
+            ),
             cli: binding(
-                host("windows", "vm", "template:w11", manifest=None), {"http.get": resource("mix")}
+                host("windows", "vm", "template:w11", manifest=None, backend="libvirt"),
+                {"http.get": resource("mix")},
             ),
         },
         topology=resource("small.topology"),
@@ -169,3 +172,24 @@ def from_json_action(act: ir.Action) -> ir.Action:
     from tiergen.core.codec import from_json, to_json
 
     return from_json(ir.Action, json.loads(json.dumps(to_json(act))))
+
+
+def test_topology_builder_takes_handles_or_names() -> None:
+    from tiergen.core.dsl import capture_point, network, topology
+
+    lan = network("lan", "10.0.0.0/24")
+    mgmt = network("mgmt", "10.9.0.0/24", "management")
+    srv = kind("srv", platforms=["linux"])
+    built = topology(
+        [lan, mgmt],
+        {srv: [lan], "cli": ["lan"]},
+        [capture_point("span0", lan)],
+        {"srv[0]": "10.0.0.10"},
+    )
+    assert built == ir.Topology(
+        (ir.Network("lan", "10.0.0.0/24", "data"), ir.Network("mgmt", "10.9.0.0/24", "management")),
+        {"srv": ("lan",), "cli": ("lan",)},
+        (ir.CapturePoint("span0", "lan"),),
+        {"srv[0]": "10.0.0.10"},
+    )
+    assert topology([lan], {}).addresses == {}

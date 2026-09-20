@@ -20,7 +20,10 @@ def test_every_weighted_alternative_has_to_serve_the_endpoint() -> None:
 
 def test_custom_host_is_judged_by_its_manifest() -> None:
     s = with_binding(
-        good(), 1, host=dsl.host("linux", "vm", "template:web", manifest="srv.manifest"), impls=()
+        good(),
+        1,
+        host=dsl.host("linux", "vm", "template:web", manifest="srv.manifest", backend="libvirt"),
+        impls=(),
     )
     https: dict[str, JsonValue] = {"protocol": "https", "port": 443, "transport": "tcp"}
     assert only("C06", s, {**RESOURCES, "srv.manifest": [https]}) == []
@@ -31,14 +34,22 @@ def test_custom_host_is_judged_by_its_manifest() -> None:
 def test_custom_host_without_a_manifest() -> None:
     [d] = only(
         "C06",
-        with_binding(good(), 1, host=dsl.host("linux", "container", "image:nginx:1.27"), impls=()),
+        with_binding(
+            good(),
+            1,
+            host=dsl.host("linux", "container", "image:nginx:1.27", backend="docker"),
+            impls=(),
+        ),
     )
     assert d.path == "bindings[1].host.manifest"
 
 
 def test_host_ref_syntax() -> None:
     for ref in ("nginx", "image:", "vm:thing"):
-        [d] = only("C06", with_binding(good(), 1, host=dsl.host("linux", "container", ref)))
+        [d] = only(
+            "C06",
+            with_binding(good(), 1, host=dsl.host("linux", "container", ref, backend="docker")),
+        )
         assert d.path == "bindings[1].host.ref"
 
 

@@ -14,6 +14,7 @@ from tiergen.core.ir import (
     ActorKind,
     Behaviour,
     Binding,
+    CapturePoint,
     Choice,
     ChoiceRef,
     Distribution,
@@ -24,8 +25,10 @@ from tiergen.core.ir import (
     HostType,
     ImplSelection,
     Multiplicity,
+    Network,
     ParamScalar,
     ParamValue,
+    Plane,
     Platform,
     Scenario,
     ScheduleEvent,
@@ -35,6 +38,7 @@ from tiergen.core.ir import (
     SensorRole,
     SensorSpec,
     Tie,
+    Topology,
     Transport,
 )
 
@@ -139,11 +143,45 @@ def kind(
 
 
 def host(
-    platform: Platform, host_type: HostType, ref: str = "default", *, manifest: str | None = None
+    platform: Platform,
+    host_type: HostType,
+    ref: str = "default",
+    *,
+    backend: str,
+    manifest: str | None = None,
 ) -> Host:
-    """``ref`` is "default", "image:<ref>" or "template:<ref>". A custom host names the
-    resource that lists what it serves in ``manifest``."""
-    return Host(platform, host_type, ref, manifest)
+    """``backend`` is the infrastructure backend that provides the host, "docker" or
+    "libvirt". ``ref`` is "default", "image:<ref>" or "template:<ref>". A custom host whose
+    kind serves something names the resource that lists what it serves in ``manifest``."""
+    return Host(platform, host_type, backend, ref, manifest)
+
+
+def network(name: str, cidr: str, plane: Plane = "data") -> Network:
+    return Network(name, cidr, plane)
+
+
+def capture_point(name: str, network: Network | str) -> CapturePoint:
+    return CapturePoint(name, network if isinstance(network, str) else network.name)
+
+
+def topology(
+    networks: Sequence[Network],
+    attachments: Mapping[Kind | str, Sequence[Network | str]],
+    capture_points: Sequence[CapturePoint] = (),
+    addresses: Mapping[str, str] | None = None,
+) -> Topology:
+    """``attachments`` maps each kind to its data-plane networks. The management network is
+    joined by every instance and is not listed. ``addresses`` pins single instances, keyed
+    ``kind[i]``; everything else is allocated."""
+    return Topology(
+        tuple(networks),
+        {
+            _name(kind): tuple(n if isinstance(n, str) else n.name for n in nets)
+            for kind, nets in attachments.items()
+        },
+        tuple(capture_points),
+        dict(addresses or {}),
+    )
 
 
 def binding(
@@ -192,7 +230,7 @@ def scenario(
     *,
     instances: Mapping[Kind, int],
     bindings: Mapping[Kind, BindingSpec],
-    topology: str,
+    topology: Topology | str,
     egress: EgressPolicy,
     duration_s: float,
     capture_points: Sequence[str],

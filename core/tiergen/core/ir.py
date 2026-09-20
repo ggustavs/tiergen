@@ -22,6 +22,7 @@ EgressPolicy = Literal["stub", "allowlist", "none"]
 ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
+Plane = Literal["data", "management"]
 ParamScalar = str | int | float | bool
 
 
@@ -132,12 +133,15 @@ class ActorKind:
 class Host:
     """Where instances of a kind run.
 
-    ``ref`` is "default", "image:<ref>" or "template:<ref>". ``manifest`` names a resource
-    listing the endpoints a custom host serves; None for default hosts.
+    ``backend`` is the id of the infrastructure backend that provides the host: "docker",
+    "libvirt". ``ref`` is "default", "image:<ref>" or "template:<ref>". ``manifest`` names a
+    resource listing the endpoints a custom host serves; None for a default host, and for a
+    custom host whose kind serves nothing.
     """
 
     platform: Platform
     host_type: HostType
+    backend: str
     ref: str
     manifest: str | None
 
@@ -200,10 +204,45 @@ class FitProvenance:
 
 
 @dataclass(frozen=True, slots=True)
+class Network:
+    """One network, by CIDR. Data-plane networks are captured; the management one never is."""
+
+    name: str
+    cidr: str
+    plane: Plane
+
+
+@dataclass(frozen=True, slots=True)
+class CapturePoint:
+    """A named place a capture can run: every frame on ``network``."""
+
+    name: str
+    network: str
+
+
+@dataclass(frozen=True, slots=True)
+class Topology:
+    """The networks of a scenario and who is on them.
+
+    ``attachments`` maps a kind to the data-plane networks its instances join. Every instance
+    also joins the management network, which carries the tool's own traffic; that attachment
+    is implicit. Addresses are allocated from each network's CIDR in a fixed order (see
+    ``tiergen.core.addressing``). ``addresses`` overrides the allocation for single instances,
+    keyed ``kind[i]``, which is how ``fit`` keeps the addresses it observed.
+    """
+
+    networks: tuple[Network, ...]
+    attachments: dict[str, tuple[str, ...]]
+    capture_points: tuple[CapturePoint, ...]
+    addresses: dict[str, str] = field(default_factory=dict[str, str])
+
+
+@dataclass(frozen=True, slots=True)
 class Scenario:
     """The root of the IR.
 
-    ``topology`` names a resource or a builtin. ``egress_overrides`` maps a hostname or
+    ``topology`` is inline or a resource name. ``capture_points`` names the capture points
+    of the topology that are active in this run. ``egress_overrides`` maps a hostname or
     service to a real endpoint. ``fit_provenance`` is inline, a resource name, or None when
     the scenario was not fitted. ``coverage_floor`` is the measured coverage below which a
     capability ``fit`` relied on is reported as sparse.
@@ -213,7 +252,7 @@ class Scenario:
     kinds: tuple[ActorKind, ...]
     instances: dict[str, int]
     bindings: tuple[Binding, ...]
-    topology: str
+    topology: Topology | str
     egress: EgressPolicy
     egress_overrides: dict[str, str]
     schedule: tuple[ScheduleEvent, ...]

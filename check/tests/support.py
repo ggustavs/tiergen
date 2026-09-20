@@ -58,13 +58,21 @@ SENSORS = {
 RESOURCES: dict[str, JsonValue] = {
     "cli.transitions": [[0.5, 0.5], [1.0, 0.0]],
     "cli.rate": [1.0 for _ in range(24)],
+    "lan.topology": {
+        "networks": [
+            {"name": "lan", "cidr": "10.0.0.0/24", "plane": "data"},
+            {"name": "mgmt", "cidr": "10.9.0.0/24", "plane": "management"},
+        ],
+        "attachments": {"cli": ["lan"], "srv": ["lan"]},
+        "capture_points": [{"name": "span0", "network": "lan"}],
+    },
     "lan.provenance": {
         "sensor": "rich",
         "capabilities_used": ["APP_EVENTS"],
         "coverage": {"APP_EVENTS": 0.9},
     },
 }
-OPAQUE = frozenset({"lan.topology", "lan.rich", "lan.poor"})
+OPAQUE = frozenset({"lan.rich", "lan.poor"})
 
 
 def surf(**changes: object) -> ir.Behaviour:
@@ -93,10 +101,12 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
         instances={cli: 3, srv: 1},
         bindings={
             cli: dsl.binding(
-                dsl.host("windows", "container"),
+                dsl.host("windows", "container", backend="docker"),
                 {"http.get": {"http.cli:a": 2.0, "http.cli:b": 1.0}},
             ),
-            srv: dsl.binding(dsl.host("linux", "container"), {"http.serve": {"http.srv": 1.0}}),
+            srv: dsl.binding(
+                dsl.host("linux", "container", backend="docker"), {"http.serve": {"http.srv": 1.0}}
+            ),
         },
         topology="lan.topology",
         egress="none",

@@ -9,7 +9,10 @@ def _serving(*endpoints: ir.Endpoint) -> tuple[ir.Scenario, dict[str, JsonValue]
     that only check 2 has anything to object to."""
     s = with_kind(good(), 1, serves=endpoints)
     s = with_binding(
-        s, 1, host=dsl.host("linux", "vm", "template:t", manifest="srv.manifest"), impls=()
+        s,
+        1,
+        host=dsl.host("linux", "vm", "template:t", manifest="srv.manifest", backend="libvirt"),
+        impls=(),
     )
     return s, {**RESOURCES, "srv.manifest": to_json(endpoints)}
 
@@ -44,7 +47,7 @@ def test_a_scan_needs_a_tie_but_no_served_endpoint() -> None:
     s = with_binding(
         s,
         0,
-        host=dsl.host("linux", "container"),
+        host=dsl.host("linux", "container", backend="docker"),
         impls=(ir.ImplSelection("scan.tcp_syn", {"scan.raw": 1.0}),),
     )
     assert only("C02", s, resources) == []

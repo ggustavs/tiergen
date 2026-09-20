@@ -9,6 +9,14 @@ no version numbers.
 
 ### Added
 
+- **core**: typed topology and `Host.backend`. **Breaking:** IR JSON written before this does
+  not load. `Scenario.topology` was an opaque resource name and is now a `Topology`, inline or
+  a resource: networks by CIDR on the data or management plane, which data-plane networks each
+  kind joins, capture points, pinned addresses. `Host` names the backend that provides it. M0
+  left open whether infrastructure belongs in the IR or in a run configuration beside it; it is
+  in the IR, so checks 9, 10 and 7 stay static and the run manifest is the IR alone.
+- **check**: a custom host whose kind serves nothing needs no manifest (check 6). The Windows
+  workstation in `hq_lan` is now a libvirt VM, which made the old rule ask for an empty file.
 - **core**: action parameters. `Action.params` gives each parameter of the signature a literal or
   a `Choice`, sampled per invocation, inline or through a `ChoiceRef` to a resource. M0 left
   open where an invocation's `path` or `ports` come from, and no primitive can run without it.
