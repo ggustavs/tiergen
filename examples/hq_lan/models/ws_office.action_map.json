@@ -2,14 +2,37 @@
   "idle": null,
   "web_get": {
     "signature": "http.get",
-    "tie": "web"
+    "tie": "web",
+    "params": {
+      "path": {
+        "resource": "ws_office.http_paths"
+      }
+    }
   },
   "smb_read": {
     "signature": "smb.read",
-    "tie": "fs"
+    "tie": "fs",
+    "params": {
+      "share": "projects",
+      "path": {
+        "options": [
+          "reports/q3.xlsx",
+          "plans/roadmap.docx",
+          "readme.txt"
+        ],
+        "weights": [
+          0.5,
+          0.3,
+          0.2
+        ]
+      }
+    }
   },
   "krb_tgs": {
     "signature": "kerberos.tgs",
-    "tie": "dc"
+    "tie": "dc",
+    "params": {
+      "spn": "cifs/fs.hq.example"
+    }
   }
 }

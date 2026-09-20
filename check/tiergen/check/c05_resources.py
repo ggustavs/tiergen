@@ -10,7 +10,7 @@ from typing import Any
 from tiergen.check.context import Context, Floats
 from tiergen.check.diagnostics import Diagnostic, error
 from tiergen.core.codec import CodecError, decode
-from tiergen.core.ir import Action, Distribution, Endpoint, FitProvenance
+from tiergen.core.ir import Action, Choice, ChoiceRef, Distribution, Endpoint, FitProvenance
 
 ID = "C05"
 
@@ -39,6 +39,11 @@ def references(ctx: Context) -> Iterator[tuple[str, str, Any]]:
             for d, distribution in enumerate(ctx.dwell(p) or ()):
                 if isinstance(distribution.params, str):
                     yield f"{base}.process.dwell[{d}].params", distribution.params, Floats
+        # So may a parameter's choice, whether the action map is inline or not.
+        for path, act in ctx.actions(kind):
+            for name, value in act.params.items():
+                if isinstance(value, ChoiceRef):
+                    yield f"{path}.params[{name!r}]", value.resource, Choice
     for i, binding in enumerate(s.bindings):
         if binding.host.manifest is not None:
             yield f"bindings[{i}].host.manifest", binding.host.manifest, tuple[Endpoint, ...]

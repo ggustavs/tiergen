@@ -1,0 +1,14 @@
+{
+  "options": [
+    "/",
+    "/news",
+    "/hr/holidays",
+    "/it/helpdesk"
+  ],
+  "weights": [
+    0.55,
+    0.25,
+    0.12,
+    0.08
+  ]
+}

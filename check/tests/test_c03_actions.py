@@ -4,13 +4,13 @@ from tiergen.core import dsl
 
 
 def test_a_state_without_an_entry() -> None:
-    [d] = only("C03", good(surf(action_map={"get": dsl.action("http.get", "web")})))
+    [d] = only("C03", good(surf(action_map={"get": dsl.action("http.get", "web", {"path": "/"})})))
     assert d.path == "kinds[0].behaviours[0].action_map"
     assert "'idle'" in d.message
 
 
 def test_an_entry_for_something_that_is_not_a_state() -> None:
-    actions = {"idle": None, "get": dsl.action("http.get", "web"), "nap": None}
+    actions = {"idle": None, "get": dsl.action("http.get", "web", {"path": "/"}), "nap": None}
     [d] = only("C03", good(surf(action_map=actions)))
     assert d.path == "kinds[0].behaviours[0].action_map['nap']"
 

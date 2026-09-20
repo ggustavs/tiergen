@@ -15,7 +15,7 @@ def _serving(*endpoints: ir.Endpoint) -> tuple[ir.Scenario, dict[str, JsonValue]
 
 
 def test_action_over_a_tie_the_kind_does_not_have() -> None:
-    actions = {"idle": None, "get": dsl.action("http.get", "intranet")}
+    actions = {"idle": None, "get": dsl.action("http.get", "intranet", {"path": "/"})}
     [d] = only("C02", good(surf(action_map=actions)))
     assert d.path == "kinds[0].behaviours[0].action_map['get'].tie"
 
@@ -37,7 +37,9 @@ def test_http_get_fits_an_https_endpoint() -> None:
 def test_a_scan_needs_a_tie_but_no_served_endpoint() -> None:
     s, resources = _serving()
     cli = s.kinds[0]
-    scan = surf(action_map={"idle": None, "get": dsl.action("scan.tcp_syn", "web")})
+    scan = surf(
+        action_map={"idle": None, "get": dsl.action("scan.tcp_syn", "web", {"ports": "1-1024"})}
+    )
     s = with_kind(s, 0, behaviours=(scan,), ties=cli.ties)
     s = with_binding(
         s,

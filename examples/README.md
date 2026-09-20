@@ -18,7 +18,7 @@ capability, and whether a host can be granted it is a question for an infrastruc
 backend, which arrives in M1. `not computed` is not a failure and not a pass.
 
 The numbers under `models/` are placeholders chosen to exercise the checker: a four-state
-workstation process, a two-state attacker, made-up coverage values. They are not fitted
+workstation process, a two-state attacker, made-up paths, shares and coverage values. They are not fitted
 from any network and say nothing about real traffic. In normal use `tiergen fit` writes
 `models/` from the target network's sensor logs, and the sensor configuration files are the
 network's own. The scenarios run nothing in M0; they exist to be checked.

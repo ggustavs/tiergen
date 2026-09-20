@@ -64,7 +64,10 @@ Atk = kind(
             initial=[1.0, 0.0],
             transitions=[[0.5, 0.4], [1.0, 0.0]],
             dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
-            action_map={"idle": None, "syn_scan": action("scan.tcp_syn", "victim")},
+            action_map={
+                "idle": None,
+                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}),
+            },
         )
     ],
     platforms=["linux"],

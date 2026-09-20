@@ -10,6 +10,8 @@ from tiergen.core.ir import (
     ActorKind,
     Behaviour,
     Binding,
+    Choice,
+    ChoiceRef,
     Distribution,
     Endpoint,
     FitProvenance,
@@ -71,6 +73,11 @@ class Context:
         return cast(
             dict[str, Action | None] | None, self.resolve(b.action_map, dict[str, Action | None])
         )
+
+    def choice(self, value: Choice | ChoiceRef) -> Choice | None:
+        if isinstance(value, Choice):
+            return value
+        return cast(Choice | None, self.resolve(value.resource, Choice))
 
     def choices(self, s: ImplSelection) -> dict[str, float] | None:
         return cast(dict[str, float] | None, self.resolve(s.choices, dict[str, float]))
