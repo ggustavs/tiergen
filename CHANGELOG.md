@@ -15,6 +15,11 @@ no version numbers.
   kind joins, capture points, pinned addresses. `Host` names the backend that provides it. M0
   left open whether infrastructure belongs in the IR or in a run configuration beside it; it is
   in the IR, so checks 9, 10 and 7 stay static and the run manifest is the IR alone.
+- **core**: `plan_addresses`, the address plan as a function of the IR. The first usable address
+  of each network is the gateway's, pins are placed first, everyone else takes the next free
+  address in kind then instance order. The checker sees the plan before anything runs, and
+  every backend realises the same one. An allocation order is not a fitted parameter, so
+  section 18's "no defaults" is not touched.
 - **check**: a custom host whose kind serves nothing needs no manifest (check 6). The Windows
   workstation in `hq_lan` is now a libvirt VM, which made the old rule ask for an empty file.
 - **core**: action parameters. `Action.params` gives each parameter of the signature a literal or
