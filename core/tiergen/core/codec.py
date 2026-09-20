@@ -4,8 +4,10 @@ Supported annotations: ``None``, ``bool``, ``int``, ``float``, ``str``, ``Litera
 ``tuple[T, ...]``, fixed-length ``tuple[A, B]``, ``dict[str, T]``, dataclasses, unions of
 these, and ``JsonValue`` itself for a field that carries arbitrary JSON unchanged.
 
-A union is decoded by JSON shape (null, bool, number, string, array, object): the first arm
-that accepts the value's shape is used, so the arms of a union should have distinct shapes.
+A union is decoded by JSON shape (null, bool, number, string, array, object). Usually one arm
+accepts the value's shape. When several do, as in ``int | float`` or a union of two
+dataclasses, each is tried in declaration order and the first that decodes wins, so put the
+stricter arm first.
 
 Decoding is strict. An unknown key, a missing field without a default, a value of the
 wrong shape and a non-finite float all raise ``CodecError`` carrying the path of the
@@ -143,8 +145,16 @@ def _decode(tp: Any, data: JsonValue, path: str) -> Any:
     if tp is JsonValue:
         return _checked_passthrough(data, path)
     if _is_union(tp):
-        arm = next(arm for arm in get_args(tp) if shape in _shapes(arm))
-        return _decode(arm, data, path)
+        arms = [arm for arm in get_args(tp) if shape in _shapes(arm)]
+        if len(arms) == 1:
+            return _decode(arms[0], data, path)
+        failures: list[str] = []
+        for arm in arms:
+            try:
+                return _decode(arm, data, path)
+            except CodecError as err:
+                failures.append(f"{_describe(arm)}: {err.message}")
+        raise CodecError(path, "fits no arm of the union (" + "; ".join(failures) + ")")
     if tp is None or tp is type(None) or tp is bool or tp is str:
         return data
     if tp is int:
