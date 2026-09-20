@@ -1,8 +1,8 @@
 # tiergen: site-specific NIDS dataset generation from a multi-tier DSL
 
-Working name `tiergen` (placeholder). Status: M0 implemented (IR, event model, interfaces, signatures, checker, `tiergen check` and `tiergen impls list`); nothing generates traffic yet. Version 3, September 2026.
+Working name `tiergen` (placeholder). Status: M0 implemented (IR, event model, interfaces, signatures, checker, `tiergen check` and `tiergen impls list`); nothing generates traffic yet. Version 4, September 2026.
 
-This file is the project's memory. It records decisions and their rationale so later work (mine or Claude Code's) does not relitigate them without new evidence. *open* marks undecided items, *sketch* marks illustrative material that will change.
+This file is the project's memory. It records decisions and their rationale so later work (mine or Claude Code's) does not relitigate them without new evidence. *open* marks undecided items, *sketch* marks illustrative material that will change. Code blocks not marked *sketch* show what is implemented. What changed from earlier versions of this design, and why, is in `CHANGELOG.md`.
 
 ---
 
@@ -48,12 +48,12 @@ No prior work applies multi-tier or choreographic programming to this problem (s
 
 ## 3. The workflow
 
-Each step is a CLI subcommand. The engineer stays in control at the describe step; the rest is mechanical.
+Each step is a CLI subcommand. The engineer stays in control at the describe step; the rest is mechanical. As of M0 the static half of step 4 exists, `tiergen check`, along with `tiergen impls list` for seeing which implementations are installed. Every other step is still design.
 
 1. **collect** (helper, optional). A sensor configuration and a deployment file for a tap or span port, for whichever sensor the network uses. At least two full weeks to cover weekday and weekend cycles. The sensor's exact version and configuration are captured here and reused unchanged in generation, so real and generated traffic are read by the same instrument.
 2. **fit** `tiergen fit <sensor-logs> --sensor zeek --out models/`. Reads the sensor's logs through its ingest adapter into the common event model (section 4.3), then: host inventory, role clustering into proposed actor kinds, behaviour model per role, implementation mix per role, service inventory, topology and address plan, diurnal rate curves, external-destination inventory. Emits `scenario_proposed.py`, resources under `models/`, and `fit-report.md` listing everything it could not map. Section 11.
 3. **describe**. The engineer edits the scenario: confirms and names kinds, chooses bindings (default container, custom image, Windows container, VM), sets egress policy, adds attack schedules. Section 7.
-4. **check** and **predict**. Static checks (section 8), then predicted sensor-level statistics from the scenario's denotation and a fidelity report against the real logs, before anything runs (section 9). Iterate until acceptable.
+4. **check** and **predict**. `tiergen check scenario.py [--models DIR] [--emit-json PATH]` runs the static checks (section 8) over a `scenario.py` or over IR JSON, reading resources from `models/` beside the scenario unless told otherwise. It prints diagnostics grouped as errors, warnings and not computed, and exits 0 with no errors, 1 with errors, 2 if the scenario cannot be loaded. `predict` then gives predicted sensor-level statistics from the scenario's denotation and a fidelity report against the real logs, before anything runs (section 9). Iterate until acceptable.
 5. **build** `tiergen build S --out run1/`. Infra manifests, per-host projected programs, sensor configuration, attribution configuration, label schema.
 6. **run** `tiergen run run1/`. Hosts up, agents started, clock sync verified, capture started, schedule executed, logs collected.
 7. **assemble** `tiergen assemble run1/`. Every configured sensor over the pcaps, attribution join, per-sensor labels, conformance and fidelity reports, flagged events, manifest.
@@ -95,16 +95,13 @@ Every consumer degrades explicitly against the capability set and records the de
 
 Zeek and Suricata are the first two implementations. Zeek maps `conn.log` to `ConnEvent`, declares `APP_EVENTS` from `http`/`ssl`/`ssh`/`smb_*`/`kerberos`/`ntlm`/`dce_rpc`/`rdp`, and declares the fingerprint capabilities its packages provide. Suricata maps flow records to `ConnEvent` (by `flow_id`), declares `APP_EVENTS` from its app-layer events, and declares the fingerprint capabilities present in `eve.json`. A future flow-only exporter declares neither `APP_EVENTS` nor fingerprints and still works at the floor.
 
-Interface, *sketch* (in `interfaces/`, defined M0, no implementations):
+Interface, as implemented in `interfaces/` (docstrings omitted; no implementation lives there):
 
 ```python
-from enum import Enum, auto
-from typing import Protocol, Mapping, Iterator
-from dataclasses import dataclass
-
 class Capability(Enum):
     APP_EVENTS = auto()           # per-request/per-operation records under a connection
-    TLS_JA4 = auto(); TLS_JA3 = auto()
+    TLS_JA4 = auto()
+    TLS_JA3 = auto()
     HTTP_USER_AGENT = auto()
     SSH_STRINGS = auto()
     SMB_DIALECT = auto()
@@ -113,16 +110,29 @@ class Capability(Enum):
 
 @dataclass(frozen=True, slots=True)
 class CapabilityInfo:
-    schema: str                   # reference to the typed shape this adds to AppEvent
+    schema: str                   # reference to the typed shape this adds to AppEvent.fields
     coverage: float               # fraction of applicable events populated, measured at fit time
 
-class Sensor(Protocol):
-    id: str                       # "zeek" | "suricata" | ...
-    version: str
+@dataclass(frozen=True, slots=True)
+class SensorDescriptor:           # static: what the checker reads, without running anything
+    id: str                       # "zeek" | "suricata" | ...; equals its entry-point name
+    versions: tuple[str, ...]     # sensor versions the backend can reproduce
+    modes: tuple[SensorMode, ...] # "offline" | "live"
+    capabilities: frozenset[Capability]   # the most any configuration can declare
+
+class Sensor(Protocol):           # runtime: what fit, fidelity and assemble call
+    @property
+    def id(self) -> str: ...
+    @property
+    def version(self) -> str: ...
     def capabilities(self) -> Mapping[Capability, CapabilityInfo]: ...
-    def ingest(self, native_logs) -> Iterator["Event"]: ...   # ConnEvent always; AppEvent iff APP_EVENTS
-    def flow_key(self, event: "Event") -> "SensorFlowId": ...  # the sensor's native connection id
+    def ingest(self, native_logs: Path) -> Iterator[Event]: ...   # ConnEvent always; AppEvent iff APP_EVENTS
+    def flow_key(self, event: Event) -> SensorFlowId: ...         # the sensor's native connection id
 ```
+
+A sensor has two halves. The descriptor is data, registered under the entry-point group `tiergen.sensors`, and is all that checks 13 and 14 need. The Protocol is the runtime. A `SensorSpec` in a scenario declares a subset of its descriptor's capabilities: what this configuration of the sensor produces.
+
+The events themselves are in `core/tiergen/core/events.py`. `ConnEvent.state` is one of `attempted`, `established`, `closed`, `reset`, `rejected`, `other`, which each ingest adapter maps its native states into. Duration and the byte and packet counters are `None` when the sensor left them unset for a connection, never zero. Both choices are provisional until the Zeek and Suricata adapters exist (section 16).
 
 Coverage in `CapabilityInfo` starts as the sensor's own claim and is overwritten with the value `fit` measures on the real logs, so downstream consumers see the empirical number for this network, not a nominal one.
 
@@ -174,7 +184,7 @@ The type system is small and first-order; every tool SDK, container SDK, fitting
 
 The backend interfaces (`Sensor`, `InfraBackend`, `AttributionBackend`) and the common event model are defined in M0 alongside the core, so the abstractions exist before any backend shapes them, but M0 ships no backend and installs without Docker. The first concrete implementations (Docker, libvirt, Zeek, Suricata, Linux eBPF and Windows ETW/Sysmon attribution) land together in the M1 vertical slice. Within M1 the Linux container path is brought up first as an integration step, then the Windows host is added; the milestone's exit criterion is the mixed slice, so this is an implementation order, not a Linux-only milestone.
 
-2026-09-18: "M0 ships no backend" means no backend runtime. Checks 13 and 14 need to know which sensors exist, which versions can be reproduced and which capabilities each can declare, so each sensor has a static `SensorDescriptor` (in `interfaces/`) registered under the entry-point group `tiergen.sensors`. `backends/sensor/zeek` and `backends/sensor/suricata` exist from M0 as descriptor-only packages; M1 adds ingest and label code to the same packages. A descriptor's capability set is the most any configuration can declare; a `SensorSpec` declares a subset.
+2026-09-18: "M0 ships no backend" means no backend runtime. Sensors and implementations register static descriptors, which the checker needs, so `backends/sensor/zeek`, `backends/sensor/suricata` and five `impls/` packages exist from M0 as data only; M1 adds their runtime in place. Reasons in `CHANGELOG.md`.
 
 ### 4.16 Tool-first quality bar
 
@@ -192,42 +202,47 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 | Interface (actor) | Endpoints an actor serves (protocol, port, transport) and ties it requires. |
 | Tie | A typed relation from one kind to another with multiplicity `single`, `optional` or `multiple`. Who may talk to whom. |
 | Behaviour | A stochastic process over actions attached to a kind, with a time-of-day rate function. |
-| Action | An abstract state of a behaviour (`http_get_small`, `smb_read`, `kerberos_tgs`), derived from the common event model. Maps to a signature or is silent. |
-| Signature | A protocol-level primitive (`http.get`, `smb.read`) with typed parameters and an expected traffic shape (connections, transport, ports, permitted follow-on connections, reuse semantics). Defined in `protocols/`. The IR references signatures, never tools. |
-| Implementation | A per-tool package providing signatures (`PrimitiveImpl`), running a service (`ServiceImpl`) or adapting an external framework (`AdapterImpl`). Registered by what it provides, with a manifest of host requirements and fingerprint metadata. |
+| Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie)`, the signature to run and the tie whose targets it is run against, or to `None` for a silent state. |
+| Signature | A protocol-level primitive (`http.get`, `smb.read`) with a role, typed parameters and an expected traffic shape (connections, transport, port, permitted follow-on signatures, reuse semantics). A client signature lists the endpoint protocols its target may serve. A server signature (`http.serve`) stands for serving and is what a binding selects a service implementation under. Defined in `protocols/`. The IR references signatures, never tools. |
+| Implementation | A per-tool package providing signatures (`PrimitiveImpl`), running a service (`ServiceImpl`) or adapting an external framework (`AdapterImpl`). It has a manifest, `impl.toml`, and a runtime. Registered by what it provides. |
+| Descriptor | The static half of a sensor or an implementation, as data: `SensorDescriptor`, and `ImplDescriptor` decoded from `impl.toml`. Discovered through entry points. The checker reads descriptors and never imports a runtime. |
 | Sensor | A passive traffic sensor behind the interface in 4.3: ingest and label, a pinned version and config, and a declared capability set. Zeek and Suricata are the first two. |
 | Common event model | Schema-neutral events every sensor maps into. Required core `ConnEvent`: sensor-native connection id, 5-tuple, start and duration, bytes and packets per direction, state. Optional `AppEvent` (under `APP_EVENTS`): parent connection id, timestamp, protocol, normalised fields, capability-gated fingerprints. Every event keeps raw passthrough that core consumers may not read. |
 | Capability | A named, typed extension a sensor declares above the required core: `APP_EVENTS`, `TLS_JA4`, `HTTP_USER_AGENT`, `SSH_STRINGS`, `SMB_DIALECT`, `X509`, extensible. Each carries a schema and a coverage claim. Consumers query capabilities and degrade explicitly when one is absent. |
 | Coverage | The fraction of applicable events on which a sensor actually populates a capability's field, measured at fit time. Distinguishes a trustworthy distribution from a sparse one. |
 | Binding | For a kind in a scenario: the host (default container, image, VM template) and the implementation selection per signature, fixed or weighted. |
-| Scenario | Kinds, instance counts, bindings, topology, egress policy, schedule, duration, capture points, sensor set. |
+| Scenario | Kinds, instance counts, bindings, topology, egress policy, schedule, duration, capture points, sensor set, fit provenance, coverage floor. |
+| Resource | A named value a scenario refers to instead of carrying inline; fitted parameters are resources. JSON resources live as `models/<name>.json` and have a declared shape. Opaque resources, such as a sensor's configuration, only have to exist. |
 | Schedule | Time-indexed events: start or stop behaviours, change rates, run scripted sequences (attacks). |
 | Label | `(scenario, instance, behaviour, action, invocation id, implementation id, variant, expected target, outcome)`; attached, per configured sensor, to that sensor's connection id and sub-connection events. |
 | Attribution | Kernel-level join of observed connections to invocations, sensor-independent: eBPF (Linux), ETW or Sysmon (Windows), keyed by cgroup or PID and time. |
 | Fidelity | Distance between generated and real traffic at the common-event level, per metric in section 9. |
 | Conformance | Distance between a run and its own model; separates implementation bugs from model gaps. |
+| Diagnostic | What a static check reports: check id, severity, IR path, message. `error` makes the scenario ill formed; `warning` is a gap the engineer may accept; `not_computed` says part of a check could not run and names what was missing. |
 
 ---
 
 ## 6. Architecture
 
 ```
-tiergen/                  uv workspace; one package per directory, one per implementation
-  core/                   IR, JSON round-trip, embedded DSL builders, common event model
-  protocols/              signatures with expected traffic shapes, one module per protocol; no tool deps
-  check/                  static checker (well-formedness, interfaces, platform, Z3 constraints)
+tiergen/                  uv workspace; one distribution per directory, all sharing the namespace tiergen.*
+  core/                 ✔ IR, JSON codec, embedded DSL builders, resources, scenario loader, common event model, labels
+  protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
+  interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, SensorDescriptor, entry-point discovery; no impls
+  check/                ✔ static checker: checks 1-8 and 11-15, diagnostics, runner; Z3 behind one typed module
+  cli/                  ✔ the `tiergen` command: `check`, `impls list`
+  examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken; each a scenario.py plus models/
   semantics/              process interface, semi-Markov default, product-process analysis, prediction, Storm export
   fit/                    ingestion via Sensor, host inventory, role clustering, behaviour and impl-mix fitting, proposal
-  interfaces/             backend Protocols: Sensor (+ Capability enum, CapabilityInfo), InfraBackend, AttributionBackend (defined M0, no impls)
   backends/
     sensor/
-      _base/              Sensor Protocol re-export, common event model helpers
-      zeek/  suricata/    Sensor implementations
+      _base/              common event model helpers shared by ingest adapters
+      zeek/  suricata/  ◐ descriptor only; ingest and label runtime in M1
     infra/
-      _base/              InfraBackend Protocol, address planning, manifest helpers
+      _base/              address planning, manifest helpers
       docker/  libvirt/   InfraBackend implementations (nomad/, k8s/ later)
     attrib/
-      _base/              AttributionBackend Protocol, join logic
+      _base/              join logic
       linux_ebpf/  windows_etw/   AttributionBackend implementations (nfstream fallback)
     predict/              predicted sensor-level statistics and pre-run fidelity report
     assemble/             sensors over pcaps, attribution join, per-sensor labels, conformance and fidelity reports
@@ -236,12 +251,16 @@ tiergen/                  uv workspace; one package per directory, one per imple
     scheduler/            management-plane orchestrator: hosts, agents, clock check, schedule, log collection
     capture/              dumpcap at capture points, pcapng with interface ids, per-host clock offsets
   impls/                  one package per tool, discovered via entry points (6.1)
-    _base/                interfaces, manifest schema, subprocess/cgroup/job-object execution, timing, outcomes, retry
-    httpx/ playwright/ curl/ dig/ paramiko/ impacket/ nmap/ smbclient_win/ ...   primitive impls
-    nginx/ apache/ caddy/ unbound/ bind/ postfix/ dovecot/ samba/ win_fileserver/ ...  service impls
+    _base/              ✔ descriptor and manifest schema, loader, registry, PrimitiveImpl/ServiceImpl/AdapterImpl Protocols
+                          later: subprocess/cgroup/job-object execution, timing, outcomes, retry
+    httpx/ nmap/ smbclient_win/   ◐ manifest only          playwright/ curl/ dig/ paramiko/ impacket/ ...   primitive impls
+    nginx/ samba/                 ◐ manifest only          apache/ caddy/ unbound/ bind/ postfix/ dovecot/ win_fileserver/ ...  service impls
     caldera/ atomic/ ghosts/ metasploit(opt-in)/                                  adapters
   evaluate/               reference detectors over common-event features, FP-rate harness against held-out real logs
+  CHANGELOG.md  CONTRIBUTING.md  cchk.toml  .pre-commit-config.yaml  .github/workflows/ci.yml
 ```
+
+✔ implemented, ◐ data only, unmarked not started. A member's code is at `<member>/tiergen/<name>/`, for example `core/tiergen/core/ir.py` and `impls/nginx/tiergen/impls/nginx/impl.toml`, with its tests in `<member>/tests/`. There is no `tiergen/__init__.py` anywhere: `tiergen` is a PEP 420 namespace, so modules import as `tiergen.core.dsl`, never from `tiergen` itself. The Protocols each backend family implements live in `interfaces/`, not in the family's `_base`.
 
 Data flow:
 
@@ -265,11 +284,13 @@ real network ──sensor──► native logs ──fit (ingest)──► model
 
 Three things scale differently and are kept apart: protocol-level signatures (a few dozen, stable), tool-level implementations (open-ended, each with its own dependencies and host requirements) and adapters for frameworks whose catalogs hold hundreds of entries.
 
-**`protocols/`** (in core). One module per protocol. A signature has typed parameters and an expected traffic shape: number of connections, transport, destination port, direction, permitted follow-on connections (DNS before HTTP, redirects), and reuse semantics (may this primitive reuse an existing connection of the same process, and if so how are per-request labels delimited). Attribution uses the shape to match observed connections to an invocation; conformance tests use it to check implementations. Adding a protocol touches one module.
+**`protocols/`**. One module per protocol. A signature has a role, typed parameters and an expected traffic shape: number of connections (or `many`), transport, destination port when it is fixed, permitted follow-on signatures (a DNS lookup before an HTTP request, a Kerberos ticket before an SMB session), and reuse semantics (may this primitive ride on a connection an earlier invocation opened, and if so per-request labels rely on `AppEvent`s). Attribution uses the shape to match observed connections to an invocation; conformance tests use it to check implementations. Adding a protocol touches one module.
+
+Serving is a signature too. `http.serve`, `dns.serve`, `smb.serve`, `kerberos.serve` and `ssh.serve` have role `server`, open no connections, and are what a binding selects a `ServiceImpl` under. They never appear in an action map. A client signature lists the endpoint protocols a tie's target may serve, so `http.get` fits an `https` endpoint. Scans list none: a scan needs a tie to aim at, not an endpoint served on the other side.
 
 **`impls/<tool>/`**. One workspace package per tool with its own dependencies. Layout by tool, because tools are what get installed and pinned and one tool often serves several protocols (Impacket: SMB, LDAP, Kerberos, DCERPC). Navigation by protocol through the registry: `tiergen impls list --protocol smb --platform windows`. Registration through the entry-point group `tiergen.impls`, discovered with `importlib.metadata`; core never imports implementations at load time, so an uninstalled one is simply unresolved.
 
-Manifest per package (`impl.toml`):
+Manifest per package (`impl.toml`). It decodes into a frozen `ImplDescriptor` through `tomllib` and the IR's codec, strictly: an unknown key or a wrong type is an error naming the file and the path.
 
 ```toml
 id = "http.playwright"
@@ -289,16 +310,27 @@ ja4 = { chromium = "auto", firefox = "auto", webkit = "auto" }   # measured by t
 user_agent = "auto"
 ```
 
-Interfaces in `impls/_base`:
-- `PrimitiveImpl`: `run(ctx, **params) -> Outcome`. Executes on the client actor's host inside the invocation's cgroup (Linux) or job object (Windows). `ctx` gives resolved ties, sampling, the label tuple and timing helpers.
-- `ServiceImpl`: `start(ctx)`, `healthcheck(ctx)`, `stop(ctx)`, `served() -> tuple[Endpoint, ...]`. Doubles as the binding manifest for default-compiled server actors.
-- `AdapterImpl`: `catalog() -> Iterable[CatalogEntry]` so the checker validates references statically; `run(ctx, catalog_id, **params)`. Catalog entries are data, never one file per ability.
+A service says what it serves, which is what check 6 compares with a kind's interface. An adapter lists its catalog, `catalog = [{ id = "...", name = "...", attack_ids = ["T1558.003"] }]`, so check 8 validates a sequence's references without importing the adapter.
 
-2026-09-18, as implemented in `impls/_base` and `protocols/`:
-- `impl.toml` decodes into a frozen `ImplDescriptor`, and the checker reads descriptors only. A service manifest adds `[service] served = [{ protocol = "http", port = 80, transport = "tcp" }]` so check 6 can compare a default host's services with its kind's interface; an adapter lists its catalog in the manifest so check 8 stays static.
-- `PrimitiveImpl.run` is `run(ctx, signature, **params)`. One package provides several signatures, so the call has to say which.
-- Serving is a signature too: `http.serve`, `dns.serve`, `smb.serve`, `kerberos.serve`, `ssh.serve`, role `server`, which is what a binding selects a `ServiceImpl` under (the sketch's `internet.serve` has the same shape). Server signatures never appear in an action map. A client signature lists the endpoint protocols a tie's target may serve, so `http.get` fits an `https` endpoint; scans list none.
-- Manifests are decoded with `tomllib` and the IR's own codec, not pydantic. `impls/_base` is in every implementation's dependency closure, and the manifest is written by tool authors, not at the engineer boundary section 14 reserves pydantic for.
+```toml
+id = "http.nginx"
+version = "0.0.1"
+kind = "service"
+provides = ["http.serve"]
+[host]
+platforms = ["linux"]
+binaries = ["nginx"]
+[service]
+served = [
+    { protocol = "http", port = 80, transport = "tcp" },
+    { protocol = "https", port = 443, transport = "tcp" },
+]
+```
+
+Runtime interfaces in `impls/_base`, Protocols that nothing implements yet:
+- `PrimitiveImpl`: `run(ctx, signature, **params) -> Outcome`. One package provides several signatures, so the call says which. Executes on the client actor's host inside the invocation's cgroup (Linux) or job object (Windows). `ctx` gives the label tuple, ties resolved to addresses, the selected variant and a seeded `Random`; timing helpers come with the first runtime. A tool failure is an outcome, not an exception.
+- `ServiceImpl`: `start(ctx)`, `healthcheck(ctx) -> bool`, `stop(ctx)`, `served() -> tuple[Endpoint, ...]`, the same endpoints the manifest declares.
+- `AdapterImpl`: `catalog() -> Iterable[CatalogEntry]`, the same entries the manifest lists; `run(ctx, catalog_id, **params)`. Catalog entries are data, never one file per ability.
 
 **Selection is data.** A binding resolves each `(kind, signature)` to one implementation or a weighted set sampled per instance. Weights come from `fit` (4.10) or the engineer. Resolved id and variant go into every label.
 
@@ -306,14 +338,11 @@ Interfaces in `impls/_base`:
 
 ---
 
-## 7. IR sketch
+## 7. IR
 
-*Sketch.* Frozen slotted dataclasses; every node has a stable `id`; `to_json`/`from_json` on the root. The implemented form is `core/tiergen/core/ir.py`; where the two differ, the code is right and this sketch is stale.
+Frozen slotted dataclasses in `core/tiergen/core/ir.py`, shown here without docstrings. The root has `to_json` and `from_json`; both go through `core/tiergen/core/codec.py`, a codec driven by the type annotations that serves every dataclass in the project, `impl.toml` manifests included. Decoding is strict: an unknown key, a missing field, a wrong shape or a non-finite float is an error carrying the path of the offending value, for example `kinds[2].behaviours[0].process.dwell[1].family`. Nodes have no separate id. Names are the ids, and check 11 enforces their uniqueness.
 
-2026-09-18, three changes the checks in section 8 forced:
-- `Action(signature, tie)` replaces the bare signature string in `Behaviour.action_map`. Check 2 asks whether a signature is directed at a tie whose target serves a compatible endpoint, and a signature alone does not say which tie.
-- `SemiMarkov.states`, `SemiMarkov.dwell`, `Behaviour.action_map`, `ImplSelection.choices` and `Scenario.fit_provenance` also accept a resource name, as `initial`, `transitions` and `rate` already did. The DSL example below passes `resource(...)` for all five.
-- `Scenario.coverage_floor`, default 0.5, is the floor check 15 refers to.
+A field typed `... | str` takes an inline value or the name of a resource that holds one, so a fitted process can live entirely under `models/`. A field typed plain `str` and commented as a resource is always a name. Names are resolved by the checker, never in the IR.
 
 ```python
 from dataclasses import dataclass
@@ -323,19 +352,27 @@ Multiplicity = Literal["single", "optional", "multiple"]
 Transport = Literal["tcp", "udp"]
 Platform = Literal["linux", "windows"]
 HostType = Literal["container", "vm"]
+EgressPolicy = Literal["stub", "allowlist", "none"]
+ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
+SensorMode = Literal["offline", "live"]
+SensorRole = Literal["label", "fit", "both"]
 
 @dataclass(frozen=True, slots=True)
 class Endpoint:
-    protocol: str; port: int; transport: Transport
+    protocol: str
+    port: int
+    transport: Transport
 
 @dataclass(frozen=True, slots=True)
 class Tie:
-    name: str; target_kind: str; multiplicity: Multiplicity
+    name: str
+    target_kind: str
+    multiplicity: Multiplicity                   # single = exactly one peer, optional = 0..1, multiple = 0..n
 
 @dataclass(frozen=True, slots=True)
 class Distribution:
     family: str                                  # "exponential" | "lognormal" | "weibull" | "empirical"
-    params: tuple[float, ...] | str              # inline or resource reference
+    params: tuple[float, ...] | str              # inline or resource
 
 @dataclass(frozen=True, slots=True)
 class SemiMarkov:
@@ -354,7 +391,7 @@ class Action:
 class Behaviour:
     name: str
     process: SemiMarkov                          # later: Process union
-    action_map: dict[str, Action | None] | str   # state -> Action, None = silent; inline or resource
+    action_map: dict[str, Action | None] | str   # state -> Action, None = silent
 
 @dataclass(frozen=True, slots=True)
 class ActorKind:
@@ -369,12 +406,12 @@ class Host:
     platform: Platform
     host_type: HostType
     ref: str                                     # "default" | "image:<ref>" | "template:<ref>"
-    manifest: str | None                         # served-endpoint manifest for custom hosts
+    manifest: str | None                         # resource: endpoints a custom host serves
 
 @dataclass(frozen=True, slots=True)
 class ImplSelection:
     signature: str
-    choices: dict[str, float] | str              # "impl_id[:variant]" -> weight; inline or resource
+    choices: dict[str, float] | str              # "impl_id[:variant]" -> weight
 
 @dataclass(frozen=True, slots=True)
 class Binding:
@@ -385,18 +422,18 @@ class Binding:
 @dataclass(frozen=True, slots=True)
 class ScheduleEvent:
     at_s: float
-    target: str                                  # instance or kind selector
-    op: Literal["start", "stop", "set_rate", "run_sequence"]
-    arg: str | float | None
+    target: str                                  # "kind" or "kind[i]"
+    op: ScheduleOp
+    arg: str | float | None                      # start/stop: behaviour; set_rate: multiplier; run_sequence: "adapter:entry"
 
 @dataclass(frozen=True, slots=True)
 class SensorSpec:
     impl: str                                    # "zeek" | "suricata" | ...
     version: str                                 # pinned
     config: str                                  # resource: the exact config used on real + generated traffic
-    mode: Literal["offline", "live"]
-    capabilities: tuple[str, ...]                # Capability names this config declares, from the sensor
-    role: Literal["label", "fit", "both"]        # "fit" marks the sensor the model was fitted from
+    mode: SensorMode
+    capabilities: tuple[str, ...]                # Capability names this config declares
+    role: SensorRole                             # "fit" or "both" marks the sensor the model was fitted from
 
 @dataclass(frozen=True, slots=True)
 class FitProvenance:
@@ -410,101 +447,163 @@ class Scenario:
     kinds: tuple[ActorKind, ...]
     instances: dict[str, int]
     bindings: tuple[Binding, ...]
-    topology: str                                # resource or builtin
-    egress: Literal["stub", "allowlist", "none"]
+    topology: str                                # resource
+    egress: EgressPolicy
     egress_overrides: dict[str, str]             # hostname or service -> real endpoint, for per-service swap
     schedule: tuple[ScheduleEvent, ...]
     duration_s: float
     capture_points: tuple[str, ...]
     sensors: tuple[SensorSpec, ...]              # one or more; labels emitted per sensor
-    fit_provenance: FitProvenance | str | None   # what fit relied on; inline or resource; enables the cross-sensor check
+    fit_provenance: FitProvenance | str | None   # what fit relied on; enables the cross-sensor check
     seed: int
     coverage_floor: float = 0.5                  # check 15: below this, a capability fit relied on is sparse
 ```
 
-Embedded DSL, *sketch*, as `fit` would propose it and the engineer would edit:
-
-2026-09-18: the builders are in `core/tiergen/core/dsl.py` and import as `from tiergen.core.dsl import ...`; `tiergen` is a namespace shared by every package and has no module of its own to import from. Differences from the sketch below: `semi_markov` takes a required `initial`; action maps hold `action(signature, tie)` values or `None`; `kind()` returns a handle that works as a dictionary key and tie target, and `scenario` takes its kinds from the keys of `instances`; a custom host names its endpoint manifest with `host(..., manifest=resource(...))`. `internet.serve` and `attack.run` are not M0 signatures; the runnable versions of this scenario are under `examples/`.
+Embedded DSL, in `core/tiergen/core/dsl.py`. The builders only assemble data: they refuse what the IR cannot represent, such as two kinds with one name, and leave everything else to the checker. `kind()` returns a handle that works as a dictionary key and as a tie target, and `scenario` takes its kinds from the keys of `instances`. This is `examples/hq_lan/scenario.py`, as `fit` would propose it and the engineer would edit:
 
 ```python
-from tiergen import kind, endpoint, tie, semi_markov, resource, host, binding, scenario, sensor, at, hours
+from tiergen.core.dsl import (
+    action,
+    at,
+    binding,
+    dist,
+    endpoint,
+    host,
+    hours,
+    kind,
+    resource,
+    scenario,
+    semi_markov,
+    sensor,
+    tie,
+)
 
-Dc  = kind("domain_controller", serves=[endpoint("kerberos", 88, "tcp"), endpoint("ldap", 389, "tcp"),
-                                        endpoint("smb", 445, "tcp"), endpoint("dns", 53, "udp")],
-           platforms=["windows"])
-Fs  = kind("file_server", serves=[endpoint("smb", 445, "tcp")], platforms=["windows", "linux"])
+Dc = kind(
+    "domain_controller",
+    serves=[
+        endpoint("kerberos", 88, "tcp"),
+        endpoint("ldap", 389, "tcp"),
+        endpoint("smb", 445, "tcp"),
+        endpoint("dns", 53, "udp"),
+    ],
+    platforms=["windows"],
+)
+Fs = kind("file_server", serves=[endpoint("smb", 445, "tcp")], platforms=["windows", "linux"])
 Web = kind("intranet_web", serves=[endpoint("https", 443, "tcp")], platforms=["linux"])
-Net = kind("internet_stub", serves=[endpoint("https", 443, "tcp"), endpoint("http", 80, "tcp")], platforms=["linux"])
 
-Ws = kind("workstation",
-    ties=[tie("dc", Dc, "single"), tie("fs", Fs, "multiple"), tie("web", Web, "multiple"), tie("net", Net, "single")],
-    behaviours=[semi_markov("office",
-        states=resource("ws_office.states"),
-        transitions=resource("ws_office.transitions"),
-        dwell=resource("ws_office.dwell"),
-        rate=resource("ws_office.rate_week"),
-        action_map=resource("ws_office.action_map"))],
-    platforms=["windows", "linux"])
+# The workstation's behaviour is what `fit` would emit: every part is a resource under models/.
+Ws = kind(
+    "workstation",
+    ties=[tie("dc", Dc, "single"), tie("fs", Fs, "multiple"), tie("web", Web, "multiple")],
+    behaviours=[
+        semi_markov(
+            "office",
+            states=resource("ws_office.states"),
+            initial=resource("ws_office.initial"),
+            transitions=resource("ws_office.transitions"),
+            dwell=resource("ws_office.dwell"),
+            rate=resource("ws_office.rate_week"),
+            action_map=resource("ws_office.action_map"),
+        )
+    ],
+    platforms=["windows", "linux"],
+)
 
-Atk = kind("attacker", ties=[tie("dc", Dc, "single"), tie("victim", Ws, "multiple")], platforms=["linux"])
+# The attacker's behaviour is written inline, as an engineer adding it by hand would.
+Atk = kind(
+    "attacker",
+    ties=[tie("dc", Dc, "single"), tie("victim", Ws, "multiple")],
+    behaviours=[
+        semi_markov(
+            "recon",
+            states=["idle", "syn_scan"],
+            initial=[1.0, 0.0],
+            transitions=[[0.0, 1.0], [1.0, 0.0]],
+            dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
+            action_map={"idle": None, "syn_scan": action("scan.tcp_syn", "victim")},
+        )
+    ],
+    platforms=["linux"],
+)
 
-S = scenario("hq_lan",
-    instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Net: 1, Atk: 1},
+S = scenario(
+    "hq_lan",
+    instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Atk: 1},
     bindings={
-        Dc:  binding(host("windows", "vm", "template:win2022-dc")),
-        Ws:  binding(host("windows", "container", "default"),
-                     impls={"http.browse": resource("ws_office.browser_mix"),
-                            "smb.read": {"smb.windows_native": 1.0}}),
-        Fs:  binding(host("linux", "container", "image:tiergen/samba:4.20")),
-        Web: binding(host("linux", "container", "image:nginx:1.27")),
-        Net: binding(host("linux", "container", "default"), impls={"internet.serve": {"internet.stub": 1.0}}),
-        Atk: binding(host("linux", "container", "default"), impls={"attack.run": {"attack.caldera": 1.0}}),
+        # A VM from a template is a custom host: its manifest says what it serves.
+        Dc: binding(
+            host("windows", "vm", "template:win2022-dc", manifest=resource("hq_lan.dc_manifest"))
+        ),
+        Ws: binding(
+            host("windows", "container"),
+            {
+                "http.get": {"http.httpx": 1.0},
+                "smb.read": {"smb.windows_native": 1.0},
+                "kerberos.tgs": {"smb.windows_native": 1.0},
+            },
+        ),
+        # Default hosts serve through the service implementations selected here.
+        Fs: binding(host("linux", "container"), {"smb.serve": {"smb.samba": 1.0}}),
+        Web: binding(host("linux", "container"), {"http.serve": {"http.nginx": 1.0}}),
+        Atk: binding(host("linux", "container"), {"scan.tcp_syn": {"scan.nmap": 1.0}}),
     },
     topology=resource("hq_lan.topology"),
-    egress="stub",
-    egress_overrides={"update.microsoft.com": "real"},          # example per-service swap
-    schedule=[at(hours(30), Atk, "run_sequence", "caldera:discovery-then-kerberoast")],
+    egress="none",
+    schedule=[at(0, Ws, "start", "office"), at(hours(30), Atk, "start", "recon")],
     duration_s=7 * 24 * 3600,
     capture_points=["core-switch-span"],
-    sensors=[sensor("zeek", "7.0", resource("hq_lan.zeek"), "offline",
-                    caps=["APP_EVENTS", "TLS_JA4", "HTTP_USER_AGENT", "SSH_STRINGS", "SMB_DIALECT", "X509"], role="both"),
-             sensor("suricata", "7.0.7", resource("hq_lan.suricata"), "offline",
-                    caps=["APP_EVENTS", "TLS_JA4", "HTTP_USER_AGENT"], role="label")],
-    fit_provenance=resource("hq_lan.fit_provenance"),   # emitted by `fit`; here fit used Zeek
-    seed=1)
+    sensors=[
+        sensor(
+            "zeek",
+            "7.0",
+            resource("hq_lan.zeek"),
+            "offline",
+            caps=["APP_EVENTS", "TLS_JA4", "HTTP_USER_AGENT", "SSH_STRINGS", "SMB_DIALECT", "X509"],
+            role="both",
+        ),
+        sensor(
+            "suricata",
+            "7.0.7",
+            resource("hq_lan.suricata"),
+            "offline",
+            caps=["APP_EVENTS", "TLS_JA4", "HTTP_USER_AGENT"],
+            role="label",
+        ),
+    ],
+    fit_provenance=resource("hq_lan.fit_provenance"),
+    seed=1,
+)
 ```
 
-In this example `fit` used Zeek and relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 (section 8) flags that: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly.
+The workstation's behaviour is what `fit` emits, every part a resource under `models/`. The attacker's is written inline, as an engineer adding it by hand would. The DC is a VM from a template, a custom host, so a manifest resource says what it serves. The file server and web server are default hosts, which serve through the service implementations selected for them.
+
+`examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes four deliberate mistakes and fails checks 1, 4, 5 and 12.
+
+*Sketch*, not checkable before M5: external destinations and adapter-driven attacks take the same shapes. An `internet_stub` kind bound with `{"internet.serve": {"internet.stub": 1.0}}`, `egress="stub"` with `egress_overrides={"update.microsoft.com": "real"}`, an attacker bound with `{"attack.run": {"attack.caldera": 1.0}}`, and a schedule entry `at(hours(30), Atk, "run_sequence", "attack.caldera:discovery-then-kerberoast")`, which check 8 resolves against the adapter's catalog.
 
 ---
 
 ## 8. Static checks
 
-Each is a named check with unit tests and, where the input space allows, a hypothesis property test.
+Checks 1 to 8 and 11 to 15 are implemented in `check/`, one module each, with unit tests and, where the input space allows, a hypothesis property test. Checks 9 and 10 need an infrastructure backend and arrive with M1.
 
-1. Tie targets exist; multiplicities are satisfiable by instance counts (Z3).
-2. Every signature a kind's actions use is directed at a tie whose target serves a compatible endpoint (protocol, transport).
-3. Every behaviour state maps to exactly one signature or is explicitly silent.
-4. Transition matrices row-stochastic; all states reachable; one dwell per state; rate resources have 24 or 168 entries.
-5. Resource references resolve; resolved shapes match declared shapes.
-6. Host bindings satisfy the kind's interface: default hosts via the chosen `ServiceImpl`s, custom hosts via their manifest.
-7. Binding platform is in the kind's allowed platforms; every selected implementation supports that platform; host capabilities (`net_raw`, admin) are grantable by the infra backend for that host type.
-8. Every `(kind, signature)` resolves to at least one registered implementation; weights positive and normalisable; adapter catalog ids referenced by sequences exist.
-9. Management network disjoint from all data-plane networks; every capture point is data-plane; every sensor's capture interface is data-plane.
-10. Address plan collision-free; every instance has a data-plane address; topology realisable by the chosen infra backend; egress policy consistent with the presence of an `internet_stub` kind or an allowlist resource; every `egress_overrides` key is a fitted external destination.
-11. Label tuple unique per invocation; no primitive executable outside a labelled context.
-12. Schedule events reference defined targets; times within `duration_s`.
-13. Each `SensorSpec` names a registered sensor implementation whose pinned version and config the sensor backend can reproduce; at least one sensor is configured; every declared capability name is one the implementation actually supports; the required core is met by every sensor.
-14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`.
-15. Coverage sanity: every capability `fit` relied on has measured coverage above a floor the scenario sets (default 0.5); below it, warn that the fitted distribution for that capability is sparse.
+A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a message. `error` makes the scenario ill formed. `warning` is a gap the engineer may accept knowingly. `not_computed` says part of a check could not run and names what was missing; it is never a pass. Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic, not a cascade.
 
-2026-09-18, as implemented in `check/` (checks 9 and 10 wait for an infrastructure backend):
-- Check 1 reads multiplicities as ScalaLoci does: `single` is exactly one peer, `optional` zero or one, `multiple` any number including none. Only `single` constrains instance counts: a kind with instances and a `single` tie needs at least one instance of the target. With fixed counts Z3 decides plain arithmetic; it is kept because counts are the first thing likely to become ranges.
-- Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic. Sensor configurations and the topology are opaque: they only have to exist.
-- Check 6 also pairs kinds with bindings: a kind with instances needs exactly one. On a default host an endpoint counts as served only if every weighted alternative of some service selection serves it.
-- Check 7's third clause is reported as `not computed`, naming the capability and the host, until an `InfraBackend` can say what it grants.
-- Check 12 target syntax: `kind`, or `kind[i]` with `0 <= i < instances[kind]`. `start` and `stop` take a behaviour of the target kind, `set_rate` a non-negative multiplier, `run_sequence` `adapter_id:catalog_entry`, which check 8 resolves against the adapter's manifest.
-- Diagnostics have three severities: `error`, `warning`, and `not_computed`.
+1. Every kind has an instance count and every count belongs to a kind; tie targets exist; multiplicities are satisfiable by the instance counts (Z3). Multiplicities read as in ScalaLoci: `single` is exactly one peer, `optional` zero or one, `multiple` any number including none. Only `single` constrains counts: a kind with instances and a `single` tie needs at least one instance of the target.
+2. Every action is directed at a tie its kind has, and the tie's target serves an endpoint the signature accepts (protocol, transport). A scan needs the tie and no endpoint.
+3. Every behaviour state has exactly one action-map entry, an action or an explicit `None`; no entry names a state that does not exist; every signature is a known client signature.
+4. Initial distribution and transition rows are stochastic; the matrix is square over the states; all states are reachable from the initial support; one dwell per state; a rate resource has 24 or 168 entries.
+5. Resource references resolve, and resolved shapes match declared shapes, distribution parameters included. Sensor configurations and the topology are opaque: they only have to exist.
+6. Every kind with instances has exactly one binding, and the host satisfies the kind's interface. A default host serves what its selected service implementations serve, and an endpoint counts only if every weighted alternative of some selection serves it. A custom host (`image:`, `template:`) serves what its manifest resource lists.
+7. Binding platform is in the kind's allowed platforms; every chosen implementation supports that platform. Whether the host capabilities an implementation needs (`net_raw`, admin) are grantable by the infra backend for that host type is `not_computed` until M1, naming the capability and the host.
+8. Every client signature a kind's actions use has a selection in its binding; every choice names an installed implementation that provides the signature, and a variant it has; weights are positive; a `run_sequence` names an installed adapter and an entry of its catalog.
+9. *(M1)* Management network disjoint from all data-plane networks; every capture point is data-plane; every sensor's capture interface is data-plane.
+10. *(M1)* Address plan collision-free; every instance has a data-plane address; topology realisable by the chosen infra backend; egress policy consistent with the presence of an `internet_stub` kind or an allowlist resource; every `egress_overrides` key is a fitted external destination.
+11. Label tuple unique per invocation: kind, tie, behaviour and state names are unique where a label is built from them, and no signature is selected twice in a binding. No primitive executable outside a labelled context: a client implementation selected for a signature no action invokes is a warning.
+12. Schedule events reference defined targets, `kind` or `kind[i]` with `0 <= i < instances[kind]`, at times within `duration_s`. `start` and `stop` take a behaviour of the target kind, `set_rate` a non-negative multiplier, `run_sequence` an `adapter_id:catalog_entry` string.
+13. At least one sensor is configured. Each `SensorSpec` names an installed sensor whose descriptor lists the pinned version and the mode, and every declared capability is one the descriptor can declare. An installed sensor meets the required core by construction. Reproducing the config itself is the sensor backend's job in M1.
+14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`; these two are errors. A scenario without fit provenance has nothing to compare.
+15. Coverage sanity: every capability `fit` relied on has measured coverage above the scenario's `coverage_floor` (default 0.5); below it, or with no coverage recorded, warn that the fitted distribution for that capability is sparse.
 
 Runtime checks before capture: clock sync within tolerance on every host; attribution backend loaded per host platform; capture and sensor interfaces up; every service healthcheck passes.
 
@@ -565,7 +664,7 @@ Identifiability caveat, recorded so nobody rediscovers it: aggregate fits descri
 
 ## 12. Data plane
 
-- **Hosts.** Linux containers (default, cheapest); Windows containers with Hyper-V isolation, through a Windows Docker daemon alongside the WSL2 Linux engine (two daemons, two contexts; verify concurrent operation early); Linux and Windows VMs via libvirt for the DC, Windows workstations with real Office and Outlook, and anything needing transport fidelity; a multi-node backend (Nomad or k8s) only once one machine runs out of room, per 4.9.
+- **Hosts.** Linux containers (default, cheapest); Windows containers with Hyper-V isolation, through a Windows Docker daemon alongside the WSL2 Linux engine (two daemons, two contexts; developed and verified on a Windows host at the end of M1, section 16); Linux and Windows VMs via libvirt for the DC, Windows workstations with real Office and Outlook, and anything needing transport fidelity; a multi-node backend (Nomad or k8s) only once one machine runs out of room, per 4.9.
 - **Implementations.** Several browsers (Playwright: Chromium, Firefox, WebKit; native Edge on Windows), several HTTP clients, native Windows SMB and Kerberos clients where the platform is Windows, Impacket where it is Linux; several servers per role (nginx, Apache, Caddy; BIND, Unbound; Postfix, Dovecot; Samba; a real Windows DC). Weights from `fit`.
 - **Internet.** `egress="stub"`: an `internet_stub` kind serving the fitted SNI and hostname set behind a lab CA, using real server implementations behind the right names, with any subset swappable to a real staging or production endpoint through `egress_overrides`. `egress="allowlist"`: real egress through a NAT restricted to the fitted destination list. Both fully labelled. Per-service swap is the expected normal mode.
 - **Noise roles.** NTP, update mirrors, mDNS/SSDP, telemetry stubs, printers, as small kinds with simple processes, so noise is labelled as noise.
@@ -590,7 +689,7 @@ The engineer has the real network, so evaluation is direct:
 
 ## 14. Libraries
 
-Core, protocols, checker, interfaces: `dataclasses`/`attrs` (frozen, slots), `match`, `pydantic` at the user boundary, `z3-solver`, `networkx`, `mypy --strict` or `pyright` strict, `ruff`, `hypothesis`, `tomllib`, `importlib.metadata`, `typing.Protocol` for the backend interfaces.
+Core, protocols, checker, interfaces, CLI, as used in M0: stdlib `dataclasses` (frozen, slots), `typing.Protocol` for the backend interfaces, `tomllib`, `importlib.metadata`, `argparse`, `z3-solver`. Tooling: `uv`, `hatchling`, `pyright` strict, `ruff`, `pytest`, `hypothesis`, `pre-commit`, `commit-check`. Planned and not used yet: `pydantic` at the user boundary (M0's boundaries, `impl.toml` and IR JSON, go through the IR's own codec), `networkx` (check 4's reachability is a short search and does not need it).
 
 Semantics and fit: `numpy`, `scipy.stats`, `hmmlearn` or `pomegranate`, `scikit-learn` and `hdbscan` for role clustering, `polars` or `pandas` for logs (`zat` for Zeek, a small `eve.json` reader for Suricata), `stormpy` (Storm) or PRISM via subprocess.
 
@@ -610,8 +709,8 @@ Reference DSLs to read before designing `core/`: Amaranth (embedded DSL with typ
 
 No dates. Each milestone ends with something an engineer can run.
 
-- **M0 Core and interfaces.** IR (platform, multi-sensor, egress overrides), JSON round-trip, embedded builders, common event model, `protocols/` with `http`, `dns`, `smb`, `kerberos`, `ssh`, `scan` signatures, `impls/_base` interfaces and registry, the backend Protocols (`Sensor`, `InfraBackend`, `AttributionBackend`) in `interfaces/` with no implementations, checker with tests, `tiergen check` and `tiergen impls list`. Three example scenarios, one ill-formed. Installs without Docker.
-- **M1 Vertical slice, mixed platform.** First backends behind the M0 interfaces: Docker (Linux and Windows daemons) and libvirt; Zeek and Suricata sensors (offline); Linux eBPF and Windows ETW/Sysmon attribution; `agent_linux` and `agent_windows`. First implementations: `httpx`, `nmap`, `nginx`, native Windows SMB and Kerberos client, `samba` or a Windows file server. Scenario: one DC (Windows VM via libvirt), one Windows workstation, one Linux server, one attacker; stub egress; dumpcap; per-sensor labels keyed by Zeek `uid` and Suricata `flow_id`; `assemble`. Integration order inside the milestone: Linux path first, then add the Windows host. Deliverable: labelled pcaps plus Zeek and Suricata logs from one command on a mixed slice.
+- **M0 Core and interfaces.** Done, 2026-09-20. IR with JSON round-trip, embedded builders, resources, common event model, signatures for `http`, `dns`, `smb`, `kerberos`, `ssh` and `scan`, the backend Protocols with no implementations, descriptors for two sensors and five implementations, checks 1 to 8 and 11 to 15, `tiergen check` and `tiergen impls list`, three example scenarios, one ill-formed. Installs without Docker. Detail in `CHANGELOG.md`.
+- **M1 Vertical slice, mixed platform.** Next. Developed on a Linux host: Docker for Linux containers, libvirt/KVM for Windows guests. First backends behind the M0 interfaces: Docker (Linux daemon) and libvirt; Zeek and Suricata sensors (offline); Linux eBPF and Windows ETW/Sysmon attribution; `agent_linux` and `agent_windows`. First runtimes, in the packages that already hold their manifests: `httpx`, `nmap`, `nginx`, native Windows SMB and Kerberos client, `samba`. Checks 9 and 10, and check 7's third clause. Scenario: one DC (Windows VM), one Windows workstation (VM), one Linux server, one attacker; stub egress; dumpcap; per-sensor labels keyed by Zeek `uid` and Suricata `flow_id`; `build`, `run`, `assemble`. Integration order inside the milestone: Linux path first, then the Windows guests. Deliverable and exit criterion: labelled pcaps plus Zeek and Suricata logs from one command on the mixed slice. After it, still in M1: the Docker backend for the Windows daemon, Hyper-V-isolated containers as a binding option for the workstation, developed on a Windows host.
 - **M2 Processes and prediction.** Semi-Markov behaviours, resources, weekly rates, `predict`, fidelity report against a real sensor-log sample, Storm export for the CTMC case, conformance report.
 - **M3 Attribution hardening.** cgroup per invocation and `cgroup_skb` for scanners, interleaved actors on shared hosts, per-implementation conformance tests measuring fingerprints and connection profiles, label-exactness check against an isolated-mode run, DNS-resolver and connection-reuse holes handled by flagging.
 - **M4 Fit.** Ingestion via the Sensor interface, host inventory, role clustering, action vocabulary, behaviour and implementation-mix fitting, proposed scenario emission, anonymisation, fit report. Drive it with the AD LAN.
@@ -623,17 +722,22 @@ No dates. Each milestone ends with something an engineer can run.
 
 ## 16. Open questions
 
-- *open* Windows workstation as a Hyper-V-isolated container versus a VM for the M1 slice. Container is cheaper and denser; VM is more faithful at the transport layer and simpler for real Office. Likely container for M1, VM as a binding option.
+- *closed 2026-09-20* First target substrate for M1: a Linux host, Docker for Linux containers and libvirt/KVM for Windows guests. It is the machine development happens on, and a Windows Docker daemon cannot run there. The same machine's Windows boot serves for the Windows daemon work at the end of M1.
+- *closed 2026-09-20* Windows workstation in the M1 slice: a VM, which follows from the substrate. More faithful at the transport layer and simpler for real Office. The Hyper-V-isolated container becomes a binding option once the slice runs.
 - *open* Multi-sensor labels: emit one label file per sensor (assumed) versus a unified label file with per-sensor id columns. Per-sensor files are simpler and match how the sensors are consumed downstream.
-- *open* Common event model coverage: the field subset needed so fit and fidelity do not have to reach back into sensor-native logs. Grows as protocols are added; keep raw passthrough so nothing is lost. 2026-09-18, first cut in `core/tiergen/core/events.py`: `ConnEvent.state` is a six-value vocabulary (`attempted`, `established`, `closed`, `reset`, `rejected`, `other`) that each ingest adapter maps its native states into, and duration and the byte and packet counters are `None` when the sensor left them unset, never zero. Both are provisional until the Zeek and Suricata adapters exist.
-- *open* First target substrate to develop M1 against: Docker Desktop on Windows (both daemons on one box) versus a Linux host with libvirt for the Windows VM. Decides which concurrency issue is hit first.
-- *open* The initial `Capability` set and each one's typed schema. The enum in 4.3 is a starting list; adding OT and ICS protocols (Modbus, DNP3, S7) will extend it, and the schemas need to be defined before the second sensor is written so they are not Zeek-shaped by accident.
+- *open* Common event model coverage: the field subset needed so fit and fidelity do not have to reach back into sensor-native logs. Grows as protocols are added; keep raw passthrough so nothing is lost. The first cut (4.3) fixes a six-value `ConnEvent.state` vocabulary and uses `None`, never zero, for counters the sensor left unset. Both are provisional until the Zeek and Suricata adapters exist.
+- *open* The initial `Capability` set and each one's typed schema. The enum in 4.3 is a starting list; adding OT and ICS protocols (Modbus, DNP3, S7) will extend it, and the schemas need to be defined before the second sensor is written so they are not Zeek-shaped by accident. `CapabilityInfo.schema` already names such a shape, and none is defined anywhere yet.
 - *open* Where the coverage floor for check 15 should sit per capability, and whether it should be per protocol rather than one global default.
 - *open* Whether `fit` should offer to synthesise the config that would give a label sensor a capability it lacks (for example a Suricata config change), or only report the gap.
 - *open* How much of the AD LAN's SaaS egress the stub can represent before the fidelity report says swap to real for a service.
 - *open* Sensor version drift between collection and generation; pinning is required, upgrade policy is not defined.
 - *open* Long-lived browser per user (realistic, interval-based per-request labels) versus browser per invocation (clean attribution, unrealistic reuse). Probably long-lived with confidence fields.
 - *open* Keep a per-invocation netns isolation mode as an option for DetGen-style microstructure control.
+- *open* Action parameters. An `Action` is a signature and a tie, and signatures declare typed parameters (`path`, `share`, `ports`), but nothing in the IR says where an invocation's values come from: inline, a resource, or sampled. M1 cannot run a primitive without this.
+- *open* The IR names no infrastructure backend and no management network, yet checks 9 and 10 and check 7's third clause need both. Either they are IR fields, and part of the reproducibility manifest for free, or they are run configuration beside the IR.
+- *open* `Scenario.topology` names a resource with no schema; check 5 only asks that it exists. The schema has to come with the address plan in M1.
+- *open* `Fingerprint` in `impl.toml` covers what the 6.1 sample shows, JA4 and user agent. SSH strings, SMB dialects and OS strings have no slot, and 4.10 needs them.
+- *open* Whether to require signed commits on pull-request branches through a second ruleset. `main` cannot require them: GitHub recreates every commit in a rebase-merge and cannot sign what it recreates.
 
 ---
 
@@ -693,7 +797,7 @@ Detectors for the evaluation harness
 ## 18. Working agreements
 
 - Read this file first. Do not reopen decisions in section 4 without a dated note there.
-- Python 3.12+, uv workspace, `pyright` strict, `ruff`. Members build with hatchling and share the PEP 420 namespace `tiergen.*`: no `tiergen/__init__.py` anywhere, a `py.typed` in every package (2026-09-18: pyright chosen over mypy for Protocol and namespace-package handling; hatchling because its editable installs are path-based, which pyright resolves). Every check has a unit test; every IR type has a JSON round-trip property test.
+- Python 3.12+, uv workspace, `pyright` strict, `ruff`. Members build with hatchling and share the PEP 420 namespace `tiergen.*`: no `tiergen/__init__.py` anywhere, a `py.typed` in every package. Every check has a unit test; every IR type has a JSON round-trip property test.
 - The IR is JSON. No callables in it; signatures, implementations, sensors, resources by name.
 - Nothing in `core/`, `protocols/`, `check/`, `semantics/`, `fit/` or `interfaces/` may assume Linux, Docker or network access. They install and run anywhere.
 - Backend interfaces live in `interfaces/` and are defined before their implementations. A backend is one package under `backends/`; no cross-imports between backend implementations; shared code in each family's `_base`.
@@ -707,9 +811,9 @@ Detectors for the evaluation harness
 - The fidelity report decides realism arguments. If a proposed change cannot be expressed as a metric it moves, it is not a realism change.
 - No live malware; attacks only through emulation adapters and documented primitives.
 - Reproducibility: every dataset ships `manifest.json` with image digests, implementation and sensor versions, seeds and the IR.
-- Commits follow Conventional Commits 1.0.0 with a fixed scope list; branches follow Conventional Branch 1.1.0; `main` is linear, pull requests merge by rebase. `commit-check` enforces all of it from `cchk.toml`, in local hooks and in CI. `CONTRIBUTING.md` has the details (2026-09-18).
+- Commits follow Conventional Commits 1.0.0 with a fixed scope list; branches follow Conventional Branch 1.1.0. `commit-check` enforces both from `cchk.toml`, in local hooks and in CI. `main` is linear and takes pull requests by rebase-merge only, behind the `lint`, `types`, `test`, `lock` and `conventions` checks. Signed commits are not required on `main` and required approvals are 0 while there is one maintainer; `CHANGELOG.md` says why. `CONTRIBUTING.md` has the details.
 - Documentation and commit bodies in plain prose. Engineer-facing docs describe the workflow in section 3, not the internals.
-- When this file is wrong, fix it in the same commit.
+- When this file is wrong, fix it in the same commit. This file says how things are; `CHANGELOG.md` says what changed and why, in the same commit. A decision in section 4 still takes a dated note in place.
 
 First tasks for M0:
 1. Scaffold the uv workspace (section 6), pyproject per package, shared dev config, CI running tests without Docker.
