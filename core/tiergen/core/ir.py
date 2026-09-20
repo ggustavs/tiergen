@@ -9,7 +9,7 @@ holds one. A field typed plain ``str`` and documented as a resource is always a 
 Names are resolved by the checker, never here.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from tiergen.core.codec import JsonValue, from_json, to_json
@@ -22,6 +22,7 @@ EgressPolicy = Literal["stub", "allowlist", "none"]
 ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
+ParamScalar = str | int | float | bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,11 +72,36 @@ class SemiMarkov:
 
 
 @dataclass(frozen=True, slots=True)
+class Choice:
+    """A parameter value sampled per invocation: ``options[i]`` with weight ``weights[i]``."""
+
+    options: tuple[ParamScalar, ...]
+    weights: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ChoiceRef:
+    """A ``Choice`` held in a resource, such as the path popularity ``fit`` measured."""
+
+    resource: str
+
+
+ParamValue = ParamScalar | Choice | ChoiceRef
+
+
+@dataclass(frozen=True, slots=True)
 class Action:
-    """What a behaviour state does: run ``signature`` against the peers reached over ``tie``."""
+    """What a behaviour state does: run ``signature`` against the peers reached over ``tie``.
+
+    ``params`` gives a value for each parameter the signature declares: a literal, used for
+    every invocation, or a choice, sampled for each one from the instance's seeded generator.
+    Parameters are part of the IR so that a run is reproducible from IR and seed, and so that
+    ``predict`` can see what is asked for, not only how often.
+    """
 
     signature: str
     tie: str
+    params: dict[str, ParamValue] = field(default_factory=dict[str, ParamValue])
 
 
 @dataclass(frozen=True, slots=True)
