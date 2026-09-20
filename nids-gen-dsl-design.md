@@ -710,7 +710,7 @@ Reference DSLs to read before designing `core/`: Amaranth (embedded DSL with typ
 No dates. Each milestone ends with something an engineer can run.
 
 - **M0 Core and interfaces.** Done, 2026-09-20. IR with JSON round-trip, embedded builders, resources, common event model, signatures for `http`, `dns`, `smb`, `kerberos`, `ssh` and `scan`, the backend Protocols with no implementations, descriptors for two sensors and five implementations, checks 1 to 8 and 11 to 15, `tiergen check` and `tiergen impls list`, three example scenarios, one ill-formed. Installs without Docker. Detail in `CHANGELOG.md`.
-- **M1 Vertical slice, mixed platform.** Next. Developed on a Linux host: Docker for Linux containers, libvirt/KVM for Windows guests. First backends behind the M0 interfaces: Docker (Linux daemon) and libvirt; Zeek and Suricata sensors (offline); Linux eBPF and Windows ETW/Sysmon attribution; `agent_linux` and `agent_windows`. First runtimes, in the packages that already hold their manifests: `httpx`, `nmap`, `nginx`, native Windows SMB and Kerberos client, `samba`. Checks 9 and 10, and check 7's third clause. Scenario: one DC (Windows VM), one Windows workstation (VM), one Linux server, one attacker; stub egress; dumpcap; per-sensor labels keyed by Zeek `uid` and Suricata `flow_id`; `build`, `run`, `assemble`. Integration order inside the milestone: Linux path first, then the Windows guests. Deliverable and exit criterion: labelled pcaps plus Zeek and Suricata logs from one command on the mixed slice. After it, still in M1: the Docker backend for the Windows daemon, Hyper-V-isolated containers as a binding option for the workstation, developed on a Windows host.
+- **M1 Vertical slice, mixed platform.** Next. Developed on a Linux host: Docker for Linux containers, libvirt/KVM for Windows guests. First backends behind the M0 interfaces: Docker (Linux daemon) and libvirt; Zeek and Suricata sensors (offline); Linux eBPF and Windows ETW/Sysmon attribution; `agent_linux` and `agent_windows`. First runtimes, in the packages that already hold their manifests: `httpx`, `nmap`, `nginx`, native Windows SMB and Kerberos client, `samba`. Checks 9 and 10, and check 7's third clause. Scenario: one DC (Windows VM), one Windows workstation (VM), one Linux server, one attacker; stub egress; dumpcap; per-sensor labels keyed by Zeek `uid` and Suricata `flow_id`; `build`, `run`, `assemble`. Integration order inside the milestone: Linux path first, then the Windows guests. Deliverable and exit criterion: labelled pcaps plus Zeek and Suricata logs from one command on the mixed slice. After it, still in M1: the Docker backend for the Windows daemon, Hyper-V-isolated containers as a binding option for the workstation, developed on a Windows host. Task list at the end of section 18.
 - **M2 Processes and prediction.** Semi-Markov behaviours, resources, weekly rates, `predict`, fidelity report against a real sensor-log sample, Storm export for the CTMC case, conformance report.
 - **M3 Attribution hardening.** cgroup per invocation and `cgroup_skb` for scanners, interleaved actors on shared hosts, per-implementation conformance tests measuring fingerprints and connection profiles, label-exactness check against an isolated-mode run, DNS-resolver and connection-reuse holes handled by flagging.
 - **M4 Fit.** Ingestion via the Sensor interface, host inventory, role clustering, action vocabulary, behaviour and implementation-mix fitting, proposed scenario emission, anonymisation, fit report. Drive it with the AD LAN.
@@ -815,11 +815,25 @@ Detectors for the evaluation harness
 - Documentation and commit bodies in plain prose. Engineer-facing docs describe the workflow in section 3, not the internals.
 - When this file is wrong, fix it in the same commit. This file says how things are; `CHANGELOG.md` says what changed and why, in the same commit. A decision in section 4 still takes a dated note in place.
 
-First tasks for M0:
-1. Scaffold the uv workspace (section 6), pyproject per package, shared dev config, CI running tests without Docker.
-2. IR from section 7 with `to_json`/`from_json` and hypothesis round-trip tests.
-3. Common event model (`ConnEvent` required core, `AppEvent` optional) in `core/`; the `Capability` enum, `CapabilityInfo`, and the `Sensor`, `InfraBackend` and `AttributionBackend` Protocols in `interfaces/`, with docstrings and no implementations.
-4. `protocols/` with the six M0 signatures and their traffic shapes; `impls/_base` interfaces, manifest schema, entry-point registry.
-5. Checks 1 through 8 and 11 through 15 with tests and one ill-formed scenario each, including a cross-sensor capability-gap scenario for check 14.
-6. Embedded builders (`kind`, `endpoint`, `tie`, `semi_markov`, `resource`, `host`, `binding`, `sensor` with `caps` and `role`, `scenario`) producing IR; three example scenarios, one with a deliberate fit-versus-label capability gap.
-7. `tiergen check` and `tiergen impls list`.
+First tasks for M1. Two preliminaries, then three phases. Phases A and B run on the Linux boot. Phase C needs the Windows boot, and it is the only part of M1 that does: under libvirt the DC, the Windows workstation, `agent_windows` and Sysmon attribution all run in guests on the Linux host. When a task says switch, work stops on a named branch, which is then pulled on the other boot.
+
+Before phase A:
+1. Add `windows-latest` to the CI test matrix. Section 18 says `core`, `protocols`, `check` and `interfaces` run anywhere, and nothing has tested it.
+2. Settle the three open questions that block a run (section 16): action parameters, the infrastructure backend and management network, the topology schema. IR changes come with round-trip tests. Then checks 9 and 10.
+
+Phase A, the Linux path. Exit: one Linux workstation, one web server, one attacker; labelled pcaps plus Zeek and Suricata logs from one command.
+3. An `InfraBackend` descriptor, and the Docker backend for the Linux daemon: data-plane and management networks, hosts from bindings, default images from `image_base`. Closes check 7's third clause.
+4. Runtimes for `httpx`, `nginx` and `nmap`, in the packages that already hold their manifests, each with its conformance test (6.1).
+5. `agent_linux`: the projected program, the behaviour loop over the IR's process, a cgroup per invocation, the invocation log.
+6. `capture`: dumpcap on the data-plane bridge, pcapng, per-host clock offsets.
+7. `attrib/linux_ebpf`: bcc on `tcp_connect`, `inet_csk_accept`, UDP send and receive; the join to `(host, cgroup, 5-tuple, interval)`.
+8. Zeek, then Suricata, offline over the pcaps, each with its ingest adapter into `ConnEvent` and `AppEvent`. The capability schemas are defined between the two, so they are not Zeek-shaped by accident. This is also where the `ConnEvent.state` vocabulary is confirmed or changed.
+9. `scheduler`, `tiergen build`, `tiergen run`, `tiergen assemble`: per-sensor labels, `flagged.jsonl`, `manifest.json`.
+
+Phase B, Windows guests under libvirt, still on the Linux boot. Exit: the mixed slice, which is M1's exit criterion.
+10. The libvirt backend; a Windows Server 2022 DC template and a Windows workstation template.
+11. `agent_windows` with a job object per invocation; `attrib/windows_etw` from Sysmon event 3; the w32time clock check.
+12. Runtimes for `smbclient_win` and `samba`. The `hq_lan` slice: DC VM, Windows workstation VM, Linux server, attacker.
+
+Phase C, Windows containers. **Switch to the Windows boot here.**
+13. The Docker backend for the Windows daemon, Hyper-V isolation, as a binding option for the workstation. Verify that both daemons run concurrently (section 12). It comes after the exit criterion, so it never blocks the milestone.
