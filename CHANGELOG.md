@@ -9,6 +9,14 @@ no version numbers.
 
 ### Added
 
+- **core**: action parameters. `Action.params` gives each parameter of the signature a literal or
+  a `Choice`, sampled per invocation, inline or through a `ChoiceRef` to a resource. M0 left
+  open where an invocation's `path` or `ports` come from, and no primitive can run without it.
+  In the IR, so a run is reproducible from IR and seed and `predict` can see what is asked for.
+- **core**: the codec decodes a union whose arms share a JSON shape (`int | float`, two
+  dataclasses) by trying each in order. `ParamScalar` needed it.
+- **check**: check 16, action parameters against the signature. Numbered 16 so that section 8's
+  numbers, which commits and tests refer to, stay put.
 - **workspace**: a `test-windows` CI job. Section 18 says `core`, `protocols`, `check` and
   `interfaces` run anywhere, and until now nothing tested it.
 

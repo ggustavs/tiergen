@@ -16,6 +16,7 @@ from tiergen.check import (
     c13_sensors,
     c14_cross_sensor,
     c15_coverage,
+    c16_params,
 )
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic
@@ -41,6 +42,7 @@ CHECKS: tuple[tuple[str, Check], ...] = (
     ("C13", c13_sensors.check),
     ("C14", c14_cross_sensor.check),
     ("C15", c15_coverage.check),
+    ("C16", c16_params.check),
 )
 """Checks 9 and 10 need an infrastructure backend and arrive with M1."""
 

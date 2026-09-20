@@ -16,7 +16,11 @@ def test_implementation_that_does_not_run_on_the_bound_platform() -> None:
 
 
 def test_host_capabilities_are_reported_as_not_computed_never_as_a_pass() -> None:
-    s = good(surf(action_map={"idle": None, "get": dsl.action("scan.tcp_syn", "web")}))
+    s = good(
+        surf(
+            action_map={"idle": None, "get": dsl.action("scan.tcp_syn", "web", {"ports": "1-1024"})}
+        )
+    )
     s = with_binding(
         s,
         0,

@@ -202,7 +202,7 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 | Interface (actor) | Endpoints an actor serves (protocol, port, transport) and ties it requires. |
 | Tie | A typed relation from one kind to another with multiplicity `single`, `optional` or `multiple`. Who may talk to whom. |
 | Behaviour | A stochastic process over actions attached to a kind, with a time-of-day rate function. |
-| Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie)`, the signature to run and the tie whose targets it is run against, or to `None` for a silent state. |
+| Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie, params)` or to `None` for a silent state. The signature is what to run, the tie whose targets to run it against, and `params` a value for each parameter the signature declares: a literal, or a weighted choice sampled per invocation, inline or from a resource. |
 | Signature | A protocol-level primitive (`http.get`, `smb.read`) with a role, typed parameters and an expected traffic shape (connections, transport, port, permitted follow-on signatures, reuse semantics). A client signature lists the endpoint protocols its target may serve. A server signature (`http.serve`) stands for serving and is what a binding selects a service implementation under. Defined in `protocols/`. The IR references signatures, never tools. |
 | Implementation | A per-tool package providing signatures (`PrimitiveImpl`), running a service (`ServiceImpl`) or adapting an external framework (`AdapterImpl`). It has a manifest, `impl.toml`, and a runtime. Registered by what it provides. |
 | Descriptor | The static half of a sensor or an implementation, as data: `SensorDescriptor`, and `ImplDescriptor` decoded from `impl.toml`. Discovered through entry points. The checker reads descriptors and never imports a runtime. |
@@ -345,7 +345,7 @@ Frozen slotted dataclasses in `core/tiergen/core/ir.py`, shown here without docs
 A field typed `... | str` takes an inline value or the name of a resource that holds one, so a fitted process can live entirely under `models/`. A field typed plain `str` and commented as a resource is always a name. Names are resolved by the checker, never in the IR.
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 Multiplicity = Literal["single", "optional", "multiple"]
@@ -356,6 +356,7 @@ EgressPolicy = Literal["stub", "allowlist", "none"]
 ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
+ParamScalar = str | int | float | bool
 
 @dataclass(frozen=True, slots=True)
 class Endpoint:
@@ -383,9 +384,21 @@ class SemiMarkov:
     rate: str | None                             # resource: hourly multipliers, 24 or 168 values
 
 @dataclass(frozen=True, slots=True)
+class Choice:                                    # a parameter value sampled per invocation
+    options: tuple[ParamScalar, ...]
+    weights: tuple[float, ...]                   # one positive weight per option
+
+@dataclass(frozen=True, slots=True)
+class ChoiceRef:
+    resource: str                                # a Choice held in a resource, e.g. fitted path popularity
+
+ParamValue = ParamScalar | Choice | ChoiceRef
+
+@dataclass(frozen=True, slots=True)
 class Action:
     signature: str
     tie: str                                     # the tie whose targets the signature is run against
+    params: dict[str, ParamValue] = field(default_factory=dict)   # one entry per signature parameter
 
 @dataclass(frozen=True, slots=True)
 class Behaviour:
@@ -520,7 +533,10 @@ Atk = kind(
             initial=[1.0, 0.0],
             transitions=[[0.0, 1.0], [1.0, 0.0]],
             dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
-            action_map={"idle": None, "syn_scan": action("scan.tcp_syn", "victim")},
+            action_map={
+                "idle": None,
+                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}),
+            },
         )
     ],
     platforms=["linux"],
@@ -575,7 +591,7 @@ S = scenario(
 )
 ```
 
-The workstation's behaviour is what `fit` emits, every part a resource under `models/`. The attacker's is written inline, as an engineer adding it by hand would. The DC is a VM from a template, a custom host, so a manifest resource says what it serves. The file server and web server are default hosts, which serve through the service implementations selected for them.
+The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC is a VM from a template, a custom host, so a manifest resource says what it serves. The file server and web server are default hosts, which serve through the service implementations selected for them.
 
 `examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes four deliberate mistakes and fails checks 1, 4, 5 and 12.
 
@@ -585,7 +601,7 @@ The workstation's behaviour is what `fit` emits, every part a resource under `mo
 
 ## 8. Static checks
 
-Checks 1 to 8 and 11 to 15 are implemented in `check/`, one module each, with unit tests and, where the input space allows, a hypothesis property test. Checks 9 and 10 need an infrastructure backend and arrive with M1.
+Checks 1 to 8 and 11 to 16 are implemented in `check/`, one module each, with unit tests and, where the input space allows, a hypothesis property test. Checks 9 and 10 need an infrastructure backend and arrive with M1.
 
 A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a message. `error` makes the scenario ill formed. `warning` is a gap the engineer may accept knowingly. `not_computed` says part of a check could not run and names what was missing; it is never a pass. Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic, not a cascade.
 
@@ -604,6 +620,7 @@ A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a messa
 13. At least one sensor is configured. Each `SensorSpec` names an installed sensor whose descriptor lists the pinned version and the mode, and every declared capability is one the descriptor can declare. An installed sensor meets the required core by construction. Reproducing the config itself is the sensor backend's job in M1.
 14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`; these two are errors. A scenario without fit provenance has nothing to compare.
 15. Coverage sanity: every capability `fit` relied on has measured coverage above the scenario's `coverage_floor` (default 0.5); below it, or with no coverage recorded, warn that the fitted distribution for that capability is sparse.
+16. Action parameters: every required parameter of the action's signature has a value and no parameter is unknown; literals and choice options have the declared type; a choice has at least one option and one positive weight per option. A choice held in a resource is resolved by check 5.
 
 Runtime checks before capture: clock sync within tolerance on every host; attribution backend loaded per host platform; capture and sensor interfaces up; every service healthcheck passes.
 
@@ -733,7 +750,7 @@ No dates. Each milestone ends with something an engineer can run.
 - *open* Sensor version drift between collection and generation; pinning is required, upgrade policy is not defined.
 - *open* Long-lived browser per user (realistic, interval-based per-request labels) versus browser per invocation (clean attribution, unrealistic reuse). Probably long-lived with confidence fields.
 - *open* Keep a per-invocation netns isolation mode as an option for DetGen-style microstructure control.
-- *open* Action parameters. An `Action` is a signature and a tie, and signatures declare typed parameters (`path`, `share`, `ports`), but nothing in the IR says where an invocation's values come from: inline, a resource, or sampled. M1 cannot run a primitive without this.
+- *closed 2026-09-20* Action parameters live in the IR: `Action.params` gives each parameter a literal or a weighted choice, inline or from a resource, and check 16 holds them to the signature. Leaving values to each implementation would have hidden them from `check` and `predict`, made them differ between implementations of one signature, and amounted to the invented parameters section 18 forbids. Still open: numeric parameters drawn from a distribution, not a finite choice (body sizes), which `Distribution` could serve once something needs it.
 - *open* The IR names no infrastructure backend and no management network, yet checks 9 and 10 and check 7's third clause need both. Either they are IR fields, and part of the reproducibility manifest for free, or they are run configuration beside the IR.
 - *open* `Scenario.topology` names a resource with no schema; check 5 only asks that it exists. The schema has to come with the address plan in M1.
 - *open* `Fingerprint` in `impl.toml` covers what the 6.1 sample shows, JA4 and user agent. SSH strings, SMB dialects and OS strings have no slot, and 4.10 needs them.

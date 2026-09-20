@@ -74,7 +74,7 @@ def surf(**changes: object) -> ir.Behaviour:
         "transitions": "cli.transitions",
         "dwell": [dsl.dist("exponential", [30.0]), dsl.dist("exponential", [2.0])],
         "rate": "cli.rate",
-        "action_map": {"idle": None, "get": dsl.action("http.get", "web")},
+        "action_map": {"idle": None, "get": dsl.action("http.get", "web", {"path": "/"})},
     }
     parts.update(changes)
     return dsl.semi_markov("surf", **parts)  # pyright: ignore[reportArgumentType]
