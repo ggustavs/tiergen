@@ -30,6 +30,10 @@ def test_hq_lan_is_well_formed() -> None:
     assert _check("hq_lan") == []
 
 
+def test_linux_slice_is_well_formed() -> None:
+    assert _check("linux_slice") == []
+
+
 def test_hq_lan_capgap_warns_about_smb_dialect_and_nothing_else() -> None:
     found = _check("hq_lan_capgap")
     assert _summary(found) == [("C14", "warning", "sensors[1].capabilities")]
