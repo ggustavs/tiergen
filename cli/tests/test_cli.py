@@ -77,3 +77,39 @@ def test_impls_list_filters(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert main(["impls", "list", "--protocol", "ssh"]) == 0
     assert capsys.readouterr().out == "no implementations match\n"
+
+
+def test_build_writes_a_self_contained_run_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "run1"
+    assert main(["build", _scenario("linux_slice"), "--out", str(out)]) == 0
+    assert "wrote" in capsys.readouterr().out
+    assert sorted(p.name for p in out.iterdir()) == ["addresses.json", "models", "scenario.json"]
+
+    plan = json.loads((out / "addresses.json").read_text())
+    assert plan["gateways"] == {"lan": "10.20.0.1", "mgmt": "10.98.0.1"}
+    assert plan["addresses"]["web_server[0]"] == {"lan": "10.20.0.80", "mgmt": "10.98.0.3"}
+    assert plan["addresses"]["workstation[0]"] == {"lan": "10.20.0.2", "mgmt": "10.98.0.2"}
+
+    # The run directory checks on its own: IR as JSON, with its resources beside it.
+    assert main(["check", str(out / "scenario.json")]) == 0
+    assert "0 errors, 0 warnings" in capsys.readouterr().out
+
+
+def test_build_writes_nothing_for_a_scenario_with_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "run1"
+    assert main(["build", _scenario("hq_lan_broken"), "--out", str(out)]) == 1
+    assert "nothing written" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_build_refuses_a_directory_that_is_not_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "keep.txt").write_text("mine")
+    assert main(["build", _scenario("linux_slice"), "--out", str(tmp_path)]) == 2
+    assert "not an empty directory" in capsys.readouterr().err
+    assert [p.name for p in tmp_path.iterdir()] == ["keep.txt"]

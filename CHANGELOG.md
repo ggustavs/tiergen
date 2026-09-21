@@ -17,6 +17,11 @@ no version numbers.
   to ask. Check 7 also reports a backend that is not installed or does not offer the bound
   platform and host type, which the design had under check 10; it sits better beside the
   other questions about whether a host suits its binding.
+- **cli**: `tiergen build`. It checks a scenario and, only if there are no errors, writes a run
+  directory that checks on its own: `scenario.json`, `addresses.json`, a copy of `models/`.
+  Backend manifests join it when the backends exist.
+- **examples**: `linux_slice`, three Linux containers on one LAN, written inline. It is the
+  scenario phase A of M1 runs.
 - **check**: checks 9 and 10. Check 9 keeps the planes apart: one management network,
   overlapping no data-plane network, and no capture point on it. Check 10 reports whatever
   stops the address plan, overlapping data-plane networks, and kinds left off the data plane.
