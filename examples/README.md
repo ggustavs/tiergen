@@ -7,7 +7,7 @@ Three versions of one small Active Directory LAN, written with the builders in
 |---|---|---|
 | `hq_lan/` | a well-formed scenario | passes |
 | `hq_lan_capgap/` | `fit` relied on a capability the label sensor lacks | passes with a check 14 warning |
-| `hq_lan_broken/` | four deliberate mistakes, listed at the top of its `scenario.py` | fails checks 1, 4, 5 and 12 |
+| `hq_lan_broken/` | six deliberate mistakes, listed at the top of its `scenario.py` | fails checks 1, 4, 5, 9, 10 and 12 |
 
 ```
 uv run tiergen check examples/hq_lan/scenario.py

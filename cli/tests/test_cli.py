@@ -28,8 +28,8 @@ def test_check_passes_with_a_warning(capsys: pytest.CaptureFixture[str]) -> None
 def test_check_fails_an_ill_formed_scenario(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["check", _scenario("hq_lan_broken")]) == 1
     out = capsys.readouterr().out
-    assert all(f"  {check}  " in out for check in ("C01", "C04", "C05", "C12"))
-    assert "hq_lan_broken: 5 errors" in out
+    assert all(f"  {check}  " in out for check in ("C01", "C04", "C05", "C09", "C10", "C12"))
+    assert "hq_lan_broken: 7 errors" in out
 
 
 def test_emitted_json_checks_the_same_as_the_python_it_came_from(
