@@ -17,6 +17,12 @@ no version numbers.
   to ask. Check 7 also reports a backend that is not installed or does not offer the bound
   platform and host type, which the design had under check 10; it sits better beside the
   other questions about whether a host suits its binding.
+- **check**: checks 9 and 10. Check 9 keeps the planes apart: one management network,
+  overlapping no data-plane network, and no capture point on it. Check 10 reports whatever
+  stops the address plan, overlapping data-plane networks, and kinds left off the data plane.
+  Two clauses are `not_computed`: a live sensor's capture interface, which `SensorSpec` does not
+  name, and the egress clauses, which need the external destinations `fit` will emit.
+  `hq_lan_broken` now makes six mistakes.
 - **core**: typed topology and `Host.backend`. **Breaking:** IR JSON written before this does
   not load. `Scenario.topology` was an opaque resource name and is now a `Topology`, inline or
   a resource: networks by CIDR on the data or management plane, which data-plane networks each

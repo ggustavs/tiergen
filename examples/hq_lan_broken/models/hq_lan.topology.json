@@ -2,7 +2,7 @@
   "networks": [
     {
       "name": "lan",
-      "cidr": "10.10.0.0/24",
+      "cidr": "10.10.0.0/26",
       "plane": "data"
     },
     {
@@ -32,9 +32,11 @@
     {
       "name": "core-switch-span",
       "network": "lan"
+    },
+    {
+      "name": "mgmt-tap",
+      "network": "mgmt"
     }
   ],
-  "addresses": {
-    "domain_controller[0]": "10.10.0.10"
-  }
+  "addresses": {}
 }

@@ -1,9 +1,12 @@
-"""hq_lan, ill formed on purpose. Four checks fail:
+"""hq_lan, ill formed on purpose. Six checks fail:
 
 - check 1: workstations and the attacker have a `single` tie to a domain controller, and
   there is none
 - check 4: a row of the attacker's transition matrix sums to 0.9
 - check 5: the workstation's rate curve names a resource that does not exist
+- check 9: a capture point sits on the management network (models/hq_lan.topology.json),
+  so the pcap would record the tool's own traffic
+- check 10: the LAN is a /26, with room for 61 hosts, and 64 instances are attached to it
 - check 12: the attack is scheduled after the run has ended"""
 
 from tiergen.core.dsl import (
@@ -111,7 +114,7 @@ S = scenario(
     egress="none",
     schedule=[at(0, Ws, "start", "office"), at(hours(200), Atk, "start", "recon")],
     duration_s=7 * 24 * 3600,
-    capture_points=["core-switch-span"],
+    capture_points=["core-switch-span", "mgmt-tap"],
     sensors=[
         sensor(
             "zeek",
