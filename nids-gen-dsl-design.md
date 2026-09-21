@@ -48,13 +48,13 @@ No prior work applies multi-tier or choreographic programming to this problem (s
 
 ## 3. The workflow
 
-Each step is a CLI subcommand. The engineer stays in control at the describe step; the rest is mechanical. As of M0 the static half of step 4 exists, `tiergen check`, along with `tiergen impls list` for seeing which implementations are installed. Every other step is still design.
+Each step is a CLI subcommand. The engineer stays in control at the describe step; the rest is mechanical. So far the static half of step 4 exists, `tiergen check`, and the backend-independent half of step 5, `tiergen build`, along with `tiergen impls list` for seeing which implementations are installed. Every other step is still design.
 
 1. **collect** (helper, optional). A sensor configuration and a deployment file for a tap or span port, for whichever sensor the network uses. At least two full weeks to cover weekday and weekend cycles. The sensor's exact version and configuration are captured here and reused unchanged in generation, so real and generated traffic are read by the same instrument.
 2. **fit** `tiergen fit <sensor-logs> --sensor zeek --out models/`. Reads the sensor's logs through its ingest adapter into the common event model (section 4.3), then: host inventory, role clustering into proposed actor kinds, behaviour model per role, implementation mix per role, service inventory, topology and address plan, diurnal rate curves, external-destination inventory. Emits `scenario_proposed.py`, resources under `models/`, and `fit-report.md` listing everything it could not map. Section 11.
 3. **describe**. The engineer edits the scenario: confirms and names kinds, chooses bindings (default container, custom image, Windows container, VM), sets egress policy, adds attack schedules. Section 7.
 4. **check** and **predict**. `tiergen check scenario.py [--models DIR] [--emit-json PATH]` runs the static checks (section 8) over a `scenario.py` or over IR JSON, reading resources from `models/` beside the scenario unless told otherwise. It prints diagnostics grouped as errors, warnings and not computed, and exits 0 with no errors, 1 with errors, 2 if the scenario cannot be loaded. `predict` then gives predicted sensor-level statistics from the scenario's denotation and a fidelity report against the real logs, before anything runs (section 9). Iterate until acceptable.
-5. **build** `tiergen build S --out run1/`. Infra manifests, per-host projected programs, sensor configuration, attribution configuration, label schema.
+5. **build** `tiergen build scenario.py --out run1/`. Runs the checks and refuses to write anything if there are errors. Implemented so far: the run directory holds the IR as `scenario.json`, the address plan as `addresses.json`, and a copy of `models/`, so it checks on its own. Still to come, with the backends: infra manifests, per-host projected programs, sensor configuration, attribution configuration, label schema.
 6. **run** `tiergen run run1/`. Hosts up, agents started, clock sync verified, capture started, schedule executed, logs collected.
 7. **assemble** `tiergen assemble run1/`. Every configured sensor over the pcaps, attribution join, per-sensor labels, conformance and fidelity reports, flagged events, manifest.
 8. **evaluate** (helper). Train reference detectors on the generated data, test on held-out real logs from the target network (benign FP rate) and on generated attacks. Section 13.
@@ -231,8 +231,8 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
   interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
   check/                ✔ static checker: checks 1-16, diagnostics, runner; Z3 behind one typed module
-  cli/                  ✔ the `tiergen` command: `check`, `impls list`
-  examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken; each a scenario.py plus models/
+  cli/                  ✔ the `tiergen` command: `check`, `build` (run directory; no manifests yet), `impls list`
+  examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
   semantics/              process interface, semi-Markov default, product-process analysis, prediction, Storm export
   fit/                    ingestion via Sensor, host inventory, role clustering, behaviour and impl-mix fitting, proposal
   backends/
@@ -868,12 +868,12 @@ Detectors for the evaluation harness
 
 First tasks for M1. Two preliminaries, then three phases. Phases A and B run on the Linux boot. Phase C needs the Windows boot, and it is the only part of M1 that does: under libvirt the DC, the Windows workstation, `agent_windows` and Sysmon attribution all run in guests on the Linux host. When a task says switch, work stops on a named branch, which is then pulled on the other boot.
 
-Before phase A:
-1. Add `windows-latest` to the CI test matrix. Section 18 says `core`, `protocols`, `check` and `interfaces` run anywhere, and nothing has tested it.
-2. Settle the three open questions that block a run (section 16): action parameters, the infrastructure backend and management network, the topology schema. IR changes come with round-trip tests. Then checks 9 and 10.
+Before phase A, both done (2026-09-21):
+1. ~~Add `windows-latest` to the CI test matrix.~~ A `test-windows` job runs the suite on Windows.
+2. ~~Settle the three open questions that block a run, then checks 9 and 10.~~ Action parameters, `Host.backend` and the typed `Topology` are in the IR (section 7); the address plan is a function of the IR; checks 9, 10 and 16 exist.
 
 Phase A, the Linux path. Exit: one Linux workstation, one web server, one attacker; labelled pcaps plus Zeek and Suricata logs from one command.
-3. An `InfraBackend` descriptor, and the Docker backend for the Linux daemon: data-plane and management networks, hosts from bindings, default images from `image_base`. Closes check 7's third clause.
+3. An `InfraBackend` descriptor, and the Docker backend for the Linux daemon: data-plane and management networks, hosts from bindings, default images from `image_base`. Done: the descriptors, check 7's third clause, `tiergen build` writing the run directory, and `examples/linux_slice`, the scenario this phase runs. Next: the backend itself, bringing `linux_slice` up and down.
 4. Runtimes for `httpx`, `nginx` and `nmap`, in the packages that already hold their manifests, each with its conformance test (6.1).
 5. `agent_linux`: the projected program, the behaviour loop over the IR's process, a cgroup per invocation, the invocation log.
 6. `capture`: dumpcap on the data-plane bridge, pcapng, per-host clock offsets.

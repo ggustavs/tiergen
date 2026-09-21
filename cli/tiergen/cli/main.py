@@ -1,17 +1,22 @@
-"""The ``tiergen`` command. M0 has ``check`` and ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build`` and ``impls list``."""
 
 import argparse
 import json
+import shutil
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from tiergen.check import Diagnostic, run_checks
-from tiergen.core.codec import CodecError
+from tiergen.check.context import Context
+from tiergen.core.addressing import plan_addresses
+from tiergen.core.codec import CodecError, to_json
+from tiergen.core.ir import Scenario
 from tiergen.core.loader import ScenarioLoadError, load_scenario
 from tiergen.core.resources import DirResources
 from tiergen.impls._base import load_impls
 from tiergen.interfaces.registry import load_infra, load_sensors
+from tiergen.protocols import SIGNATURES
 
 OK, FAILED, UNUSABLE = 0, 1, 2
 HEADINGS = (("error", "errors"), ("warning", "warnings"), ("not_computed", "not computed"))
@@ -40,6 +45,24 @@ def _parser() -> argparse.ArgumentParser:
         "--emit-json", type=Path, metavar="PATH", help="also write the scenario's IR as JSON"
     )
 
+    build = commands.add_parser(
+        "build",
+        help="check a scenario and write its run directory",
+        description="Check a scenario and, if it has no errors, write a self-contained run "
+        "directory: the IR, the address plan, and a copy of the resources. Exit status as "
+        "for check; nothing is written when there are errors.",
+    )
+    build.add_argument("scenario", type=Path, help="scenario.py, or a scenario as IR JSON")
+    build.add_argument(
+        "--out", type=Path, required=True, metavar="DIR", help="run directory to create"
+    )
+    build.add_argument(
+        "--models",
+        type=Path,
+        metavar="DIR",
+        help="resource directory (default: models/ beside the scenario)",
+    )
+
     impls = commands.add_parser("impls", help="inspect installed implementations")
     impl_commands = impls.add_subparsers(dest="impls_command", required=True, metavar="subcommand")
     listing = impl_commands.add_parser("list", help="list installed implementations")
@@ -51,19 +74,63 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _check(scenario_path: Path, models: Path | None, emit_json: Path | None) -> int:
+def _load(scenario_path: Path) -> Scenario | None:
     try:
-        scenario = load_scenario(scenario_path)
+        return load_scenario(scenario_path)
     except (OSError, ScenarioLoadError, CodecError, json.JSONDecodeError) as err:
         print(f"tiergen: cannot load {scenario_path}: {err}", file=sys.stderr)
+        return None
+
+
+def _models(scenario_path: Path, models: Path | None) -> Path:
+    return models if models is not None else scenario_path.parent / "models"
+
+
+def _dump(value: object, path: Path) -> None:
+    path.write_text(json.dumps(to_json(value), indent=2) + "\n", encoding="utf-8")
+
+
+def _check(scenario_path: Path, models: Path | None, emit_json: Path | None) -> int:
+    scenario = _load(scenario_path)
+    if scenario is None:
         return UNUSABLE
     if emit_json is not None:
-        emit_json.write_text(json.dumps(scenario.to_json(), indent=2) + "\n", encoding="utf-8")
-
-    resources = DirResources(models if models is not None else scenario_path.parent / "models")
+        _dump(scenario, emit_json)
+    resources = DirResources(_models(scenario_path, models))
     found = run_checks(scenario, resources, load_impls(), load_sensors(), load_infra())
     _report(scenario.name, found)
     return FAILED if any(d.severity == "error" for d in found) else OK
+
+
+def _build(scenario_path: Path, models: Path | None, out: Path) -> int:
+    scenario = _load(scenario_path)
+    if scenario is None:
+        return UNUSABLE
+    if out.exists() and (not out.is_dir() or any(out.iterdir())):
+        print(f"tiergen: {out} exists and is not an empty directory", file=sys.stderr)
+        return UNUSABLE
+
+    source = _models(scenario_path, models)
+    resources = DirResources(source)
+    impls, sensors, infra = load_impls(), load_sensors(), load_infra()
+    found = run_checks(scenario, resources, impls, sensors, infra)
+    _report(scenario.name, found)
+    if any(d.severity == "error" for d in found):
+        print(f"tiergen: {scenario.name} has errors; nothing written", file=sys.stderr)
+        return FAILED
+
+    # No errors, so check 5 resolved the topology and check 10 found the plan complete.
+    topology = Context(scenario, resources, impls, sensors, infra, SIGNATURES).topology()
+    assert topology is not None
+    plan, _ = plan_addresses(scenario, topology)
+
+    out.mkdir(parents=True, exist_ok=True)
+    _dump(scenario, out / "scenario.json")
+    _dump(plan, out / "addresses.json")
+    if source.is_dir():
+        shutil.copytree(source, out / "models")
+    print(f"wrote {out}: scenario.json, addresses.json" + (", models/" if source.is_dir() else ""))
+    return OK
 
 
 def _report(name: str, found: list[Diagnostic]) -> None:
@@ -101,6 +168,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "check":
         return _check(args.scenario, args.models, args.emit_json)
+    if args.command == "build":
+        return _build(args.scenario, args.models, args.out)
     return _impls_list(args.protocol, args.platform, args.kind)
 
 

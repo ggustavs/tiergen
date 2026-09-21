@@ -47,6 +47,8 @@ jobs:
         run: |
           uv run tiergen check examples/hq_lan/scenario.py
           uv run tiergen check examples/hq_lan_capgap/scenario.py
+          uv run tiergen build examples/linux_slice/scenario.py --out "$RUNNER_TEMP/run1"
+          uv run tiergen check "$RUNNER_TEMP/run1/scenario.json"
           if uv run tiergen check examples/hq_lan_broken/scenario.py; then
             echo "hq_lan_broken passed the checks; it must fail" >&2
             exit 1
