@@ -11,6 +11,7 @@ from tiergen.check import (
     c06_interface,
     c07_platform,
     c08_impls,
+    c09_planes,
     c11_labels,
     c12_schedule,
     c13_sensors,
@@ -37,6 +38,7 @@ CHECKS: tuple[tuple[str, Check], ...] = (
     ("C06", c06_interface.check),
     ("C07", c07_platform.check),
     ("C08", c08_impls.check),
+    ("C09", c09_planes.check),
     ("C11", c11_labels.check),
     ("C12", c12_schedule.check),
     ("C13", c13_sensors.check),
@@ -44,7 +46,6 @@ CHECKS: tuple[tuple[str, Check], ...] = (
     ("C15", c15_coverage.check),
     ("C16", c16_params.check),
 )
-"""Checks 9 and 10 need an infrastructure backend and arrive with M1."""
 
 
 def run_checks(
