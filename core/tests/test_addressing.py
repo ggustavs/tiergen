@@ -7,12 +7,12 @@ from hypothesis import strategies as st
 from tiergen.core import ir
 from tiergen.core.addressing import AddressPlan, plan_addresses
 from tiergen.core.codec import from_json, to_json
-from tiergen.core.dsl import group, kind, network, scenario, topology
+from tiergen.core.dsl import group, kind, scenario, segment, topology
 from tiergen.core.groups import instance_ids
 
-LAN = network("lan", "10.0.0.0/24")
-DMZ = network("dmz", "10.0.1.0/28")
-MGMT = network("mgmt", "10.9.0.0/24", "management")
+LAN = segment("lan", "10.0.0.0/24")
+DMZ = segment("dmz", "10.0.1.0/28")
+MGMT = segment("mgmt", "10.9.0.0/24", "management")
 CLI = kind("cli", platforms=["linux"])
 SRV = kind("srv", platforms=["linux"])
 
@@ -20,8 +20,8 @@ SRV = kind("srv", platforms=["linux"])
 def _scenario(
     cli: int = 3,
     srv: int = 2,
-    cli_nets: list[ir.Network] | None = None,
-    srv_nets: list[ir.Network] | None = None,
+    cli_nets: list[ir.Segment] | None = None,
+    srv_nets: list[ir.Segment] | None = None,
 ) -> ir.Scenario:
     g = group(
         "g",
@@ -34,6 +34,7 @@ def _scenario(
         bindings={},
         topology="unused",
         egress="none",
+        start="2026-10-05T08:00:00+02:00",
         duration_s=1,
         capture_points=[],
         sensors=[],
@@ -63,6 +64,7 @@ def test_groups_are_allocated_in_order_before_kinds() -> None:
         bindings={},
         topology="unused",
         egress="none",
+        start="2026-10-05T08:00:00+02:00",
         duration_s=1,
         capture_points=[],
         sensors=[],
@@ -99,8 +101,8 @@ def test_problems_are_reported_and_the_rest_is_still_planned() -> None:
     broken = ir.Topology(
         (
             LAN,
-            ir.Network("lan", "10.5.0.0/24", "data"),
-            ir.Network("bad", "10.0.0.7/24", "data"),
+            ir.Segment("lan", "10.5.0.0/24", "data"),
+            ir.Segment("bad", "10.0.0.7/24", "data"),
             MGMT,
         ),
         (),
@@ -114,8 +116,8 @@ def test_problems_are_reported_and_the_rest_is_still_planned() -> None:
     )
     plan, problems = plan_addresses(_scenario(srv_nets=[LAN]), broken)
     found = {p.path: p.message for p in problems}
-    assert "defined twice" in found["networks[1].name"]
-    assert "is not a network" in found["networks[2].cidr"]
+    assert "defined twice" in found["segments[1].name"]
+    assert "is not a prefix" in found["segments[2].cidr"]
     assert "not an instance" in found["addresses['g/ghost[0]']"]
     assert "is not an address" in found["addresses['g/cli[0]']"]
     assert "none of the networks" in found["addresses['g/cli[1]']"]
@@ -126,12 +128,12 @@ def test_problems_are_reported_and_the_rest_is_still_planned() -> None:
 
 
 def test_a_network_that_is_too_small() -> None:
-    small = network("lan", "10.0.0.0/29")
+    small = segment("lan", "10.0.0.0/29")
     s = _scenario(cli=4, srv=2, cli_nets=[small], srv_nets=[small])
     _, problems = plan_addresses(s, topology([small, MGMT]))
     [p] = problems
     assert "room for 5 hosts; 6 are attached" in p.message
-    p2p = network("p2p", "10.0.0.0/31")
+    p2p = segment("p2p", "10.0.0.0/31")
     _, problems = plan_addresses(_scenario(cli_nets=[p2p], srv_nets=[]), topology([p2p]))
     assert "no room for hosts" in problems[0].message
 
@@ -150,7 +152,7 @@ def test_instances_with_a_negative_count_are_none() -> None:
 )
 @settings(max_examples=150, deadline=None)
 def test_plan_properties(cli: int, srv: int, prefix: int, pins: dict[int, int]) -> None:
-    lan = network("lan", f"10.0.0.0/{prefix}")
+    lan = segment("lan", f"10.0.0.0/{prefix}")
     addresses = {f"g/cli[{i}]": f"10.0.0.{host}" for i, host in pins.items()}
     top = topology([lan, MGMT], addresses=addresses)
     s = _scenario(cli, srv, cli_nets=[lan], srv_nets=[lan])

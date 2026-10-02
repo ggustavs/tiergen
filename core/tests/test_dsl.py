@@ -59,6 +59,7 @@ def _small() -> ir.Scenario:
             at(hours(1), lan, "start", "surf", kind=cli),
             at(0, "lan/cli[2]", "stop", "surf"),
         ],
+        start="2026-10-05T08:00:00+02:00",
         duration_s=hours(2),
         capture_points=["span0"],
         sensors=[
@@ -110,6 +111,7 @@ def test_two_kinds_with_one_name_are_refused() -> None:
             bindings={},
             topology="t",
             egress="none",
+            start="2026-10-05T08:00:00+02:00",
             duration_s=1,
             capture_points=[],
             sensors=[],
@@ -123,6 +125,7 @@ from tiergen.core.dsl import group, kind, scenario
 K = kind("k", platforms=["linux"])
 G = group("g", instances={K: 1}, attachments={})
 S = scenario("from_py", groups=[G], bindings={}, topology="t", egress="none",
+             start="2026-10-05T08:00:00+02:00",
              duration_s=1, capture_points=[], sensors=[], seed=0)
 ALIAS = S
 """
@@ -141,8 +144,10 @@ def test_load_from_python_and_from_json(tmp_path: Path) -> None:
 
 TWO_SCENARIOS = SCENARIO_PY.replace("ALIAS = S", 'T = scenario("second", **ARGS)').replace(
     'S = scenario("from_py", groups=[G], bindings={}, topology="t", egress="none",\n'
+    '             start="2026-10-05T08:00:00+02:00",\n'
     "             duration_s=1, capture_points=[], sensors=[], seed=0)",
     'ARGS = dict(groups=[G], bindings={}, topology="t", egress="none",\n'
+    '            start="2026-10-05T08:00:00+02:00",\n'
     "            duration_s=1, capture_points=[], sensors=[], seed=0)\n"
     'S = scenario("from_py", **ARGS)',
 )
@@ -184,15 +189,15 @@ def from_json_action(act: ir.Action) -> ir.Action:
 
 
 def test_topology_builder_takes_handles_or_names() -> None:
-    from tiergen.core.dsl import capture_point, network, topology
+    from tiergen.core.dsl import capture_point, segment, topology
 
-    lan = network("lan", "10.0.0.0/24")
-    mgmt = network("mgmt", "10.9.0.0/24", "management")
+    lan = segment("lan", "10.0.0.0/24")
+    mgmt = segment("mgmt", "10.9.0.0/24", "management")
     srv = kind("srv", platforms=["linux"])
     built = topology([lan, mgmt], [capture_point("span0", lan)], {"g/srv[0]": "10.0.0.10"})
     assert built == ir.Topology(
-        (ir.Network("lan", "10.0.0.0/24", "data"), ir.Network("mgmt", "10.9.0.0/24", "management")),
-        (ir.CapturePoint("span0", "lan"),),
+        (ir.Segment("lan", "10.0.0.0/24", "data"), ir.Segment("mgmt", "10.9.0.0/24", "management")),
+        (ir.CapturePoint("span0", ("lan",)),),
         {"g/srv[0]": "10.0.0.10"},
     )
     assert topology([lan]).addresses == {}

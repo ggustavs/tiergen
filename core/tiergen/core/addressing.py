@@ -50,10 +50,10 @@ def plan_addresses(
 
     parsed: dict[str, _Network] = {}
     members: dict[str, list[str]] = {}
-    for n, net in enumerate(topology.networks):
+    for n, net in enumerate(topology.segments):
         if net.name in members:
             problems.append(
-                AddressProblem(f"networks[{n}].name", f"network {net.name!r} is defined twice")
+                AddressProblem(f"segments[{n}].name", f"segment {net.name!r} is defined twice")
             )
             continue
         if net.plane == "management":
@@ -68,7 +68,7 @@ def plan_addresses(
             parsed[net.name] = ip_network(net.cidr, strict=True)
         except ValueError as err:
             problems.append(
-                AddressProblem(f"networks[{n}].cidr", f"{net.cidr!r} is not a network: {err}")
+                AddressProblem(f"segments[{n}].cidr", f"{net.cidr!r} is not a prefix: {err}")
             )
 
     gateways: dict[str, _Address] = {}
@@ -76,7 +76,7 @@ def plan_addresses(
         first = next(iter(network.hosts()), None)
         if first is None or network.num_addresses < 4:
             problems.append(
-                AddressProblem("networks", f"network {name!r} ({network}) has no room for hosts")
+                AddressProblem("segments", f"segment {name!r} ({network}) has no room for hosts")
             )
         else:
             gateways[name] = first
@@ -114,8 +114,8 @@ def plan_addresses(
                 room = network.num_addresses - 3  # network, broadcast, gateway
                 problems.append(
                     AddressProblem(
-                        "networks",
-                        f"network {name!r} ({network}) has room for {room} hosts; "
+                        "segments",
+                        f"segment {name!r} ({network}) has room for {room} hosts; "
                         f"{len(members[name])} are attached",
                     )
                 )

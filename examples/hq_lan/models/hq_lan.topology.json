@@ -1,20 +1,25 @@
 {
-  "networks": [
+  "segments": [
     {
       "name": "lan",
       "cidr": "10.10.0.0/24",
-      "plane": "data"
+      "plane": "data",
+      "vlan": null
     },
     {
       "name": "mgmt",
       "cidr": "10.99.0.0/24",
-      "plane": "management"
+      "plane": "management",
+      "vlan": null
     }
   ],
   "capture_points": [
     {
       "name": "core-switch-span",
-      "network": "lan"
+      "segments": [
+        "lan"
+      ],
+      "tagged": false
     }
   ],
   "addresses": {

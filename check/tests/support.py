@@ -65,11 +65,11 @@ RESOURCES: dict[str, JsonValue] = {
     "cli.transitions": [[0.5, 0.5], [1.0, 0.0]],
     "cli.rate": [1.0 for _ in range(24)],
     "lan.topology": {
-        "networks": [
+        "segments": [
             {"name": "lan", "cidr": "10.0.0.0/24", "plane": "data"},
             {"name": "mgmt", "cidr": "10.9.0.0/24", "plane": "management"},
         ],
-        "capture_points": [{"name": "span0", "network": "lan"}],
+        "capture_points": [{"name": "span0", "segments": ["lan"]}],
     },
     "lan.provenance": {
         "sensor": "rich",
@@ -120,6 +120,7 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
             dsl.at(0, lan, "start", "surf", kind=cli),
             dsl.at(60, "lan/cli[2]", "set_rate", 0.5),
         ],
+        start="2026-10-05T08:00:00+02:00",
         duration_s=3600,
         capture_points=["span0"],
         sensors=[

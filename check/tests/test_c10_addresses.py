@@ -4,9 +4,9 @@ from support import good, only, run, with_group
 
 from tiergen.core import ir
 
-LAN = ir.Network("lan", "10.0.0.0/24", "data")
-MGMT = ir.Network("mgmt", "10.9.0.0/24", "management")
-SPAN = ir.CapturePoint("span0", "lan")
+LAN = ir.Segment("lan", "10.0.0.0/24", "data")
+MGMT = ir.Segment("mgmt", "10.9.0.0/24", "management")
+SPAN = ir.CapturePoint("span0", ("lan",))
 
 
 def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
@@ -15,23 +15,23 @@ def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
 
 def test_planner_problems_become_errors_under_the_topology() -> None:
     topology = ir.Topology(
-        (ir.Network("lan", "10.0.0.0/30", "data"), MGMT), (SPAN,), {"lan/cli[9]": "10.0.0.2"}
+        (ir.Segment("lan", "10.0.0.0/30", "data"), MGMT), (SPAN,), {"lan/cli[9]": "10.0.0.2"}
     )
     found = {d.path: d.message for d in only("C10", _with(topology))}
     assert "not an instance" in found["topology.addresses['lan/cli[9]']"]
-    assert "room for 1 hosts; 4 are attached" in found["topology.networks"]
+    assert "room for 1 hosts; 4 are attached" in found["topology.segments"]
 
 
 def test_a_malformed_cidr() -> None:
     [d] = only(
         "C10",
-        _with(ir.Topology((ir.Network("lan", "10.0.0.300/24", "data"), MGMT), (SPAN,))),
+        _with(ir.Topology((ir.Segment("lan", "10.0.0.300/24", "data"), MGMT), (SPAN,))),
     )
-    assert d.path == "topology.networks[0].cidr"
+    assert d.path == "topology.segments[0].cidr"
 
 
 def test_overlapping_data_plane_networks() -> None:
-    dmz = ir.Network("dmz", "10.0.0.128/25", "data")
+    dmz = ir.Segment("dmz", "10.0.0.128/25", "data")
     [d] = only("C10", _with(ir.Topology((LAN, dmz, MGMT), (SPAN,))))
     assert "'lan' (10.0.0.0/24) and 'dmz' (10.0.0.128/25) overlap" in d.message
 
@@ -43,8 +43,8 @@ def test_attachments_name_real_kinds_and_data_plane_networks() -> None:
         for d in only("C10", with_group(good(), 0, attachments=attachments))
     }
     assert found == {
-        ("groups[0].attachments['cli']", "'wan' is not a network of this topology"),
-        ("groups[0].attachments['srv']", "'mgmt' is the management network"),
+        ("groups[0].attachments['cli']", "'wan' is not a segment of this topology"),
+        ("groups[0].attachments['srv']", "'mgmt' is the management segment"),
         ("groups[0].attachments['ghost']", "'ghost' is not a kind of this scenario"),
     }
 

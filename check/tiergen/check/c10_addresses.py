@@ -21,14 +21,14 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
     topology = ctx.topology()
     if topology is None:
         return  # check 5 reports a topology that does not resolve
-    planes = {net.name: net.plane for net in topology.networks}
+    planes = {net.name: net.plane for net in topology.segments}
     kinds = {kind.name for kind in s.kinds}
 
     _, problems = plan_addresses(s, topology)
     for problem in problems:
         yield error(ID, f"topology.{problem.path}", problem.message)
 
-    data = [net for net in topology.networks if net.plane == "data"]
+    data = [net for net in topology.segments if net.plane == "data"]
     for a, b in combinations(data, 2):
         try:
             shared = ip_network(a.cidr).overlaps(ip_network(b.cidr))
@@ -37,8 +37,8 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
         if shared:
             yield error(
                 ID,
-                "topology.networks",
-                f"data-plane networks {a.name!r} ({a.cidr}) and {b.name!r} ({b.cidr}) overlap, "
+                "topology.segments",
+                f"data-plane segments {a.name!r} ({a.cidr}) and {b.name!r} ({b.cidr}) overlap, "
                 "so an address could mean two hosts",
             )
 
@@ -49,12 +49,12 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                 yield error(ID, path, f"{kind!r} is not a kind of this scenario")
             for name in networks:
                 if name not in planes:
-                    yield error(ID, path, f"{name!r} is not a network of this topology")
+                    yield error(ID, path, f"{name!r} is not a segment of this topology")
                 elif planes[name] != "data":
                     yield error(
                         ID,
                         path,
-                        f"{name!r} is the management network; every instance joins it implicitly",
+                        f"{name!r} is the management segment; every instance joins it implicitly",
                     )
         for kind, count in group.instances.items():
             joined = [n for n in group.attachments.get(kind, ()) if planes.get(n) == "data"]
