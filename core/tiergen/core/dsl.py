@@ -8,6 +8,7 @@ proposes and what the engineer edits.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from tiergen.core.ir import (
     Action,
@@ -26,7 +27,6 @@ from tiergen.core.ir import (
     HostType,
     ImplSelection,
     Multiplicity,
-    Network,
     ParamScalar,
     ParamValue,
     Plane,
@@ -34,6 +34,8 @@ from tiergen.core.ir import (
     Scenario,
     ScheduleEvent,
     ScheduleOp,
+    Segment,
+    Select,
     SemiMarkov,
     SensorMode,
     SensorRole,
@@ -77,6 +79,8 @@ class BindingSpec:
 
     host: Host
     impls: tuple[ImplSelection, ...]
+    mac_oui: str | None
+    credentials: str | None
 
 
 def _name(target: Kind | str) -> str:
@@ -114,13 +118,20 @@ def choice_from(resource: str) -> ChoiceRef:
     return ChoiceRef(resource)
 
 
-def action(signature: str, tie: str, params: Mapping[str, ParamValue] | None = None) -> Action:
+def action(
+    signature: str,
+    tie: str,
+    params: Mapping[str, ParamValue] | None = None,
+    *,
+    select: Select | None = None,
+) -> Action:
     """Run ``signature`` against the peers reached over the tie named ``tie``.
 
     ``params`` gives each of the signature's parameters a literal, a ``choice`` or a
-    ``choice_from``.
+    ``choice_from``. ``select`` says, for a ``multiple`` tie, whether an invocation hits all
+    its targets or one drawn uniformly.
     """
-    return Action(signature, tie, dict(params or {}))
+    return Action(signature, tie, dict(params or {}), select)
 
 
 def semi_markov(
@@ -155,8 +166,13 @@ def kind(
     serves: Sequence[Endpoint] = (),
     ties: Sequence[Tie] = (),
     behaviours: Sequence[Behaviour] = (),
+    forwards: bool = False,
 ) -> Kind:
-    return Kind(ActorKind(name, tuple(serves), tuple(ties), tuple(behaviours), tuple(platforms)))
+    """``forwards`` makes the kind a router: its instances pass packets between the segments
+    they are attached to."""
+    return Kind(
+        ActorKind(name, tuple(serves), tuple(ties), tuple(behaviours), tuple(platforms), forwards)
+    )
 
 
 def host(
@@ -173,29 +189,35 @@ def host(
     return Host(platform, host_type, backend, ref, manifest)
 
 
-def network(name: str, cidr: str, plane: Plane = "data") -> Network:
-    return Network(name, cidr, plane)
+def segment(name: str, cidr: str, plane: Plane = "data", *, vlan: int | None = None) -> Segment:
+    """One broadcast domain with one IPv4 prefix; ``vlan`` as the real network numbers it."""
+    return Segment(name, cidr, plane, vlan)
 
 
-def capture_point(name: str, network: Network | str) -> CapturePoint:
-    return CapturePoint(name, network if isinstance(network, str) else network.name)
+def capture_point(
+    name: str, segments: Segment | str | Sequence[Segment | str], *, tagged: bool = False
+) -> CapturePoint:
+    """An observation point on one segment, or on several for a trunk SPAN; ``tagged`` if the
+    frames reach the sensor with their 802.1Q tags."""
+    listed = (segments,) if isinstance(segments, (Segment, str)) else tuple(segments)
+    return CapturePoint(name, tuple(s if isinstance(s, str) else s.name for s in listed), tagged)
 
 
 def topology(
-    networks: Sequence[Network],
+    segments: Sequence[Segment],
     capture_points: Sequence[CapturePoint] = (),
     addresses: Mapping[str, str] | None = None,
 ) -> Topology:
-    """The networks and capture points. Who joins which is said per ``group``. ``addresses``
+    """The segments and capture points. Who joins which is said per ``group``. ``addresses``
     pins single instances by id, ``path/kind[i]``; everything else is allocated."""
-    return Topology(tuple(networks), tuple(capture_points), dict(addresses or {}))
+    return Topology(tuple(segments), tuple(capture_points), dict(addresses or {}))
 
 
 def group(
     name: str,
     *,
     instances: Mapping[Kind, int],
-    attachments: Mapping[Kind, Sequence[Network | str]],
+    attachments: Mapping[Kind, Sequence[Segment | str]],
     wiring: Mapping[str, GroupHandle | str | Sequence[GroupHandle | str]] | None = None,
     parent: GroupHandle | str | None = None,
 ) -> GroupHandle:
@@ -233,15 +255,20 @@ def group(
 
 
 def binding(
-    host: Host, impls: Mapping[str, Mapping[str, float] | str] | None = None
+    host: Host,
+    impls: Mapping[str, Mapping[str, float] | str] | None = None,
+    *,
+    mac_oui: str | None = None,
+    credentials: str | None = None,
 ) -> BindingSpec:
     """``impls`` maps a signature to weighted choices, ``{"impl_id[:variant]": weight}``, or
-    to the resource that holds them."""
+    to the resource that holds them. ``mac_oui`` is the kind's MAC prefix as fitted;
+    ``credentials`` names the resource its implementations authenticate with."""
     selections = tuple(
         ImplSelection(signature, choices if isinstance(choices, str) else dict(choices))
         for signature, choices in (impls or {}).items()
     )
-    return BindingSpec(host, selections)
+    return BindingSpec(host, selections, mac_oui, credentials)
 
 
 def sensor(
@@ -252,8 +279,11 @@ def sensor(
     *,
     caps: Sequence[str],
     role: SensorRole,
+    name: str | None = None,
 ) -> SensorSpec:
-    return SensorSpec(impl, version, config, mode, tuple(caps), role)
+    """``name`` keys the sensor's flow ids and labels; it defaults to ``impl``, and must be
+    given when one implementation is configured twice."""
+    return SensorSpec(name or impl, impl, version, config, mode, tuple(caps), role)
 
 
 def fit_provenance(
@@ -292,6 +322,7 @@ def scenario(
     bindings: Mapping[Kind, BindingSpec],
     topology: Topology | str,
     egress: EgressPolicy,
+    start: str,
     duration_s: float,
     capture_points: Sequence[str],
     sensors: Sequence[SensorSpec],
@@ -316,11 +347,15 @@ def scenario(
         name=name,
         kinds=tuple(kinds),
         groups=tuple(g.ir for g in groups),
-        bindings=tuple(Binding(k.name, spec.host, spec.impls) for k, spec in bindings.items()),
+        bindings=tuple(
+            Binding(k.name, spec.host, spec.impls, spec.mac_oui, spec.credentials)
+            for k, spec in bindings.items()
+        ),
         topology=topology,
         egress=egress,
         egress_overrides=dict(egress_overrides or {}),
         schedule=tuple(schedule),
+        start=_iso(start),
         duration_s=duration_s,
         capture_points=tuple(capture_points),
         sensors=tuple(sensors),
@@ -333,3 +368,11 @@ def scenario(
 def _kinds_of(groups: Sequence[GroupHandle]) -> list[Kind]:
     """The kind handles the groups were built with, which ``group`` keeps on the handle."""
     return [kind for g in groups for kind in g.kinds]
+
+
+def _iso(start: str) -> str:
+    """``start`` as given, after checking it is ISO 8601 with a UTC offset."""
+    moment = datetime.fromisoformat(start)
+    if moment.utcoffset() is None:
+        raise ValueError(f"start {start!r} needs a UTC offset: the rate curves are in local time")
+    return start

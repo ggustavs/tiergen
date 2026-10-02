@@ -124,6 +124,7 @@ S = scenario(
         at(0, Hq, "start", "office", kind=Ws),
         at(hours(200), Hq, "start", "recon", kind=Atk),
     ],
+    start="2026-10-05T08:00:00+02:00",
     duration_s=7 * 24 * 3600,
     capture_points=["core-switch-span", "mgmt-tap"],
     sensors=[

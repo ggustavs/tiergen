@@ -26,10 +26,10 @@ def test_opaque_resource_where_json_is_needed() -> None:
 def test_topology_is_a_typed_resource() -> None:
     [d] = only("C05", replace(good(), topology="lan.nowhere"))
     assert (d.path, "does not exist" in d.message) == ("topology", True)
-    bad: JsonValue = {"networks": [{"name": "lan", "cidr": "10.0.0.0/24", "plane": "control"}]}
+    bad: JsonValue = {"segments": [{"name": "lan", "cidr": "10.0.0.0/24", "plane": "control"}]}
     [d] = only("C05", good(), {**RESOURCES, "lan.topology": bad})
     assert d.path == "topology"
-    assert "networks[0].plane" in d.message
+    assert "segments[0].plane" in d.message
 
 
 def test_opaque_references_only_need_to_exist() -> None:

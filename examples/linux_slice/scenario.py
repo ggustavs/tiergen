@@ -17,9 +17,9 @@ from tiergen.core.dsl import (
     group,
     host,
     kind,
-    network,
     resource,
     scenario,
+    segment,
     semi_markov,
     sensor,
     tie,
@@ -66,8 +66,8 @@ Atk = kind(
     platforms=["linux"],
 )
 
-Lan = network("lan", "10.20.0.0/24")
-Mgmt = network("mgmt", "10.98.0.0/24", "management")
+Lan = segment("lan", "10.20.0.0/24")
+Mgmt = segment("mgmt", "10.98.0.0/24", "management")
 
 Lab = group(
     "lab", instances={Ws: 1, Web: 1, Atk: 1}, attachments={Ws: [Lan], Web: [Lan], Atk: [Lan]}
@@ -93,6 +93,7 @@ S = scenario(
     ),
     egress="none",
     schedule=[at(0, Lab, "start", "browse", kind=Ws), at(600, Lab, "start", "recon", kind=Atk)],
+    start="2026-10-05T08:00:00+02:00",
     duration_s=3600,
     capture_points=["lan-span"],
     sensors=[

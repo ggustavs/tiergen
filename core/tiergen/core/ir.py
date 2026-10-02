@@ -23,6 +23,7 @@ ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
 Plane = Literal["data", "management"]
+Select = Literal["all", "one"]
 ParamScalar = str | int | float | bool
 
 
@@ -97,12 +98,15 @@ class Action:
     ``params`` gives a value for each parameter the signature declares: a literal, used for
     every invocation, or a choice, sampled for each one from the instance's seeded generator.
     Parameters are part of the IR so that a run is reproducible from IR and seed, and so that
-    ``predict`` can see what is asked for, not only how often.
+    ``predict`` can see what is asked for, not only how often. ``select`` says which of a
+    ``multiple`` tie's targets an invocation hits: all of them, or one drawn uniformly. It is
+    required when the tie is ``multiple`` (check 16) and meaningless otherwise.
     """
 
     signature: str
     tie: str
     params: dict[str, ParamValue] = field(default_factory=dict[str, ParamValue])
+    select: Select | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,13 +124,18 @@ class Behaviour:
 
 @dataclass(frozen=True, slots=True)
 class ActorKind:
-    """A type of participant: what it serves, whom it may reach, how it behaves, where it runs."""
+    """A type of participant: what it serves, whom it may reach, how it behaves, where it runs.
+
+    A kind that ``forwards`` is a router in the RFC 1812 sense: a host that passes packets
+    between the segments it is attached to. Routing is derived from that (``tiergen.core.routing``).
+    """
 
     name: str
     serves: tuple[Endpoint, ...]
     ties: tuple[Tie, ...]
     behaviours: tuple[Behaviour, ...]
     platforms: tuple[Platform, ...]
+    forwards: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,11 +169,20 @@ class ImplSelection:
 
 @dataclass(frozen=True, slots=True)
 class Binding:
-    """For one kind in a scenario: its host and its implementation selections."""
+    """For one kind in a scenario: its host and its implementation selections.
+
+    ``mac_oui`` is the first three octets of the MAC addresses its instances get, as
+    ``"3c:ec:ef"``, which ``fit`` can measure from DHCP or ARP; None leaves the substrate's
+    own prefix, which a sensor can fingerprint, so check 7 reports it. ``credentials`` names
+    an opaque resource with the domain, accounts and secrets the kind's implementations use;
+    its shape is the implementations' business, not the IR's.
+    """
 
     kind: str
     host: Host
     impls: tuple[ImplSelection, ...]
+    mac_oui: str | None = None
+    credentials: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,11 +203,14 @@ class ScheduleEvent:
 class SensorSpec:
     """One configured sensor.
 
-    ``config`` names the resource holding the exact configuration used on both real and
-    generated traffic. ``capabilities`` are Capability names this configuration declares.
-    A ``role`` of "fit" or "both" marks the sensor the model was fitted from.
+    ``name`` is unique among the scenario's sensors and is what flow ids and labels are keyed
+    by; one implementation may be configured twice (offline and live). ``config`` names the
+    resource holding the exact configuration used on both real and generated traffic.
+    ``capabilities`` are Capability names this configuration declares. A ``role`` of "fit"
+    or "both" marks the sensor the model was fitted from.
     """
 
+    name: str
     impl: str
     version: str
     config: str
@@ -208,25 +229,39 @@ class FitProvenance:
 
 
 @dataclass(frozen=True, slots=True)
-class Network:
-    """One network, by CIDR. Data-plane networks are captured; the management one never is."""
+class Segment:
+    """One broadcast domain, carrying one IPv4 prefix (RFC 4903), realised as one bridge.
+
+    ``vlan`` is the 802.1Q id the real network gives it, or None if untagged; it is what a
+    sensor keys flows by when a trunk is mirrored with its tags. Data-plane segments are
+    captured; the management one carries the tool's own traffic and never is. A second
+    prefix (IPv6) makes ``cidr`` a tuple when it is needed.
+    """
 
     name: str
     cidr: str
     plane: Plane
+    vlan: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class CapturePoint:
-    """A named place a capture can run: every frame on ``network``."""
+    """An observation point (RFC 7011): every frame on the named segments.
+
+    One segment is a SPAN of that VLAN or a tap on a shared medium; several is a SPAN of a
+    trunk, where a routed flow is seen once per segment it crosses. ``tagged`` says the frames
+    reach the sensor with their 802.1Q tags, which decides whether the sensor keys those two
+    sightings as one flow or two.
+    """
 
     name: str
-    network: str
+    segments: tuple[str, ...]
+    tagged: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class Topology:
-    """The networks of a scenario. Who joins which is said per group.
+    """The segments of a scenario. Who joins which is said per group.
 
     Every instance joins the management network, which carries the tool's own traffic; that
     attachment is implicit. Addresses are allocated from each network's CIDR in a fixed order
@@ -234,7 +269,7 @@ class Topology:
     instances, keyed by instance id, which is how ``fit`` keeps the addresses it observed.
     """
 
-    networks: tuple[Network, ...]
+    segments: tuple[Segment, ...]
     capture_points: tuple[CapturePoint, ...]
     addresses: dict[str, str] = field(default_factory=dict[str, str])
 
@@ -245,9 +280,10 @@ class Group:
 
     A group's path is its ancestors' names and its own joined by ``/``; ``parent`` is the
     enclosing group's path, or None at the top. An instance is ``path/kind[i]``.
-    ``instances`` counts each kind here; ``attachments`` lists the data-plane networks each
-    kind's instances join here. ``wiring`` says, for each tie of each kind held here as
-    ``"kind.tie"``, which groups' instances of the tie's target kind are its targets.
+    ``instances`` counts each kind here; ``attachments`` lists the data-plane segments each
+    kind's instances join here, one interface each. ``wiring`` says, for each tie of each
+    kind held here as ``"kind.tie"``, which groups' instances of the tie's target kind are
+    its targets.
     Wiring is explicit and total: nothing is looked up by walking the tree, and nothing is
     inherited from a parent. What the IR says is what connects.
     """
@@ -268,7 +304,9 @@ class Scenario:
     """The root of the IR.
 
     ``topology`` is inline or a resource name. ``capture_points`` names the capture points
-    of the topology that are active in this run. ``egress_overrides`` maps a hostname or
+    of the topology that are active in this run. ``start`` is the run's wall-clock origin as
+    ISO 8601 with an offset, in the target network's local time, so that a 24- or 168-value
+    rate curve has an hour and a weekday to anchor to. ``egress_overrides`` maps a hostname or
     service to a real endpoint. ``fit_provenance`` is inline, a resource name, or None when
     the scenario was not fitted. ``coverage_floor`` is the measured coverage below which a
     capability ``fit`` relied on is reported as sparse.
@@ -282,6 +320,7 @@ class Scenario:
     egress: EgressPolicy
     egress_overrides: dict[str, str]
     schedule: tuple[ScheduleEvent, ...]
+    start: str
     duration_s: float
     capture_points: tuple[str, ...]
     sensors: tuple[SensorSpec, ...]

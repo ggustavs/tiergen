@@ -79,7 +79,7 @@ def test_hq_lan_broken_fails_the_six_checks_it_was_broken_for() -> None:
         ("C01", "error", "groups[0].wiring['attacker.dc']"),
         ("C04", "error", "kinds[4].behaviours[0].process.transitions[0]"),
         ("C05", "error", "kinds[0].behaviours[0].process.rate"),
-        ("C09", "error", "topology.capture_points[1].network"),
-        ("C10", "error", "topology.networks"),
+        ("C09", "error", "topology.capture_points[1].segments[0]"),
+        ("C10", "error", "topology.segments"),
         ("C12", "error", "schedule[1].at_s"),
     ]

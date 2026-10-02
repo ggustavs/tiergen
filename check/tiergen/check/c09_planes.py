@@ -1,6 +1,6 @@
 """Check 9: the management plane and the data plane stay apart, and only the data plane is captured.
 
-The tool's own traffic (agents, scheduler, log collection) runs on the management network.
+The tool's own traffic (agents, scheduler, log collection) runs on the management segment.
 If any of it appears in a capture, the dataset represents the tool, not the network.
 """
 
@@ -18,17 +18,17 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
     topology = ctx.topology()
     if topology is None:
         return  # check 5 reports a topology that does not resolve
-    planes = {net.name: net.plane for net in topology.networks}
+    planes = {net.name: net.plane for net in topology.segments}
 
-    management = [net for net in topology.networks if net.plane == "management"]
+    management = [net for net in topology.segments if net.plane == "management"]
     if len(management) != 1:
         yield error(
             ID,
-            "topology.networks",
-            f"exactly one management network is needed; there are {len(management)}",
+            "topology.segments",
+            f"exactly one management segment is needed; there are {len(management)}",
         )
     for mgmt in management:
-        for net in topology.networks:
+        for net in topology.segments:
             if net.plane != "data":
                 continue
             try:
@@ -38,8 +38,8 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
             if shared:
                 yield error(
                     ID,
-                    "topology.networks",
-                    f"management network {mgmt.name!r} ({mgmt.cidr}) overlaps data-plane "
+                    "topology.segments",
+                    f"management segment {mgmt.name!r} ({mgmt.cidr}) overlaps data-plane "
                     f"network {net.name!r} ({net.cidr})",
                 )
 
@@ -49,17 +49,20 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
         if point.name in defined:
             yield error(ID, path, f"capture point {point.name!r} is defined twice")
         defined.add(point.name)
-        if point.network not in planes:
-            yield error(
-                ID, f"{path}.network", f"{point.network!r} is not a network of this topology"
-            )
-        elif planes[point.network] != "data":
-            yield error(
-                ID,
-                f"{path}.network",
-                f"capture point {point.name!r} is on management network {point.network!r}; "
-                "a capture there records the tool, not the network",
-            )
+        if not point.segments:
+            yield error(ID, f"{path}.segments", f"capture point {point.name!r} observes no segment")
+        for i, name in enumerate(point.segments):
+            if name not in planes:
+                yield error(
+                    ID, f"{path}.segments[{i}]", f"{name!r} is not a segment of this topology"
+                )
+            elif planes[name] != "data":
+                yield error(
+                    ID,
+                    f"{path}.segments[{i}]",
+                    f"capture point {point.name!r} observes management segment {name!r}; "
+                    "a capture there records the tool, not the network",
+                )
 
     if not s.capture_points:
         yield error(

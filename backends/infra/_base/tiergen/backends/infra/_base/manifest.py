@@ -58,7 +58,7 @@ def build_manifests(
     """
     bindings = {b.kind: b for b in scenario.bindings}
     groups = {g.path: g for g in scenario.groups}
-    management = [n.name for n in topology.networks if n.plane == "management"]
+    management = [n.name for n in topology.segments if n.plane == "management"]
     hosts: dict[str, list[HostSpec]] = {}
     for path, kind, instance in instance_ids(scenario):
         binding = bindings[kind]
@@ -89,7 +89,7 @@ def build_manifests(
                 plane=n.plane,
                 internal=n.plane == "data" and scenario.egress == "none",
             )
-            for n in topology.networks
+            for n in topology.segments
             if n.name in used
         )
         manifests[backend] = RunManifest(scenario.name, backend, networks, tuple(specs))

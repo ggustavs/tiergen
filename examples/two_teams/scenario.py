@@ -2,8 +2,9 @@
 
 Every workstation is the same kind. Each team's workstations reach their own team's file
 server over the ``fs`` tie and the organisation's domain controller over ``dc``, because
-each team's group wires them so. Nothing is looked up by walking the tree; ``team()`` passes
-the site in, the way a Terraform module takes its dependencies as inputs.
+each team's group wires them so; the packets cross ``core_router``, the one host that
+forwards, which is attached to all three LANs. Nothing is looked up by walking the tree;
+``team()`` passes the site in, the way a Terraform module takes its dependencies as inputs.
 """
 
 from tiergen.core.dsl import (
@@ -18,15 +19,15 @@ from tiergen.core.dsl import (
     group,
     host,
     kind,
-    network,
     resource,
     scenario,
+    segment,
     semi_markov,
     sensor,
     tie,
     topology,
 )
-from tiergen.core.ir import Network
+from tiergen.core.ir import Segment
 
 Dc = kind(
     "domain_controller",
@@ -34,6 +35,8 @@ Dc = kind(
     platforms=["windows"],
 )
 Fs = kind("file_server", serves=[endpoint("smb", 445, "tcp")], platforms=["linux"])
+# The L3 switch between the team LANs and the core: a host that forwards, nothing more.
+Rt = kind("core_router", platforms=["linux"], forwards=True)
 Ws = kind(
     "workstation",
     ties=[tie("dc", Dc, "single"), tie("fs", Fs, "single")],
@@ -77,11 +80,11 @@ Atk = kind(
     platforms=["linux"],
 )
 
-Core = network("core", "10.30.0.0/24")
-Mgmt = network("mgmt", "10.97.0.0/24", "management")
+Core = segment("core", "10.30.0.0/24")
+Mgmt = segment("mgmt", "10.97.0.0/24", "management")
 
 
-def team(name: str, site: str, lan: Network, workstations: int) -> GroupHandle:
+def team(name: str, site: str, lan: Segment, workstations: int) -> GroupHandle:
     """A team: its own LAN, one file server, some workstations. ``fs`` is wired to the team
     itself by default, since the team holds a file server; ``dc`` has to be said."""
     return group(
@@ -93,14 +96,14 @@ def team(name: str, site: str, lan: Network, workstations: int) -> GroupHandle:
     )
 
 
-EngNet = network("eng", "10.31.0.0/24")
-SalesNet = network("sales", "10.32.0.0/24")
+EngNet = segment("eng", "10.31.0.0/24")
+SalesNet = segment("sales", "10.32.0.0/24")
 Eng = team("eng", "corp", EngNet, workstations=12)
 Sales = team("sales", "corp", SalesNet, workstations=8)
 Corp = group(
     "corp",
-    instances={Dc: 1, Atk: 1},
-    attachments={Dc: [Core], Atk: [Core]},
+    instances={Dc: 1, Atk: 1, Rt: 1},
+    attachments={Dc: [Core], Atk: [Core], Rt: [Core, EngNet, SalesNet]},
     wiring={"attacker.victims": [Eng, Sales]},
 )
 
@@ -130,10 +133,12 @@ S = scenario(
         Atk: binding(
             host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
         ),
+        Rt: binding(host("linux", "container", backend="docker")),
     },
     topology=topology([Core, EngNet, SalesNet, Mgmt], [capture_point("core-span", Core)]),
     egress="none",
     schedule=[at(0, Corp, "start", "office", kind=Ws), at(3600, Corp, "start", "recon", kind=Atk)],
+    start="2026-10-05T08:00:00+02:00",
     duration_s=8 * 3600,
     capture_points=["core-span"],
     sensors=[

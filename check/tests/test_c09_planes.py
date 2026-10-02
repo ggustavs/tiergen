@@ -5,9 +5,9 @@ from support import RESOURCES, good, only
 
 from tiergen.core import ir
 
-LAN = ir.Network("lan", "10.0.0.0/24", "data")
-MGMT = ir.Network("mgmt", "10.9.0.0/24", "management")
-SPAN = ir.CapturePoint("span0", "lan")
+LAN = ir.Segment("lan", "10.0.0.0/24", "data")
+MGMT = ir.Segment("mgmt", "10.9.0.0/24", "management")
+SPAN = ir.CapturePoint("span0", ("lan",))
 
 
 def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
@@ -18,31 +18,31 @@ def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
     ("networks", "fragment"),
     [
         ((LAN,), "there are 0"),
-        ((LAN, MGMT, ir.Network("mgmt2", "10.8.0.0/24", "management")), "there are 2"),
+        ((LAN, MGMT, ir.Segment("mgmt2", "10.8.0.0/24", "management")), "there are 2"),
         (
-            (LAN, ir.Network("mgmt", "10.0.0.128/25", "management")),
+            (LAN, ir.Segment("mgmt", "10.0.0.128/25", "management")),
             "overlaps data-plane network 'lan'",
         ),
     ],
 )
-def test_management_plane(networks: tuple[ir.Network, ...], fragment: str) -> None:
+def test_management_plane(networks: tuple[ir.Segment, ...], fragment: str) -> None:
     found = only("C09", _with(ir.Topology(networks, (SPAN,))))
-    assert any(fragment in d.message and d.path == "topology.networks" for d in found)
+    assert any(fragment in d.message and d.path == "topology.segments" for d in found)
 
 
 def test_a_capture_point_on_the_management_network_records_the_tool() -> None:
-    topology = ir.Topology((LAN, MGMT), (SPAN, ir.CapturePoint("tap", "mgmt")))
+    topology = ir.Topology((LAN, MGMT), (SPAN, ir.CapturePoint("tap", ("mgmt",))))
     [d] = only("C09", _with(topology))
-    assert d.path == "topology.capture_points[1].network"
+    assert d.path == "topology.capture_points[1].segments[0]"
     assert "records the tool" in d.message
 
 
 def test_capture_points_are_defined_once_on_a_real_network_and_active_ones_exist() -> None:
-    topology = ir.Topology((LAN, MGMT), (SPAN, SPAN, ir.CapturePoint("far", "wan")))
+    topology = ir.Topology((LAN, MGMT), (SPAN, SPAN, ir.CapturePoint("far", ("wan",))))
     found = {d.path for d in only("C09", _with(topology, capture_points=("span0", "ghost")))}
     assert found == {
         "topology.capture_points[1]",
-        "topology.capture_points[2].network",
+        "topology.capture_points[2].segments[0]",
         "capture_points[1]",
     }
 
