@@ -9,6 +9,24 @@ no version numbers.
 
 ### Added
 
+- **core**: the data-link layer. **Breaking:** IR JSON written before this does not load.
+  `Segment` (one broadcast domain, one prefix, a VLAN id) replaces `Network`; a
+  `CapturePoint` observes one or several segments, tagged or not; `ActorKind.forwards` marks
+  a router and routes are derived (`tiergen.core.routing`), with two equally short next
+  hops an error; the address plan gains hostnames and MACs from a fitted OUI per binding.
+  Decision 4.18 has the surveys behind it: segment-centric because that is what a sensor and
+  a directory can recover, with what the emulators lack (VLAN, tags, multi-segment capture
+  points, fitted MACs, derived paths) because the sensors key on it.
+- **core**: the identity chain before any runtime exists. `LabelKey` is what an
+  implementation is given, `InvocationRecord` what the agent logs (attribution key,
+  interval, outcome, clock stamp); seeds and sampling in `tiergen.core.sampling` make a run
+  a function of IR and seed (per-instance streams, sorted-key weighted choice, invocation
+  ids `instance/behaviour#n`); `SensorSpec.name` and flow ids keyed by sensor name and
+  capture point; `AttributionRecord.instance`; `Context.ties` resolves to `Peer`s with
+  served endpoints; `Action.select` for `multiple` ties; `Scenario.start` anchors the rate
+  curves; `Binding.credentials` for the Windows path.
+- **core**: one resolver (`tiergen.core.resolve`) shared by the checker and `build`, so the
+  agent never interprets a resource name; one `ImplRef` and one `HostRef` parser.
 - **backends/infra**: the Docker backend, the first `InfraBackend`. `tiergen build` now writes a
   run manifest per backend (`manifest.<backend>.json`), built in `backends/infra/_base` from the
   IR, the address plan and the implementation manifests; `tiergen infra up` and `down` drive the
