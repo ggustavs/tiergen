@@ -1,4 +1,4 @@
-"""The ``tiergen`` command: ``check``, ``build`` and ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``impls list``."""
 
 import argparse
 import json
@@ -7,15 +7,17 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from tiergen.backends.infra._base import build_manifests
 from tiergen.check import Diagnostic, run_checks
 from tiergen.check.context import Context
 from tiergen.core.addressing import plan_addresses
-from tiergen.core.codec import CodecError, to_json
+from tiergen.core.codec import CodecError, from_json, to_json
 from tiergen.core.ir import Scenario
 from tiergen.core.loader import ScenarioLoadError, load_scenario
 from tiergen.core.resources import DirResources
 from tiergen.impls._base import load_impls
-from tiergen.interfaces.registry import load_infra, load_sensors
+from tiergen.interfaces import BackendError, RunManifest
+from tiergen.interfaces.registry import load_infra, load_infra_backends, load_sensors
 from tiergen.protocols import SIGNATURES
 
 OK, FAILED, UNUSABLE = 0, 1, 2
@@ -62,6 +64,15 @@ def _parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="resource directory (default: models/ beside the scenario)",
     )
+
+    infra = commands.add_parser("infra", help="bring a built run's hosts up or down")
+    infra_commands = infra.add_subparsers(dest="infra_command", required=True, metavar="subcommand")
+    for verb, text in (
+        ("up", "create the run's networks and hosts and start them"),
+        ("down", "remove them"),
+    ):
+        sub = infra_commands.add_parser(verb, help=text)
+        sub.add_argument("run_dir", type=Path, help="a directory written by tiergen build")
 
     impls = commands.add_parser("impls", help="inspect installed implementations")
     impl_commands = impls.add_subparsers(dest="impls_command", required=True, metavar="subcommand")
@@ -124,12 +135,49 @@ def _build(scenario_path: Path, models: Path | None, out: Path) -> int:
     assert topology is not None
     plan, _ = plan_addresses(scenario, topology)
 
+    manifests = build_manifests(scenario, topology, plan, impls, resources)
+
     out.mkdir(parents=True, exist_ok=True)
     _dump(scenario, out / "scenario.json")
     _dump(plan, out / "addresses.json")
+    for backend, manifest in manifests.items():
+        _dump(manifest, out / f"manifest.{backend}.json")
     if source.is_dir():
         shutil.copytree(source, out / "models")
-    print(f"wrote {out}: scenario.json, addresses.json" + (", models/" if source.is_dir() else ""))
+    written = ["scenario.json", "addresses.json", *(f"manifest.{b}.json" for b in manifests)]
+    if source.is_dir():
+        written.append("models/")
+    print(f"wrote {out}: {', '.join(written)}")
+    return OK
+
+
+def _infra(verb: str, run_dir: Path) -> int:
+    paths = sorted(run_dir.glob("manifest.*.json"))
+    if not paths:
+        print(
+            f"tiergen: {run_dir} holds no manifest; was it written by tiergen build?",
+            file=sys.stderr,
+        )
+        return UNUSABLE
+    manifests = [from_json(RunManifest, json.loads(p.read_text(encoding="utf-8"))) for p in paths]
+    backends = load_infra_backends(only={m.backend for m in manifests})
+    missing = sorted({m.backend for m in manifests} - set(backends))
+    if missing:
+        print(
+            f"tiergen: no runtime installed for backend(s): {', '.join(missing)}", file=sys.stderr
+        )
+        return UNUSABLE
+    try:
+        for manifest in manifests:
+            backend = backends[manifest.backend]
+            if verb == "up":
+                backend.up(manifest)
+            else:
+                backend.down(manifest)
+            print(f"{manifest.backend}: {verb} {manifest.run}, {len(manifest.hosts)} host(s)")
+    except BackendError as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
     return OK
 
 
@@ -170,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _check(args.scenario, args.models, args.emit_json)
     if args.command == "build":
         return _build(args.scenario, args.models, args.out)
+    if args.command == "infra":
+        return _infra(args.infra_command, args.run_dir)
     return _impls_list(args.protocol, args.platform, args.kind)
 
 

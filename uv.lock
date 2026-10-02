@@ -562,12 +562,14 @@ source = { editable = "cli" }
 dependencies = [
     { name = "tiergen-check" },
     { name = "tiergen-impls-base" },
+    { name = "tiergen-infra-base" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
+    { name = "tiergen-infra-base", editable = "backends/infra/_base" },
 ]
 
 [[package]]
