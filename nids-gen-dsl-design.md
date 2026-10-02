@@ -196,6 +196,12 @@ A network bigger than one site repeats a structure: a team, a branch, a site. Th
 
 Wiring is explicit and total. Nothing is resolved by walking up the tree to the nearest group that happens to hold a matching kind, and nothing is inherited from a parent. That rule was considered and rejected (2026-10-02): every system surveyed that emits a flat artefact (CDK, Pulumi, Terraform, Amaranth, the network emulators, ScalaLoci, Choral) wires cross-scope references explicitly, and the closest precedent for the implicit rule, Modelica's `inner`/`outer`, is documented to bind names hard and to fall through silently when a kind is added to an enclosing group. The cost of explicitness is one dictionary per group, which a Python function writes once (`examples/two_teams`); the gain is that `single` and `optional` are checked exactly by counting, and `check` reports against the text the engineer wrote. Composition belongs in Python, per 4.6: the IR is the expanded form, not a template. Per-group overrides of bindings or rates are an open question until a scenario shows Python-side composition is not enough.
 
+### 4.18 The data-link layer: segments, forwarding hosts, observation points
+
+A `Segment` is one broadcast domain carrying one IPv4 prefix, with the VLAN id the real network gives it. Instances attach to segments through their group, one interface each. A kind that `forwards` makes its instances routers in the RFC 1812 sense, and routing is derived from them: a segment's next hop toward another is the forwarder that starts a shortest path, static routes are written into every host's program, and two equally short next hops are a check error rather than a guess. A `CapturePoint` is an observation point in RFC 7011's sense, on one segment or on several for a trunk SPAN, and says whether frames reach the sensor tagged. Addresses, hostnames, MACs (from a fitted OUI per binding) and routes are all functions of the IR (2026-10-02).
+
+Why this and not a link graph, which is what RFC 8345, OpenConfig, Batfish and the verification literature use: the IR must be fittable from a sensor and a directory, and `fit` observes prefixes, VLAN tags, gateway MACs, DHCP and ARP but never a switch-to-switch link, a trunk or spanning tree, so links would be invented parameters (section 18). Every emulator driven by hand (Kathará, CORE, Emulab, ns-3, GNS3, Mininet) also makes the segment the first-class object, and none has a router type. What tiergen needs beyond them: a VLAN id and a `tagged` flag, because Suricata keys flows by VLAN and both sensors log tags and MACs; capture points over several segments, because a routed flow is seen once per segment crossed and `predict` and the label key must know; a fitted MAC prefix, because Docker's `02:42` and KVM's `52:54:00` are fingerprints; and a derived path, because the path decides what each observation point records. A forwarder is a transfer function on headers (Header Space Analysis); `forwards: bool` is its degenerate case and leaves room for NAT (M5) without a new object. Known limits, recorded: VLAN tags are not put on the wire inside the lab (plain bridges cannot) but inserted at the capture point; one prefix per segment until IPv6; planned addresses are static where a real workstation leases one, which a DHCP noise role (M5) can make look right by handing out exactly the planned leases.
+
 ---
 
 ## 5. Glossary
@@ -205,27 +211,33 @@ Wiring is explicit and total. Nothing is resolved by walking up the tree to the 
 | Actor kind | A type of participant (`Workstation`, `DomainController`, `FileServer`, `WebServer`, `Printer`, `Attacker`, `InternetStub`) with an interface, behaviours and allowed platforms. Analogue of a ScalaLoci peer type. |
 | Actor instance | One running actor of a kind, with a host, platform and data-plane address. |
 | Host | Where an instance runs: Linux or Windows, container or VM, and the infrastructure backend that provides it. Carries platform, host type, backend, image or template. |
+| Segment | One broadcast domain carrying one IPv4 prefix (RFC 4903), with the VLAN id the real network gives it; realised as one bridge. Data plane or management plane. The largest L2 object a sensor's evidence can recover; links between switches are not modelled because nothing observes them. |
+| Forwarder | An instance of a kind that `forwards`: a host that passes packets between the segments it is on (RFC 1812). Routers, L3 switches, firewalls and NAT boxes are all this. Routes are derived from forwarders, never declared. |
+| Capture point | An observation point (RFC 7011): every frame on one segment (a SPAN of a VLAN) or on several (a SPAN of a trunk), `tagged` if the frames keep their 802.1Q tags. A routed flow is seen once per segment it crosses, which the label key accounts for. |
 | Interface (actor) | Endpoints an actor serves (protocol, port, transport) and ties it requires. |
 | Tie | A typed relation from one kind to another with multiplicity `single`, `optional` or `multiple`. Who may talk to whom. |
 | Behaviour | A stochastic process over actions attached to a kind, with a time-of-day rate function. |
-| Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie, params)` or to `None` for a silent state. The signature is what to run, the tie whose targets to run it against, and `params` a value for each parameter the signature declares: a literal, or a weighted choice sampled per invocation, inline or from a resource. |
+| Action | What a behaviour state does. States are abstract (`http_get_small`, `smb_read`, `kerberos_tgs`) and derived from the common event model; each maps to an `Action(signature, tie, params, select)` or to `None` for a silent state. The signature is what to run, the tie whose targets to run it against, `params` a value for each parameter the signature declares (a literal, or a weighted choice sampled per invocation, inline or from a resource), and `select`, for a `multiple` tie, whether an invocation hits all targets or one drawn uniformly. |
 | Signature | A protocol-level primitive (`http.get`, `smb.read`) with a role, typed parameters and an expected traffic shape (connections, transport, port, permitted follow-on signatures, reuse semantics). A client signature lists the endpoint protocols its target may serve. A server signature (`http.serve`) stands for serving and is what a binding selects a service implementation under. Defined in `protocols/`. The IR references signatures, never tools. |
 | Implementation | A per-tool package providing signatures (`PrimitiveImpl`), running a service (`ServiceImpl`) or adapting an external framework (`AdapterImpl`). It has a manifest, `impl.toml`, and a runtime. Registered by what it provides. |
 | Descriptor | The static half of a sensor, an implementation or an infrastructure backend, as data: `SensorDescriptor`; `ImplDescriptor`, decoded from `impl.toml`; `InfraDescriptor`, the hosts a backend offers and the capabilities it can grant each. Discovered through entry points. The checker reads descriptors and never imports a runtime. |
-| Sensor | A passive traffic sensor behind the interface in 4.3: ingest and label, a pinned version and config, and a declared capability set. Zeek and Suricata are the first two. |
+| Sensor | A passive traffic sensor behind the interface in 4.3: ingest and label, a pinned version and config, and a declared capability set. Configured under a name, which flow ids and labels key by, so one implementation can be configured twice. Zeek and Suricata are the first two. |
 | Common event model | Schema-neutral events every sensor maps into. Required core `ConnEvent`: sensor-native connection id, 5-tuple, start and duration, bytes and packets per direction, state. Optional `AppEvent` (under `APP_EVENTS`): parent connection id, timestamp, protocol, normalised fields, capability-gated fingerprints. Every event keeps raw passthrough that core consumers may not read. |
 | Capability | A named, typed extension a sensor declares above the required core: `APP_EVENTS`, `TLS_JA4`, `HTTP_USER_AGENT`, `SSH_STRINGS`, `SMB_DIALECT`, `X509`, extensible. Each carries a schema and a coverage claim. Consumers query capabilities and degrade explicitly when one is absent. |
 | Coverage | The fraction of applicable events on which a sensor actually populates a capability's field, measured at fit time. Distinguishes a trustworthy distribution from a sparse one. |
-| Binding | For a kind in a scenario: the host (default container, image, VM template) and the implementation selection per signature, fixed or weighted. |
-| Topology | The networks of a scenario, each a CIDR on the data plane or the management plane; the named capture points; and any pinned addresses by instance id. Which networks an instance joins is said by its group. Every instance also joins the management network. Addresses not pinned are allocated from the CIDR in a fixed order, so the address plan is a function of the IR. |
+| Binding | For a kind in a scenario: the host (default container, image, VM template), the implementation selection per signature, fixed or weighted, the fitted MAC prefix its instances carry, and the credentials resource its implementations authenticate with. |
+| Topology | The segments of a scenario, the named capture points, and any pinned addresses by instance id. Which segments an instance joins is said by its group, one interface each. Every instance also joins the management segment. Addresses, hostnames, MACs and routes not pinned are derived in a fixed order, so the whole plan is a function of the IR. |
 | Group | A nested scope holding instances: a team, a branch, a site. Named by path (`corp/eng`). Counts each kind it holds, attaches each to data-plane networks, and wires each tie of each kind it holds to the groups whose instances are its targets. Nothing is inherited. |
 | Instance id | `path/kind[i]`: the group's path, the kind, the index. What pinned addresses, schedule targets, labels and backends name a host by. |
 | Wiring | A group's `"kind.tie"` to group paths. The targets of a tie from an instance of that kind in that group are the instances of the tie's target kind in the named groups. `single` must find exactly one, `optional` at most one. |
 | Scenario | Kinds, groups, bindings, topology, egress policy, schedule, duration, capture points, sensor set, fit provenance, coverage floor. |
 | Resource | A named value a scenario refers to instead of carrying inline; fitted parameters are resources. JSON resources live as `models/<name>.json` and have a declared shape. Opaque resources, such as a sensor's configuration, only have to exist. |
 | Schedule | Time-indexed events: start or stop behaviours, change rates, run scripted sequences (attacks). A target is a group path, `path/kind` or one instance. |
-| Label | `(scenario, instance, behaviour, action, invocation id, implementation id, variant, expected target, outcome)`; attached, per configured sensor, to that sensor's connection id and sub-connection events. |
-| Attribution | Kernel-level join of observed connections to invocations, sensor-independent: eBPF (Linux), ETW or Sysmon (Windows), keyed by cgroup or PID and time. |
+| Label key | `(scenario, instance, behaviour, action, invocation id, implementation, variant, targets)`: what an invocation is about to do, given to the implementation before it runs. Invocation ids are `instance/behaviour#n`. |
+| Invocation record | What the agent logs once a primitive ran: the label key, the attribution key the kernel observer saw it as (platform-tagged: a cgroup path, a job object), start and end on the host's clock, the outcome, and a clock stamp (wall, monotonic, offset from the capture host) that moves the interval onto the pcap's timeline. |
+| Label | An invocation record confirmed by attribution and attached, per configured sensor, to that sensor's connection id (keyed by sensor name and capture point) and sub-connection events. |
+| Peer | What a tie resolves to for one instance: a target instance, its address on the segment reached, and the endpoints it serves there. |
+| Attribution | Kernel-level join of observed connections to invocations, sensor-independent: eBPF (Linux), ETW or Sysmon (Windows). A record names the instance (never a substrate name), the attribution key seen, the 5-tuple and the interval. |
 | Fidelity | Distance between generated and real traffic at the common-event level, per metric in section 9. |
 | Conformance | Distance between a run and its own model; separates implementation bugs from model gaps. |
 | Diagnostic | What a static check reports: check id, severity, IR path, message. `error` makes the scenario ill formed; `warning` is a gap the engineer may accept; `not_computed` says part of a check could not run and names what was missing. |
@@ -368,6 +380,7 @@ ScheduleOp = Literal["start", "stop", "set_rate", "run_sequence"]
 SensorMode = Literal["offline", "live"]
 SensorRole = Literal["label", "fit", "both"]
 Plane = Literal["data", "management"]
+Select = Literal["all", "one"]
 ParamScalar = str | int | float | bool
 
 @dataclass(frozen=True, slots=True)
@@ -411,6 +424,7 @@ class Action:
     signature: str
     tie: str                                     # the tie whose targets the signature is run against
     params: dict[str, ParamValue] = field(default_factory=dict)   # one entry per signature parameter
+    select: Select | None = None                 # for a multiple tie: hit all targets, or one drawn uniformly
 
 @dataclass(frozen=True, slots=True)
 class Behaviour:
@@ -425,6 +439,14 @@ class ActorKind:
     ties: tuple[Tie, ...]
     behaviours: tuple[Behaviour, ...]
     platforms: tuple[Platform, ...]              # allowed platforms
+    forwards: bool = False                       # a router (RFC 1812): passes packets between its segments
+
+HostRefKind = Literal["default", "image", "template"]
+
+@dataclass(frozen=True, slots=True)
+class HostRef:                                   # Host.ref taken apart; HostRef.parse(text) -> HostRef | None
+    kind: HostRefKind
+    ref: str
 
 @dataclass(frozen=True, slots=True)
 class Host:
@@ -444,6 +466,8 @@ class Binding:
     kind: str
     host: Host
     impls: tuple[ImplSelection, ...]
+    mac_oui: str | None = None                   # "3c:ec:ef": the fitted MAC prefix; None = the substrate's, a realism gap
+    credentials: str | None = None               # opaque resource: domain, accounts, secrets the implementations use
 
 @dataclass(frozen=True, slots=True)
 class ScheduleEvent:
@@ -454,6 +478,7 @@ class ScheduleEvent:
 
 @dataclass(frozen=True, slots=True)
 class SensorSpec:
+    name: str                                    # unique per scenario; what flow ids and labels key by
     impl: str                                    # "zeek" | "suricata" | ...
     version: str                                 # pinned
     config: str                                  # resource: the exact config used on real + generated traffic
@@ -468,19 +493,21 @@ class FitProvenance:
     coverage: dict[str, float]                   # measured coverage per capability used
 
 @dataclass(frozen=True, slots=True)
-class Network:
+class Segment:                                   # one broadcast domain with one IPv4 prefix, realised as one bridge
     name: str
     cidr: str
-    plane: Plane                                 # data-plane networks are captured; the management one never is
+    plane: Plane                                 # data-plane segments are captured; the management one never is
+    vlan: int | None = None                      # 802.1Q id as the real network numbers it
 
 @dataclass(frozen=True, slots=True)
-class CapturePoint:
+class CapturePoint:                              # an observation point (RFC 7011)
     name: str
-    network: str                                 # every frame on this network
+    segments: tuple[str, ...]                    # one: a SPAN of that VLAN; several: a SPAN of a trunk
+    tagged: bool = False                         # frames reach the sensor with their 802.1Q tags
 
 @dataclass(frozen=True, slots=True)
 class Topology:
-    networks: tuple[Network, ...]
+    segments: tuple[Segment, ...]
     capture_points: tuple[CapturePoint, ...]
     addresses: dict[str, str] = field(default_factory=dict)   # instance id -> pinned address; the rest is allocated
 
@@ -502,6 +529,7 @@ class Scenario:
     egress: EgressPolicy
     egress_overrides: dict[str, str]             # hostname or service -> real endpoint, for per-service swap
     schedule: tuple[ScheduleEvent, ...]
+    start: str                                   # ISO 8601 with offset, the network's local time: anchors the rate curves
     duration_s: float
     capture_points: tuple[str, ...]              # the topology's capture points active in this run
     sensors: tuple[SensorSpec, ...]              # one or more; labels emitted per sensor
@@ -625,6 +653,7 @@ S = scenario(
     topology=resource("hq_lan.topology"),
     egress="none",
     schedule=[at(0, Hq, "start", "office", kind=Ws), at(hours(30), Hq, "start", "recon", kind=Atk)],
+    start="2026-10-05T08:00:00+02:00",
     duration_s=7 * 24 * 3600,
     capture_points=["core-switch-span"],
     sensors=[
@@ -709,11 +738,11 @@ Reported as a table with user-set thresholds. `predict` runs it before build; `a
 
 ## 10. Runtime
 
-- **Agents** (`agent_linux`, `agent_windows`). Receive the projected program: behaviours, action map, resolved implementations and variants, ties resolved to addresses, seed. Loop: sample state and dwell, execute the primitive through its implementation inside a fresh cgroup (Linux) or job object (Windows), log `(invocation id, label tuple, start, end, outcome, monotonic and wall clock)`. Long-lived processes such as a browser kept open across invocations are allowed when the scenario asks for them; their per-request labels rely on interval matching and carry a confidence field.
+- **Agents** (`agent_linux`, `agent_windows`). Receive the projected program: behaviours with every resource resolved, action map, resolved implementations and variants, ties resolved to peers (instance, address, served endpoints), static routes, hostname, seed. Loop: sample state and dwell from the instance's `behaviour` stream, pick targets and implementations from its `selection` stream, hand the implementation a `LabelKey` and an `impl` stream, execute inside a fresh cgroup (Linux) or job object (Windows), log an `InvocationRecord` (label key, attribution key, start, end, outcome, clock stamp). Streams are derived from the scenario seed and the instance id (`tiergen.core.sampling`), so the run is a function of IR and seed whatever order agents start in. Long-lived processes such as a browser kept open across invocations are allowed when the scenario asks for them; their per-request labels rely on interval matching and carry a confidence field.
 - **Infrastructure backend** (Docker, implemented). `tiergen build` writes one run manifest per backend the bindings name: the networks to create, each with its CIDR, planned gateway and plane, and the hosts, each with image, command, host capabilities as the substrate names them, and its attachments in order with planned addresses. A backend reads nothing but its manifest. The Docker backend pulls the images, creates one bridge network per manifest network with the planned gateway (data-plane networks `internal` while egress is `none`), creates each container attached to its first network at its address and connects it to each further network one at a time (so interface order inside the container is the manifest's; two networks given at creation attach in Go map order), then starts them. Everything carries `tiergen.run=<run>`, so `down` needs no state and a failed `up` cleans up after itself. Default Linux hosts run a digest-pinned Debian that idles until the agent exists.
 - **Scheduler** (management plane): brings hosts up through the infra backend, starts agents, verifies clock sync, starts capture and any live sensors, drives the schedule, collects logs, stops.
-- **Attribution** (sensor-independent kernel truth). Linux: bcc programs on `tcp_connect`, `inet_csk_accept`, UDP send and receive, keyed by cgroup and PID; a `cgroup_skb` program for raw-socket tools. Windows: Sysmon event 3 (network connection with PID) by default, ETW `Microsoft-Windows-Kernel-Network` as the alternative. VMs use their guest OS backend. Fallback: nfstream system-visibility mode, coarser. The join produces `(host, pid/cgroup, 5-tuple, interval)` records; each configured sensor's label step maps those onto its own event ids by 5-tuple and time window. Known holes, handled by flagging rather than guessing: DNS via a system resolver daemon, OS background traffic, connection reuse across invocations in one process.
-- **Capture.** dumpcap at declared capture points; pcapng with interface ids; chrony on Linux, w32time on Windows, PTP where the substrate has it; per-host clock offsets recorded and applied at join.
+- **Attribution** (sensor-independent kernel truth). Linux: bcc programs on `tcp_connect`, `inet_csk_accept`, UDP send and receive, keyed by cgroup and PID; a `cgroup_skb` program for raw-socket tools. Windows: Sysmon event 3 (network connection with PID) by default, ETW `Microsoft-Windows-Kernel-Network` as the alternative. VMs use their guest OS backend. Fallback: nfstream system-visibility mode, coarser. The join produces `AttributionRecord`s: instance id, attribution key, 5-tuple, interval, with the backend mapping its substrate names to instance ids; each configured sensor's label step matches those to invocation records by attribution key and interval, and maps them onto its own flow ids, keyed by sensor name and capture point, by 5-tuple and time window. Known holes, handled by flagging rather than guessing: DNS via a system resolver daemon, OS background traffic, connection reuse across invocations in one process.
+- **Capture.** dumpcap at every active capture point, one pcap per point over the bridges of its segments, 802.1Q tags inserted when the point is `tagged`; pcapng with interface ids; chrony on Linux, w32time on Windows, PTP where the substrate has it; per-host clock offsets recorded and applied at join.
 - **Sensors.** Offline mode (default, reproducible): every configured sensor runs over the pcaps in `assemble` with the target's pinned config. Live mode: sensors run in-network during the run, for exercising the exact deployment path. Same config either way.
 
 TLS: clients that support `SSLKEYLOGFILE` write keys alongside the pcap so payload-level labels remain possible; sensors are not given the keys by default, so the dataset reflects what the deployed sensor actually sees.
@@ -817,6 +846,11 @@ No dates. Each milestone ends with something an engineer can run.
 - *open* Users and identities per group. Actors are hosts; a logged-in user is a behaviour. A directory's user population has an obvious home in a group once something needs it, probably the GHOSTS adapter in M5.
 - *open* Directory import for `fit`: AD sites and OUs, NetBox sites and prefixes, as a source of groups beside observed traffic. Section 11 step 8 names it; nothing is designed.
 - *closed 2026-09-20* `Topology` has a schema (section 7), and addresses are allocated deterministically from each network's CIDR with optional pins, in `core/tiergen/core/addressing.py`. An allocation order is not a statistic, so "no defaults" is untouched. Still open: links, gateways and per-link conditions (`tc netem`), which the schema has no place for yet.
+- *open* IPv6, or a second prefix on a segment: `Segment.cidr` becomes a tuple when something needs it.
+- *open* DHCP: planned addresses are static; a DHCP noise role (M5) handing out exactly the planned leases makes the wire look right without changing the plan.
+- *open* Weighted target selection on a `multiple` tie (`select` is `all` or `one` today), and a distribution-valued parameter (body sizes) beside the finite `Choice`.
+- *open* Long-lived processes: `ImplSelection.session` and a `confidence` on labels (M5, browsers).
+- *open* Deferred from the 2026-10-02 reviews, each to its task: offloads disabled on captured interfaces and Zeek `-D` for stable `uid`s (task 6 and 8); the clock reference host and per-platform join tolerance (task 7); a run id distinct from the scenario name and a `lock.json` of digests and versions (task 9); guest network injection for libvirt (phase B); `set_rate` naming a behaviour; the responder's implementation in the label; shared-host actors (M3); the lab CA's home (M5).
 - *open* `Fingerprint` in `impl.toml` covers what the 6.1 sample shows, JA4 and user agent. SSH strings, SMB dialects and OS strings have no slot, and 4.10 needs them.
 - *open* Whether to require signed commits on pull-request branches through a second ruleset. `main` cannot require them: GitHub recreates every commit in a rebase-merge and cannot sign what it recreates.
 
@@ -906,9 +940,9 @@ Before phase A, both done (2026-09-21):
 Phase A, the Linux path. Exit: one Linux workstation, one web server, one attacker; labelled pcaps plus Zeek and Suricata logs from one command.
 3. ~~An `InfraBackend` descriptor, and the Docker backend for the Linux daemon.~~ Done (2026-10-02): descriptors, run manifests, the Docker backend, `tiergen infra up` and `down`; `examples/linux_slice` comes up on its two networks with the planned addresses and goes down without a trace. Default images come from a pinned base, not yet from `image_base`, which waits for the agent's image.
 4. Runtimes for `httpx`, `nginx` and `nmap`, in the packages that already hold their manifests, each with its conformance test (6.1).
-5. `agent_linux`: the projected program, the behaviour loop over the IR's process, a cgroup per invocation, the invocation log.
+5. `agent_linux`: the projected program, the behaviour loop over the IR's process, a cgroup per invocation (which needs cgroup delegation in the container, a grantable host capability to add), the invocation log.
 6. `capture`: dumpcap on the data-plane bridge, pcapng, per-host clock offsets.
-7. `attrib/linux_ebpf`: bcc on `tcp_connect`, `inet_csk_accept`, UDP send and receive; the join to `(host, cgroup, 5-tuple, interval)`.
+7. `attrib/linux_ebpf`: bcc on `tcp_connect`, `inet_csk_accept`, UDP send and receive, and `cgroup_skb` for raw sockets (moved here from M3: nmap's SYN scan is invisible to the connect hooks, and it is in this phase's exit criterion); the join to `AttributionRecord`s.
 8. Zeek, then Suricata, offline over the pcaps, each with its ingest adapter into `ConnEvent` and `AppEvent`. The capability schemas are defined between the two, so they are not Zeek-shaped by accident. This is also where the `ConnEvent.state` vocabulary is confirmed or changed.
 9. `scheduler`, `tiergen build`, `tiergen run`, `tiergen assemble`: per-sensor labels, `flagged.jsonl`, `manifest.json`.
 
