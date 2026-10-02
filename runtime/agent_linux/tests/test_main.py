@@ -55,5 +55,37 @@ def test_run_starts_services_forks_behaviours_and_writes_records(tmp_path: Path)
     text = (out / "agent.log").read_text()
     assert "http.fakesrv serves http/80" in text
     assert "behaviour 'browse' runs as" in text
-    assert "done, 0 behaviour(s) failed" in text
+    assert "done, 0 failure(s)" in text
+    logging.getLogger("tiergen.agent").handlers.clear()
+
+
+def test_a_service_without_a_runtime_is_logged_and_the_host_stays_up(tmp_path: Path) -> None:
+    p = replace(
+        program(duration=0.5, idle=0.05, active=0.02),
+        services=("smb.serve",),
+        impls={"http.get": {"http.fake": 1.0}, "smb.serve": {"smb.none": 1.0}},
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    log = setup_logging(out)
+
+    def no_service(impl_id: str) -> ServiceImpl:
+        raise LookupError(f"no runtime is registered for implementation {impl_id!r}")
+
+    status = run(
+        p,
+        out,
+        primitive=lambda _: FakeImpl(),
+        service=no_service,
+        attribution=FakeAttribution(),
+        log=log,
+    )
+    for handler in list(log.handlers):
+        log.removeHandler(handler)
+        handler.close()
+    assert status == 1
+    text = (out / "agent.log").read_text()
+    assert "smb.none for smb.serve cannot start; the host stays up without it" in text
+    assert "behaviour 'browse' runs as" in text
+    assert read_records(out / "invocations.jsonl")
     logging.getLogger("tiergen.agent").handlers.clear()
