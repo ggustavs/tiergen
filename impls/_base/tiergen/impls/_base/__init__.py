@@ -6,6 +6,7 @@ from tiergen.impls._base.descriptor import (
     Fingerprint,
     HostRequirements,
     ImplDescriptor,
+    ImplRef,
     ServiceTable,
 )
 from tiergen.impls._base.impl import Context, PrimitiveImpl
@@ -20,6 +21,7 @@ __all__ = [
     "Fingerprint",
     "HostRequirements",
     "ImplDescriptor",
+    "ImplRef",
     "ManifestError",
     "PrimitiveImpl",
     "ServiceImpl",

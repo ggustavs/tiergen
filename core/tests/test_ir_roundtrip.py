@@ -108,6 +108,7 @@ groups = st.builds(
     st.dictionaries(names, tuples(names), max_size=3),
     st.dictionaries(names, tuples(names), max_size=3),
 )
+host_refs = st.builds(ir.HostRef, st.sampled_from(["default", "image", "template"]), names)
 scenarios = st.builds(
     ir.Scenario,
     name=names,
@@ -147,6 +148,7 @@ CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
     (ir.CapturePoint, capture_points),
     (ir.Topology, topologies),
     (ir.Group, groups),
+    (ir.HostRef, host_refs),
     (ir.Scenario, scenarios),
 ]
 
