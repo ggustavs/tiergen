@@ -89,7 +89,24 @@ def test_build_writes_a_self_contained_run_directory(
         "addresses.json",
         "manifest.docker.json",
         "models",
+        "program.lab-attacker-0.json",
+        "program.lab-web_server-0.json",
+        "program.lab-workstation-0.json",
+        "routes.json",
         "scenario.json",
+    ]
+    program = json.loads((out / "program.lab-workstation-0.json").read_text())
+    assert program["hostname"] == "lab-workstation-0"
+    assert program["peers"]["web"] == [
+        {
+            "instance": "lab/web_server[0]",
+            "address": "10.20.0.80",
+            "served": [{"protocol": "http", "port": 80, "transport": "tcp"}],
+        }
+    ]
+    assert program["behaviours"][0]["action_map"]["web_get"]["params"]["path"]["options"] == [
+        "/",
+        "/news",
     ]
     manifest = json.loads((out / "manifest.docker.json").read_text())
     assert [h["instance"] for h in manifest["hosts"]] == [

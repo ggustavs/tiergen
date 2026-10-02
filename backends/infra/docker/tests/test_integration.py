@@ -7,6 +7,7 @@ image the first time.
 import json
 import subprocess
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -99,14 +100,7 @@ def test_linux_slice_comes_up_as_planned_and_goes_down_without_a_trace(
 def test_a_failed_up_leaves_nothing_behind(manifest: RunManifest, daemon: DaemonClient) -> None:
     broken_hosts = (
         *manifest.hosts[:-1],
-        manifest.hosts[-1].__class__(
-            instance=manifest.hosts[-1].instance,
-            kind=manifest.hosts[-1].kind,
-            image="tiergen/does-not-exist:never",
-            command=manifest.hosts[-1].command,
-            cap_add=manifest.hosts[-1].cap_add,
-            attachments=manifest.hosts[-1].attachments,
-        ),
+        replace(manifest.hosts[-1], image="tiergen/does-not-exist:never"),
     )
     broken = RunManifest(manifest.run, manifest.backend, manifest.networks, broken_hosts)
     with pytest.raises(BackendError, match="not available"):
@@ -114,3 +108,46 @@ def test_a_failed_up_leaves_nothing_behind(manifest: RunManifest, daemon: Daemon
     run = {"tiergen.run": manifest.run}
     assert daemon.containers(run) == []
     assert daemon.networks(run) == []
+
+
+@pytest.fixture
+def two_teams(tmp_path: Path, daemon: DaemonClient) -> Iterator[tuple[Path, RunManifest]]:
+    """two_teams' Docker half: file servers, attacker and core_router. The VMs are libvirt's."""
+    run_dir = tmp_path / "t"
+    assert main(["build", str(EXAMPLES / "two_teams" / "scenario.py"), "--out", str(run_dir)]) == 0
+    m = from_json(RunManifest, json.loads((run_dir / "manifest.docker.json").read_text()))
+    yield run_dir, m
+    DockerBackend().down(m)
+
+
+def test_routed_traffic_crosses_the_core_router(
+    two_teams: tuple[Path, RunManifest], daemon: DaemonClient
+) -> None:
+    _, manifest = two_teams
+    state = DockerBackend().up(manifest)
+    eng_fs = container_name(manifest.run, "corp/eng/file_server[0]")
+    sales_fs = container_name(manifest.run, "corp/sales/file_server[0]")
+    sales_addr = daemon.addresses(sales_fs)[network_name(manifest.run, "sales")]
+    assert sales_addr.startswith("10.32.0.")
+    # The route to sales is installed, via the router's address on eng.
+    routes = _docker("exec", eng_fs, "ip", "route")
+    assert "10.32.0.0/24 via 10.31.0." in routes
+    # Nothing listens on sales' file server yet, so a connection is refused, not timed out:
+    # the packet got there and back through core_router. busybox nc exits 1 either way, so
+    # time it: a refusal is immediate, an unreachable address waits for the timeout.
+    probe = subprocess.run(
+        ["docker", "exec", eng_fs, "sh", "-c", f"time -p nc -z -w 3 {sales_addr} 445; echo rc=$?"],
+        capture_output=True,
+        text=True,
+    )
+    assert "rc=1" in probe.stdout
+    real = next(line for line in probe.stderr.splitlines() if line.startswith("real"))
+    assert float(real.split()[1]) < 1.0, probe
+    router = container_name(manifest.run, "corp/core_router[0]")
+    forward = _docker("exec", router, "cat", "/proc/sys/net/ipv4/ip_forward")
+    assert forward.strip() == "1"
+    # The bridges carry the names build fixed, and the run state says which.
+    links = subprocess.run(["ip", "-o", "link"], capture_output=True, text=True).stdout
+    assert all(bridge in links for bridge in state.bridges.values())
+    assert set(state.hosts) == {h.instance for h in manifest.hosts}
+    DockerBackend().down(manifest)

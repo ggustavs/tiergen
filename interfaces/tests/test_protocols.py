@@ -13,6 +13,7 @@ from tiergen.interfaces import (
     CapabilityInfo,
     InfraBackend,
     RunManifest,
+    RunState,
     Sensor,
 )
 
@@ -53,8 +54,9 @@ class NoInfra:
     def __init__(self) -> None:
         self.seen = []
 
-    def up(self, manifest: RunManifest) -> None:
+    def up(self, manifest: RunManifest) -> RunState:
         self.seen.append(f"up {manifest.run}")
+        return RunState(manifest.run, self.id)
 
     def down(self, manifest: RunManifest) -> None:
         self.seen.append(f"down {manifest.run}")

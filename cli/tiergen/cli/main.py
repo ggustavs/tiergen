@@ -14,7 +14,10 @@ from tiergen.core.addressing import plan_addresses
 from tiergen.core.codec import CodecError, from_json, to_json
 from tiergen.core.ir import Scenario
 from tiergen.core.loader import ScenarioLoadError, load_scenario
+from tiergen.core.program import build_programs, programs_by_file
+from tiergen.core.resolve import Resolver
 from tiergen.core.resources import DirResources
+from tiergen.core.routing import plan_routes
 from tiergen.impls._base import load_impls
 from tiergen.interfaces import BackendError, RunManifest
 from tiergen.interfaces.registry import load_infra, load_infra_backends, load_sensors
@@ -134,17 +137,29 @@ def _build(scenario_path: Path, models: Path | None, out: Path) -> int:
     topology = Context(scenario, resources, impls, sensors, infra, SIGNATURES).topology()
     assert topology is not None
     plan, _ = plan_addresses(scenario, topology)
-
-    manifests = build_manifests(scenario, topology, plan, impls, resources)
+    routes, _ = plan_routes(scenario, topology, plan)
+    manifests = build_manifests(scenario, topology, plan, routes, impls, resources)
+    programs = programs_by_file(
+        build_programs(scenario, topology, plan, routes, Resolver(resources))
+    )
 
     out.mkdir(parents=True, exist_ok=True)
     _dump(scenario, out / "scenario.json")
     _dump(plan, out / "addresses.json")
+    _dump(routes, out / "routes.json")
     for backend, manifest in manifests.items():
         _dump(manifest, out / f"manifest.{backend}.json")
+    for name, program in programs.items():
+        _dump(program, out / name)
     if source.is_dir():
         shutil.copytree(source, out / "models")
-    written = ["scenario.json", "addresses.json", *(f"manifest.{b}.json" for b in manifests)]
+    written = [
+        "scenario.json",
+        "addresses.json",
+        "routes.json",
+        *(f"manifest.{b}.json" for b in manifests),
+        f"{len(programs)} program files",
+    ]
     if source.is_dir():
         written.append("models/")
     print(f"wrote {out}: {', '.join(written)}")
@@ -171,9 +186,10 @@ def _infra(verb: str, run_dir: Path) -> int:
         for manifest in manifests:
             backend = backends[manifest.backend]
             if verb == "up":
-                backend.up(manifest)
+                _dump(backend.up(manifest), run_dir / f"state.{manifest.backend}.json")
             else:
                 backend.down(manifest)
+                (run_dir / f"state.{manifest.backend}.json").unlink(missing_ok=True)
             print(f"{manifest.backend}: {verb} {manifest.run}, {len(manifest.hosts)} host(s)")
     except BackendError as err:
         print(f"tiergen: {err}", file=sys.stderr)
