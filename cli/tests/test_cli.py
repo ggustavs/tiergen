@@ -85,7 +85,18 @@ def test_build_writes_a_self_contained_run_directory(
     out = tmp_path / "run1"
     assert main(["build", _scenario("linux_slice"), "--out", str(out)]) == 0
     assert "wrote" in capsys.readouterr().out
-    assert sorted(p.name for p in out.iterdir()) == ["addresses.json", "models", "scenario.json"]
+    assert sorted(p.name for p in out.iterdir()) == [
+        "addresses.json",
+        "manifest.docker.json",
+        "models",
+        "scenario.json",
+    ]
+    manifest = json.loads((out / "manifest.docker.json").read_text())
+    assert [h["instance"] for h in manifest["hosts"]] == [
+        "lab/workstation[0]",
+        "lab/web_server[0]",
+        "lab/attacker[0]",
+    ]
 
     plan = json.loads((out / "addresses.json").read_text())
     assert plan["gateways"] == {"lan": "10.20.0.1", "mgmt": "10.98.0.1"}
@@ -113,3 +124,10 @@ def test_build_refuses_a_directory_that_is_not_empty(
     assert main(["build", _scenario("linux_slice"), "--out", str(tmp_path)]) == 2
     assert "not an empty directory" in capsys.readouterr().err
     assert [p.name for p in tmp_path.iterdir()] == ["keep.txt"]
+
+
+def test_infra_needs_a_built_run_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["infra", "up", str(tmp_path)]) == 2
+    assert "holds no manifest" in capsys.readouterr().err
