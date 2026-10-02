@@ -25,6 +25,13 @@ no version numbers.
   capture point; `AttributionRecord.instance`; `Context.ties` resolves to `Peer`s with
   served endpoints; `Action.select` for `multiple` ties; `Scenario.start` anchors the rate
   curves; `Binding.credentials` for the Windows path.
+- **check**: check 10 holds every wired tie to reachability over the derived routes and
+  reports ambiguous next hops; check 9 warns when no active capture point would see a tie's
+  traffic; check 16 requires `select` on `multiple` ties; check 13 holds sensor names unique;
+  check 12 holds `start` well formed and `start`/`stop` to every targeted kind; check 11
+  refuses a group named like a kind its parent holds; check 7 holds a default host's
+  implementations to one base image and warns when a binding has no MAC prefix. `two_teams`
+  gained `core_router`, VLAN ids and a tagged trunk SPAN.
 - **core**: one resolver (`tiergen.core.resolve`) shared by the checker and `build`, so the
   agent never interprets a resource name; one `ImplRef` and one `HostRef` parser.
 - **backends/infra**: the Docker backend, the first `InfraBackend`. `tiergen build` now writes a
