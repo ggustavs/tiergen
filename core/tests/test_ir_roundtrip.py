@@ -84,17 +84,21 @@ fit_provenances = st.builds(
 networks = st.builds(ir.Network, names, names, st.sampled_from(["data", "management"]))
 capture_points = st.builds(ir.CapturePoint, names, names)
 topologies = st.builds(
-    ir.Topology,
-    tuples(networks),
+    ir.Topology, tuples(networks), tuples(capture_points), st.dictionaries(names, names, max_size=2)
+)
+groups = st.builds(
+    ir.Group,
+    names,
+    st.none() | names,
+    st.dictionaries(names, st.integers(0, 500), max_size=3),
     st.dictionaries(names, tuples(names), max_size=3),
-    tuples(capture_points),
-    st.dictionaries(names, names, max_size=2),
+    st.dictionaries(names, tuples(names), max_size=3),
 )
 scenarios = st.builds(
     ir.Scenario,
     name=names,
     kinds=tuples(actor_kinds, max_size=2),
-    instances=st.dictionaries(names, st.integers(0, 500), max_size=3),
+    groups=tuples(groups),
     bindings=tuples(bindings, max_size=2),
     topology=names | topologies,
     egress=st.sampled_from(["stub", "allowlist", "none"]),
@@ -127,6 +131,7 @@ CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
     (ir.Network, networks),
     (ir.CapturePoint, capture_points),
     (ir.Topology, topologies),
+    (ir.Group, groups),
     (ir.Scenario, scenarios),
 ]
 

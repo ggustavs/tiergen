@@ -15,6 +15,7 @@ from tiergen.core.dsl import (
     binding,
     dist,
     endpoint,
+    group,
     host,
     hours,
     kind,
@@ -76,9 +77,16 @@ Atk = kind(
     platforms=["linux"],
 )
 
+# One site. Every kind here is wired to this group by default, which is where it lives.
+Hq = group(
+    "hq",
+    instances={Ws: 60, Dc: 0, Fs: 2, Web: 1, Atk: 1},
+    attachments={Dc: ["lan"], Fs: ["lan"], Web: ["lan"], Ws: ["lan"], Atk: ["lan"]},
+)
+
 S = scenario(
     "hq_lan_broken",
-    instances={Ws: 60, Dc: 0, Fs: 2, Web: 1, Atk: 1},
+    groups=[Hq],
     bindings={
         # A VM from a template is a custom host: its manifest says what it serves. The
         # workstation is one too, and serves nothing, so it needs no manifest.
@@ -112,7 +120,10 @@ S = scenario(
     },
     topology=resource("hq_lan.topology"),
     egress="none",
-    schedule=[at(0, Ws, "start", "office"), at(hours(200), Atk, "start", "recon")],
+    schedule=[
+        at(0, Hq, "start", "office", kind=Ws),
+        at(hours(200), Hq, "start", "recon", kind=Atk),
+    ],
     duration_s=7 * 24 * 3600,
     capture_points=["core-switch-span", "mgmt-tap"],
     sensors=[

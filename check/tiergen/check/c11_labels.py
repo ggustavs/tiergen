@@ -36,6 +36,25 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                     ID, f"{path}.behaviours[{b}].process.states", f"state {name!r} is listed twice"
                 )
 
+    seen: dict[str, int] = {}
+    for g, group in enumerate(s.groups):
+        if group.path in seen:
+            yield error(
+                ID,
+                f"groups[{g}]",
+                f"group path {group.path!r} is used twice (also groups[{seen[group.path]}])",
+            )
+        seen.setdefault(group.path, g)
+    for g, group in enumerate(s.groups):
+        if group.parent is not None and group.parent not in seen:
+            yield error(
+                ID, f"groups[{g}].parent", f"{group.parent!r} is not a group of this scenario"
+            )
+        if not group.name or any(c in group.name for c in "/[]"):
+            yield error(
+                ID, f"groups[{g}].name", f"{group.name!r} is not a group name: no '/', '[' or ']'"
+            )
+
     for i, binding in enumerate(s.bindings):
         for name in _duplicates(sel.signature for sel in binding.impls):
             yield error(ID, f"bindings[{i}].impls", f"signature {name} is selected twice")

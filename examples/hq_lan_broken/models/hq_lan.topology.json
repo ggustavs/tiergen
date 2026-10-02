@@ -11,23 +11,6 @@
       "plane": "management"
     }
   ],
-  "attachments": {
-    "domain_controller": [
-      "lan"
-    ],
-    "file_server": [
-      "lan"
-    ],
-    "intranet_web": [
-      "lan"
-    ],
-    "workstation": [
-      "lan"
-    ],
-    "attacker": [
-      "lan"
-    ]
-  },
   "capture_points": [
     {
       "name": "core-switch-span",

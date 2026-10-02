@@ -95,6 +95,10 @@ class Context:
     def topology(self) -> Topology | None:
         return cast(Topology | None, self.resolve(self.scenario.topology, Topology))
 
+    def held(self, kind: str) -> int:
+        """How many instances of ``kind`` the scenario's groups hold in all."""
+        return sum(max(g.instances.get(kind, 0), 0) for g in self.scenario.groups)
+
     def kind(self, name: str) -> ActorKind | None:
         return next((k for k in self.scenario.kinds if k.name == name), None)
 

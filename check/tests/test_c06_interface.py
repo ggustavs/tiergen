@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from support import RESOURCES, good, only, with_binding
+from support import RESOURCES, good, only, with_binding, with_group
 
 from tiergen.core import dsl, ir
 from tiergen.core.codec import JsonValue
@@ -65,5 +65,5 @@ def test_kinds_and_bindings_pair_up() -> None:
 
 def test_a_kind_with_no_instances_needs_no_binding() -> None:
     s = good()
-    s = replace(s, instances={"cli": 0, "srv": 0}, bindings=(), schedule=())
-    assert only("C06", s) == []
+    s = with_group(s, 0, instances={"cli": 0, "srv": 0}, wiring={})
+    assert only("C06", replace(s, bindings=(), schedule=())) == []

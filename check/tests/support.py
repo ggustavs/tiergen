@@ -69,7 +69,6 @@ RESOURCES: dict[str, JsonValue] = {
             {"name": "lan", "cidr": "10.0.0.0/24", "plane": "data"},
             {"name": "mgmt", "cidr": "10.9.0.0/24", "plane": "management"},
         ],
-        "attachments": {"cli": ["lan"], "srv": ["lan"]},
         "capture_points": [{"name": "span0", "network": "lan"}],
     },
     "lan.provenance": {
@@ -102,9 +101,10 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
         behaviours=[behaviour or surf()],
         platforms=["linux", "windows"],
     )
+    lan = dsl.group("lan", instances={cli: 3, srv: 1}, attachments={cli: ["lan"], srv: ["lan"]})
     return dsl.scenario(
         "good",
-        instances={cli: 3, srv: 1},
+        groups=[lan],
         bindings={
             cli: dsl.binding(
                 dsl.host("linux", "container", backend="docker"),
@@ -116,7 +116,10 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
         },
         topology="lan.topology",
         egress="none",
-        schedule=[dsl.at(0, cli, "start", "surf"), dsl.at(60, "cli[2]", "set_rate", 0.5)],
+        schedule=[
+            dsl.at(0, lan, "start", "surf", kind=cli),
+            dsl.at(60, "lan/cli[2]", "set_rate", 0.5),
+        ],
         duration_s=3600,
         capture_points=["span0"],
         sensors=[
@@ -158,6 +161,12 @@ def with_kind(s: ir.Scenario, index: int, **changes: object) -> ir.Scenario:
     kinds = list(s.kinds)
     kinds[index] = replace(kinds[index], **changes)  # pyright: ignore[reportArgumentType]
     return replace(s, kinds=tuple(kinds))
+
+
+def with_group(s: ir.Scenario, index: int, **changes: object) -> ir.Scenario:
+    groups = list(s.groups)
+    groups[index] = replace(groups[index], **changes)  # pyright: ignore[reportArgumentType]
+    return replace(s, groups=tuple(groups))
 
 
 def with_binding(s: ir.Scenario, index: int, **changes: object) -> ir.Scenario:

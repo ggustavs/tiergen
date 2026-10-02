@@ -42,27 +42,28 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                 "so an address could mean two hosts",
             )
 
-    for kind, networks in topology.attachments.items():
-        path = f"topology.attachments[{kind!r}]"
-        if kind not in kinds:
-            yield error(ID, path, f"{kind!r} is not a kind of this scenario")
-        for name in networks:
-            if name not in planes:
-                yield error(ID, path, f"{name!r} is not a network of this topology")
-            elif planes[name] != "data":
+    for g, group in enumerate(s.groups):
+        for kind, networks in group.attachments.items():
+            path = f"groups[{g}].attachments[{kind!r}]"
+            if kind not in kinds:
+                yield error(ID, path, f"{kind!r} is not a kind of this scenario")
+            for name in networks:
+                if name not in planes:
+                    yield error(ID, path, f"{name!r} is not a network of this topology")
+                elif planes[name] != "data":
+                    yield error(
+                        ID,
+                        path,
+                        f"{name!r} is the management network; every instance joins it implicitly",
+                    )
+        for kind, count in group.instances.items():
+            joined = [n for n in group.attachments.get(kind, ()) if planes.get(n) == "data"]
+            if kind in kinds and count > 0 and not joined:
                 yield error(
                     ID,
-                    path,
-                    f"{name!r} is the management network; every instance joins it implicitly",
+                    f"groups[{g}].instances[{kind!r}]",
+                    f"{group.path!r} holds {kind!r} but attaches it to no data-plane network",
                 )
-    for k, kind in enumerate(s.kinds):
-        joined = [n for n in topology.attachments.get(kind.name, ()) if planes.get(n) == "data"]
-        if s.instances.get(kind.name, 0) > 0 and not joined:
-            yield error(
-                ID,
-                f"kinds[{k}]",
-                f"kind {kind.name!r} has instances but joins no data-plane network",
-            )
 
     if s.egress != "none":
         yield not_computed(

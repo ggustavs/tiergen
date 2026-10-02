@@ -43,8 +43,8 @@ def test_hq_lan_capgap_warns_about_smb_dialect_and_nothing_else() -> None:
 def test_hq_lan_broken_fails_the_six_checks_it_was_broken_for() -> None:
     errors = [d for d in _summary(_check("hq_lan_broken")) if d[1] == "error"]
     assert errors == [
-        ("C01", "error", "kinds[0].ties[0]"),
-        ("C01", "error", "kinds[4].ties[0]"),
+        ("C01", "error", "groups[0].wiring['workstation.dc']"),
+        ("C01", "error", "groups[0].wiring['attacker.dc']"),
         ("C04", "error", "kinds[4].behaviours[0].process.transitions[0]"),
         ("C05", "error", "kinds[0].behaviours[0].process.rate"),
         ("C09", "error", "topology.capture_points[1].network"),

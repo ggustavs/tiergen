@@ -21,6 +21,7 @@ from tiergen.core.ir import (
     EgressPolicy,
     Endpoint,
     FitProvenance,
+    Group,
     Host,
     HostType,
     ImplSelection,
@@ -58,6 +59,18 @@ class Kind:
         return self.ir.name
 
 
+@dataclass(frozen=True, eq=False)
+class GroupHandle:
+    """A handle on a ``Group``, usable as a wiring target and as another group's parent."""
+
+    ir: Group
+    kinds: tuple[Kind, ...]
+
+    @property
+    def path(self) -> str:
+        return self.ir.path
+
+
 @dataclass(frozen=True, slots=True)
 class BindingSpec:
     """A binding that does not yet know its kind. ``scenario`` supplies it."""
@@ -68,6 +81,10 @@ class BindingSpec:
 
 def _name(target: Kind | str) -> str:
     return target if isinstance(target, str) else target.name
+
+
+def _path(target: GroupHandle | str) -> str:
+    return target if isinstance(target, str) else target.path
 
 
 def resource(name: str) -> str:
@@ -166,21 +183,52 @@ def capture_point(name: str, network: Network | str) -> CapturePoint:
 
 def topology(
     networks: Sequence[Network],
-    attachments: Mapping[Kind | str, Sequence[Network | str]],
     capture_points: Sequence[CapturePoint] = (),
     addresses: Mapping[str, str] | None = None,
 ) -> Topology:
-    """``attachments`` maps each kind to its data-plane networks. The management network is
-    joined by every instance and is not listed. ``addresses`` pins single instances, keyed
-    ``kind[i]``; everything else is allocated."""
-    return Topology(
-        tuple(networks),
-        {
-            _name(kind): tuple(n if isinstance(n, str) else n.name for n in nets)
-            for kind, nets in attachments.items()
-        },
-        tuple(capture_points),
-        dict(addresses or {}),
+    """The networks and capture points. Who joins which is said per ``group``. ``addresses``
+    pins single instances by id, ``path/kind[i]``; everything else is allocated."""
+    return Topology(tuple(networks), tuple(capture_points), dict(addresses or {}))
+
+
+def group(
+    name: str,
+    *,
+    instances: Mapping[Kind, int],
+    attachments: Mapping[Kind, Sequence[Network | str]],
+    wiring: Mapping[str, GroupHandle | str | Sequence[GroupHandle | str]] | None = None,
+    parent: GroupHandle | str | None = None,
+) -> GroupHandle:
+    """A scope holding ``instances`` of some kinds, each joining its ``attachments``.
+
+    ``wiring`` maps ``"kind.tie"`` to the group or groups whose instances of the tie's target
+    kind are its targets. A tie left out is wired to this group itself when this group holds
+    instances of the target kind, and left unwired otherwise, which check 1 reports. That is
+    the only convenience: the IR holds the result, and nothing is looked up at run time.
+    """
+    path = name if parent is None else f"{_path(parent)}/{name}"
+    held = {k.name: count for k, count in instances.items()}
+    wired: dict[str, tuple[str, ...]] = {}
+    for key, value in (wiring or {}).items():
+        targets = (value,) if isinstance(value, (GroupHandle, str)) else tuple(value)
+        wired[key] = tuple(_path(t) for t in targets)
+    for kind in instances:
+        for tie in kind.ir.ties:
+            key = f"{kind.name}.{tie.name}"
+            if key not in wired and tie.target_kind in held:
+                wired[key] = (path,)
+    return GroupHandle(
+        kinds=tuple(instances),
+        ir=Group(
+            name=name,
+            parent=None if parent is None else _path(parent),
+            instances=held,
+            attachments={
+                _name(kind): tuple(n if isinstance(n, str) else n.name for n in nets)
+                for kind, nets in attachments.items()
+            },
+            wiring=wired,
+        ),
     )
 
 
@@ -219,16 +267,28 @@ def hours(n: float) -> float:
 
 
 def at(
-    at_s: float, target: Kind | str, op: ScheduleOp, arg: str | float | None = None
+    at_s: float,
+    target: GroupHandle | str,
+    op: ScheduleOp,
+    arg: str | float | None = None,
+    *,
+    kind: Kind | str | None = None,
+    index: int | None = None,
 ) -> ScheduleEvent:
-    """``target`` is a kind, a kind name, or ``"kind[i]"`` for one instance."""
-    return ScheduleEvent(at_s, _name(target), op, arg)
+    """``target`` is a group, or a target string. With ``kind``, every instance of that kind
+    under the group; with ``index`` as well, one instance."""
+    text = _path(target)
+    if kind is not None:
+        text = f"{text}/{_name(kind)}"
+        if index is not None:
+            text = f"{text}[{index}]"
+    return ScheduleEvent(at_s, text, op, arg)
 
 
 def scenario(
     name: str,
     *,
-    instances: Mapping[Kind, int],
+    groups: Sequence[GroupHandle],
     bindings: Mapping[Kind, BindingSpec],
     topology: Topology | str,
     egress: EgressPolicy,
@@ -241,16 +301,21 @@ def scenario(
     fit_provenance: FitProvenance | str | None = None,
     coverage_floor: float = 0.5,
 ) -> Scenario:
-    """Assemble the root. The scenario's kinds are the keys of ``instances``, in order."""
-    kinds = tuple(k.ir for k in instances)
+    """Assemble the root. The scenario's kinds are those the groups and bindings mention, in
+    order of first mention; a kind nobody holds and nobody binds is not in the scenario."""
+    mentioned: list[Kind] = [*_kinds_of(groups), *bindings]
+    kinds: list[ActorKind] = []
+    for kind in mentioned:
+        if kind.ir not in kinds:
+            kinds.append(kind.ir)
     names = [k.name for k in kinds]
     duplicates = sorted({n for n in names if names.count(n) > 1})
     if duplicates:
         raise ValueError(f"two kinds share a name: {', '.join(duplicates)}")
     return Scenario(
         name=name,
-        kinds=kinds,
-        instances={k.name: count for k, count in instances.items()},
+        kinds=tuple(kinds),
+        groups=tuple(g.ir for g in groups),
         bindings=tuple(Binding(k.name, spec.host, spec.impls) for k, spec in bindings.items()),
         topology=topology,
         egress=egress,
@@ -263,3 +328,8 @@ def scenario(
         seed=seed,
         coverage_floor=coverage_floor,
     )
+
+
+def _kinds_of(groups: Sequence[GroupHandle]) -> list[Kind]:
+    """The kind handles the groups were built with, which ``group`` keeps on the handle."""
+    return [kind for g in groups for kind in g.kinds]

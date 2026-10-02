@@ -14,6 +14,7 @@ from tiergen.core.dsl import (
     choice,
     dist,
     endpoint,
+    group,
     host,
     kind,
     network,
@@ -68,9 +69,13 @@ Atk = kind(
 Lan = network("lan", "10.20.0.0/24")
 Mgmt = network("mgmt", "10.98.0.0/24", "management")
 
+Lab = group(
+    "lab", instances={Ws: 1, Web: 1, Atk: 1}, attachments={Ws: [Lan], Web: [Lan], Atk: [Lan]}
+)
+
 S = scenario(
     "linux_slice",
-    instances={Ws: 1, Web: 1, Atk: 1},
+    groups=[Lab],
     bindings={
         Ws: binding(
             host("linux", "container", backend="docker"), {"http.get": {"http.httpx": 1.0}}
@@ -84,13 +89,10 @@ S = scenario(
         ),
     },
     topology=topology(
-        [Lan, Mgmt],
-        {Ws: [Lan], Web: [Lan], Atk: [Lan]},
-        [capture_point("lan-span", Lan)],
-        {"web_server[0]": "10.20.0.80"},
+        [Lan, Mgmt], [capture_point("lan-span", Lan)], {"lab/web_server[0]": "10.20.0.80"}
     ),
     egress="none",
-    schedule=[at(0, Ws, "start", "browse"), at(600, Atk, "start", "recon")],
+    schedule=[at(0, Lab, "start", "browse", kind=Ws), at(600, Lab, "start", "recon", kind=Atk)],
     duration_s=3600,
     capture_points=["lan-span"],
     sensors=[

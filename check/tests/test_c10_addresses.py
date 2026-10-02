@@ -1,13 +1,12 @@
 from dataclasses import replace
 
-from support import good, only, run
+from support import good, only, run, with_group
 
 from tiergen.core import ir
 
 LAN = ir.Network("lan", "10.0.0.0/24", "data")
 MGMT = ir.Network("mgmt", "10.9.0.0/24", "management")
 SPAN = ir.CapturePoint("span0", "lan")
-ATTACHED = {"cli": ("lan",), "srv": ("lan",)}
 
 
 def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
@@ -16,24 +15,24 @@ def _with(topology: ir.Topology, **changes: object) -> ir.Scenario:
 
 def test_planner_problems_become_errors_under_the_topology() -> None:
     topology = ir.Topology(
-        (ir.Network("lan", "10.0.0.0/30", "data"), MGMT), ATTACHED, (SPAN,), {"cli[9]": "10.0.0.2"}
+        (ir.Network("lan", "10.0.0.0/30", "data"), MGMT), (SPAN,), {"lan/cli[9]": "10.0.0.2"}
     )
     found = {d.path: d.message for d in only("C10", _with(topology))}
-    assert "not an instance" in found["topology.addresses['cli[9]']"]
+    assert "not an instance" in found["topology.addresses['lan/cli[9]']"]
     assert "room for 1 hosts; 4 are attached" in found["topology.networks"]
 
 
 def test_a_malformed_cidr() -> None:
     [d] = only(
         "C10",
-        _with(ir.Topology((ir.Network("lan", "10.0.0.300/24", "data"), MGMT), ATTACHED, (SPAN,))),
+        _with(ir.Topology((ir.Network("lan", "10.0.0.300/24", "data"), MGMT), (SPAN,))),
     )
     assert d.path == "topology.networks[0].cidr"
 
 
 def test_overlapping_data_plane_networks() -> None:
     dmz = ir.Network("dmz", "10.0.0.128/25", "data")
-    [d] = only("C10", _with(ir.Topology((LAN, dmz, MGMT), ATTACHED, (SPAN,))))
+    [d] = only("C10", _with(ir.Topology((LAN, dmz, MGMT), (SPAN,))))
     assert "'lan' (10.0.0.0/24) and 'dmz' (10.0.0.128/25) overlap" in d.message
 
 
@@ -41,22 +40,21 @@ def test_attachments_name_real_kinds_and_data_plane_networks() -> None:
     attachments = {"cli": ("lan", "wan"), "srv": ("lan", "mgmt"), "ghost": ("lan",)}
     found = {
         (d.path, d.message.split(";")[0])
-        for d in only("C10", _with(ir.Topology((LAN, MGMT), attachments, (SPAN,))))
+        for d in only("C10", with_group(good(), 0, attachments=attachments))
     }
     assert found == {
-        ("topology.attachments['cli']", "'wan' is not a network of this topology"),
-        ("topology.attachments['srv']", "'mgmt' is the management network"),
-        ("topology.attachments['ghost']", "'ghost' is not a kind of this scenario"),
+        ("groups[0].attachments['cli']", "'wan' is not a network of this topology"),
+        ("groups[0].attachments['srv']", "'mgmt' is the management network"),
+        ("groups[0].attachments['ghost']", "'ghost' is not a kind of this scenario"),
     }
 
 
-def test_a_kind_with_instances_joins_the_data_plane() -> None:
-    [d] = only("C10", _with(ir.Topology((LAN, MGMT), {"cli": ("lan",)}, (SPAN,))))
-    assert d.path == "kinds[1]"
+def test_a_kind_a_group_holds_joins_the_data_plane_there() -> None:
+    [d] = only("C10", with_group(good(), 0, attachments={"cli": ("lan",)}))
+    assert d.path == "groups[0].instances['srv']"
+    assert "'lan' holds 'srv' but attaches it to no data-plane network" in d.message
     # With no instances there is nobody to attach. Check 1 objects to the client's single tie.
-    quiet = _with(
-        ir.Topology((LAN, MGMT), {"cli": ("lan",)}, (SPAN,)), instances={"cli": 3, "srv": 0}
-    )
+    quiet = with_group(good(), 0, attachments={"cli": ("lan",)}, instances={"cli": 3, "srv": 0})
     assert [d for d in run(quiet) if d.check == "C10"] == []
 
 

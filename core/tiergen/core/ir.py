@@ -169,7 +169,11 @@ class Binding:
 
 @dataclass(frozen=True, slots=True)
 class ScheduleEvent:
-    """A timed control event. ``target`` is a kind name or ``kind[i]`` for one instance."""
+    """A timed control event.
+
+    ``target`` is a group path (every instance under it), ``path/kind`` (every instance of
+    that kind under it) or ``path/kind[i]`` (one instance).
+    """
 
     at_s: float
     target: str
@@ -222,19 +226,41 @@ class CapturePoint:
 
 @dataclass(frozen=True, slots=True)
 class Topology:
-    """The networks of a scenario and who is on them.
+    """The networks of a scenario. Who joins which is said per group.
 
-    ``attachments`` maps a kind to the data-plane networks its instances join. Every instance
-    also joins the management network, which carries the tool's own traffic; that attachment
-    is implicit. Addresses are allocated from each network's CIDR in a fixed order (see
-    ``tiergen.core.addressing``). ``addresses`` overrides the allocation for single instances,
-    keyed ``kind[i]``, which is how ``fit`` keeps the addresses it observed.
+    Every instance joins the management network, which carries the tool's own traffic; that
+    attachment is implicit. Addresses are allocated from each network's CIDR in a fixed order
+    (see ``tiergen.core.addressing``). ``addresses`` overrides the allocation for single
+    instances, keyed by instance id, which is how ``fit`` keeps the addresses it observed.
     """
 
     networks: tuple[Network, ...]
-    attachments: dict[str, tuple[str, ...]]
     capture_points: tuple[CapturePoint, ...]
     addresses: dict[str, str] = field(default_factory=dict[str, str])
+
+
+@dataclass(frozen=True, slots=True)
+class Group:
+    """A scope that holds instances: a team, a branch, a site. Groups nest.
+
+    A group's path is its ancestors' names and its own joined by ``/``; ``parent`` is the
+    enclosing group's path, or None at the top. An instance is ``path/kind[i]``.
+    ``instances`` counts each kind here; ``attachments`` lists the data-plane networks each
+    kind's instances join here. ``wiring`` says, for each tie of each kind held here as
+    ``"kind.tie"``, which groups' instances of the tie's target kind are its targets.
+    Wiring is explicit and total: nothing is looked up by walking the tree, and nothing is
+    inherited from a parent. What the IR says is what connects.
+    """
+
+    name: str
+    parent: str | None
+    instances: dict[str, int]
+    attachments: dict[str, tuple[str, ...]]
+    wiring: dict[str, tuple[str, ...]] = field(default_factory=dict[str, tuple[str, ...]])
+
+    @property
+    def path(self) -> str:
+        return self.name if self.parent is None else f"{self.parent}/{self.name}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,7 +276,7 @@ class Scenario:
 
     name: str
     kinds: tuple[ActorKind, ...]
-    instances: dict[str, int]
+    groups: tuple[Group, ...]
     bindings: tuple[Binding, ...]
     topology: Topology | str
     egress: EgressPolicy
