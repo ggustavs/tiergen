@@ -25,6 +25,17 @@ no version numbers.
   capture point; `AttributionRecord.instance`; `Context.ties` resolves to `Peer`s with
   served endpoints; `Action.select` for `multiple` ties; `Scenario.start` anchors the rate
   curves; `Binding.credentials` for the Windows path.
+- **cli**, **backends/infra**: `tiergen build` writes `routes.json` and one projected program
+  per instance (`tiergen.core.program`): behaviours with every resource inlined, parameters
+  resolved, implementation choices, ties resolved to peers with addresses and served
+  endpoints, routes, hostname, seed. The agent (task 5) reads nothing else. Run manifests
+  carry platform, hostname, MACs, routes, forwarding and the bridge name `build` fixes per
+  segment; `InfraBackend.up` returns a `RunState` of substrate names and ids, which
+  `tiergen infra up` writes as `state.<backend>.json`. The Docker backend names its bridges,
+  sets hostnames and MACs, enables forwarding on forwarders and installs routes with
+  `ip route add` (hence `NET_ADMIN` on hosts with routes). The default image is a pinned
+  Alpine, which carries iproute2, until the agent's image exists. Verified against the daemon:
+  `two_teams`' Linux half routes between its team LANs through `core_router`.
 - **check**: check 10 holds every wired tie to reachability over the derived routes and
   reports ambiguous next hops; check 9 warns when no active capture point would see a tie's
   traffic; check 16 requires `select` on `multiple` ties; check 13 holds sensor names unique;
