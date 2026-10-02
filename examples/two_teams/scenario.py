@@ -8,7 +8,6 @@ the site in, the way a Terraform module takes its dependencies as inputs.
 
 from tiergen.core.dsl import (
     GroupHandle,
-    Network,
     action,
     at,
     binding,
@@ -27,6 +26,7 @@ from tiergen.core.dsl import (
     tie,
     topology,
 )
+from tiergen.core.ir import Network
 
 Dc = kind(
     "domain_controller",
