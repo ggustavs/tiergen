@@ -7,7 +7,7 @@ from hypothesis import strategies as st
 
 from tiergen.core.codec import CodecError, JsonValue, from_json, to_json
 from tiergen.core.events import AppEvent, ConnEvent, FiveTuple, SensorFlowId
-from tiergen.core.labels import Label
+from tiergen.core.records import AttributionKey, ClockStamp, InvocationRecord, LabelKey, Peer
 
 names = st.text(st.characters(codec="ascii", categories=["Ll", "Nd"]), min_size=1, max_size=6)
 finite = st.floats(allow_nan=False, allow_infinity=False)
@@ -19,7 +19,7 @@ json_values: st.SearchStrategy[JsonValue] = st.recursive(
 )
 records = st.dictionaries(names, json_values, max_size=3)
 
-flow_ids = st.builds(SensorFlowId, names, names)
+flow_ids = st.builds(SensorFlowId, names, names, names)
 five_tuples = st.builds(
     FiveTuple, names, st.integers(0, 65535), names, st.integers(0, 65535), names
 )
@@ -37,8 +37,8 @@ conn_events = st.builds(
     raw=records,
 )
 app_events = st.builds(AppEvent, flow_ids, st.integers(0, 10_000), finite, names, records, records)
-labels = st.builds(
-    Label,
+label_keys = st.builds(
+    LabelKey,
     names,
     names,
     names,
@@ -46,8 +46,30 @@ labels = st.builds(
     names,
     names,
     st.none() | names,
-    names,
+    st.lists(names, max_size=3).map(tuple),
+)
+records = st.builds(
+    InvocationRecord,
+    label_keys,
+    st.builds(AttributionKey, st.sampled_from(["linux", "windows"]), names),
+    finite,
+    finite,
     st.sampled_from(["succeeded", "failed"]),
+    st.builds(ClockStamp, finite, finite, finite),
+)
+peers = st.builds(
+    Peer,
+    names,
+    names,
+    st.lists(
+        st.builds(
+            __import__("tiergen.core.ir", fromlist=["Endpoint"]).Endpoint,
+            names,
+            st.integers(1, 65535),
+            st.sampled_from(["tcp", "udp"]),
+        ),
+        max_size=2,
+    ).map(tuple),
 )
 
 CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
@@ -55,7 +77,9 @@ CASES: list[tuple[type, st.SearchStrategy[Any]]] = [
     (FiveTuple, five_tuples),
     (ConnEvent, conn_events),
     (AppEvent, app_events),
-    (Label, labels),
+    (LabelKey, label_keys),
+    (InvocationRecord, records),
+    (Peer, peers),
 ]
 
 
@@ -70,7 +94,7 @@ def test_round_trip(cls: type, strategy: st.SearchStrategy[Any], data: st.DataOb
 
 
 def test_passthrough_still_refuses_non_finite_floats() -> None:
-    event = to_json(AppEvent(SensorFlowId("zeek", "C1"), 0, 0.0, "http", {}, {}))
+    event = to_json(AppEvent(SensorFlowId("zeek", "span0", "C1"), 0, 0.0, "http", {}, {}))
     assert isinstance(event, dict)
     event["raw"] = {"rtt": [1.0, float("inf")]}
     with pytest.raises(CodecError) as info:
