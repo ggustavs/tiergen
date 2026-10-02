@@ -9,6 +9,21 @@ no version numbers.
 
 ### Added
 
+- **backends/infra**: the agent image and the run directory in the container. A default host
+  now runs `tiergen-agent` from `tiergen/base-linux`, which the Docker backend builds through
+  the SDK from the installed workspace members (Dockerfile beside the backend) when the daemon
+  lacks the tag, a hash of the build context, and records by id in the run state. An agent
+  host gets the run directory read-only at `/tiergen/run`, its `run/out/<instance>` read-write
+  at `/tiergen/out`, a private cgroup namespace, `SYS_ADMIN` and `apparmor=unconfined` (the
+  default profile denies the remount of the cgroup filesystem, as CI's Ubuntu runner showed);
+  `HostSpec.agent` says which
+  hosts those are and `InfraBackend.up` takes the run directory. The pinned idle Alpine is
+  gone. `examples/linux_slice`'s attacker now starts its recon thirty seconds in, and the
+  daemon test holds the whole example: the workstation's first `http.get` succeeds against
+  nginx, whose access log shows the workstation's address; the attacker's SYN scan succeeds;
+  every record's key is a cgroup; `down` leaves nothing. A service the agent cannot start
+  (`samba` has no runtime yet) is logged and the host stays up, since `two_teams`' file
+  servers must keep routing.
 - **runtime**: the Linux agent, `tiergen-agent <program.json>` (`runtime/agent_linux`). It
   loads a program and validates the dwell families, starts the instance's services and
   waits for them, then runs each behaviour in a forked process: action on entering a state,

@@ -25,9 +25,16 @@ network's own.
 
 ```
 uv run tiergen build examples/linux_slice/scenario.py --out run1
-uv run tiergen infra up run1      # three idle containers on their planned addresses
+uv run tiergen infra up run1      # builds the agent image the first time, then three hosts
+sleep 60
+cat run1/out/lab-workstation-0/invocations.jsonl    # the workstation's http.get records
+cat run1/out/lab-web_server-0/http.nginx/access.log # seen from the web server
+cat run1/out/lab-attacker-0/invocations.jsonl       # the attacker's SYN scan, from 30 s in
 uv run tiergen infra down run1
 ```
+
+The agents run as root in their containers, so what they write under `run1/out/` is root's.
+Nothing captures the traffic yet; that is the next task.
 
 The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
 do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
