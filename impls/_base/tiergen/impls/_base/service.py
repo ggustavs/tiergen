@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from random import Random
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from tiergen.core.ir import Endpoint
 
@@ -32,6 +32,7 @@ class ServiceContext(Protocol):
     def rng(self) -> Random: ...
 
 
+@runtime_checkable
 class ServiceImpl(Protocol):
     """A server process on a default-compiled host."""
 

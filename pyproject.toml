@@ -20,6 +20,7 @@ dependencies = [
     "tiergen-impl-nginx",
     "tiergen-impl-samba",
     "tiergen-impl-smbclient-win",
+    "tiergen-agent-linux",
 ]
 
 [dependency-groups]
@@ -44,6 +45,7 @@ members = [
     "impls/*",
     "backends/sensor/*",
     "backends/infra/*",
+    "runtime/*",
     "check",
     "cli",
 ]
@@ -65,12 +67,13 @@ tiergen-impl-nmap = { workspace = true }
 tiergen-impl-nginx = { workspace = true }
 tiergen-impl-samba = { workspace = true }
 tiergen-impl-smbclient-win = { workspace = true }
+tiergen-agent-linux = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-extraPaths = ["check/tests"]
-include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli", "examples", "scripts"]
+extraPaths = ["check/tests", "runtime/agent_linux/tests"]
+include = ["core", "protocols", "interfaces", "impls", "backends", "runtime", "check", "cli", "examples", "scripts"]
 
 [tool.ruff]
 line-length = 100
@@ -90,6 +93,7 @@ src = [
     "backends/infra/_base",
     "backends/infra/docker",
     "backends/infra/libvirt",
+    "runtime/agent_linux",
     "check",
     "cli",
 ]
@@ -104,8 +108,8 @@ exclude = ["*.md"]
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 markers = ["docker: needs a reachable Docker daemon; skipped otherwise"]
-# check/tests/support.py is shared by the per-check test modules.
-pythonpath = ["check/tests"]
+# check/tests/support.py and runtime/agent_linux/tests/agent_support.py are shared by their test modules.
+pythonpath = ["check/tests", "runtime/agent_linux/tests"]
 testpaths = [
     "core/tests",
     "protocols/tests",
@@ -121,6 +125,7 @@ testpaths = [
     "backends/infra/_base/tests",
     "backends/infra/docker/tests",
     "backends/infra/libvirt/tests",
+    "runtime/agent_linux/tests",
     "check/tests",
     "cli/tests",
     "examples/tests",

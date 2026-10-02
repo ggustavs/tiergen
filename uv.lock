@@ -4,6 +4,7 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
+    "tiergen-agent-linux",
     "tiergen-check",
     "tiergen-cli",
     "tiergen-core",
@@ -537,6 +538,21 @@ wheels = [
 ]
 
 [[package]]
+name = "tiergen-agent-linux"
+version = "0.0.1"
+source = { editable = "runtime/agent_linux" }
+dependencies = [
+    { name = "tiergen-core" },
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-impls-base", editable = "impls/_base" },
+]
+
+[[package]]
 name = "tiergen-check"
 version = "0.0.1"
 source = { editable = "check" }
@@ -739,6 +755,7 @@ name = "tiergen-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "tiergen-agent-linux" },
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
     { name = "tiergen-core" },
@@ -770,6 +787,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "tiergen-agent-linux", editable = "runtime/agent_linux" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },
     { name = "tiergen-core", editable = "core" },

@@ -3,7 +3,7 @@
 [commit]
 # message_pattern replaces commit-check's generated regex, which has no scope allowlist.
 # Types are the spec's set; scopes are the workspace members plus design, examples, workspace.
-message_pattern = '^(feat|fix|docs|build|ci|test|refactor|perf|style|chore|revert)(\((core|protocols|interfaces|impls|check|cli|backends|examples|design|workspace)\))?!?: [^A-Z\s].*[^.\s](\n|$)'
+message_pattern = '^(feat|fix|docs|build|ci|test|refactor|perf|style|chore|revert)(\((core|protocols|interfaces|impls|check|cli|backends|runtime|examples|design|workspace)\))?!?: [^A-Z\s].*[^.\s](\n|$)'
 subject_capitalized = false
 subject_imperative = true
 subject_max_length = 80

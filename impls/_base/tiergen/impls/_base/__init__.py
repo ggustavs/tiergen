@@ -11,7 +11,7 @@ from tiergen.impls._base.descriptor import (
 )
 from tiergen.impls._base.impl import Context, PrimitiveImpl
 from tiergen.impls._base.manifest import ManifestError, load_manifest, parse_manifest
-from tiergen.impls._base.registry import load_impls
+from tiergen.impls._base.registry import load_impls, load_runtime
 from tiergen.impls._base.service import ServiceContext, ServiceImpl
 
 __all__ = [
@@ -29,5 +29,6 @@ __all__ = [
     "ServiceTable",
     "load_impls",
     "load_manifest",
+    "load_runtime",
     "parse_manifest",
 ]
