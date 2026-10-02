@@ -9,6 +9,27 @@ no version numbers.
 
 ### Added
 
+- **runtime**: the Linux agent, `tiergen-agent <program.json>` (`runtime/agent_linux`). It
+  loads a program and validates the dwell families, starts the instance's services and
+  waits for them, then runs each behaviour in a forked process: action on entering a state,
+  holding time after it, the rate curve and `set_rate` as a time change of the process,
+  `start` and `stop` from the schedule, targets by `select`, implementation and `Choice`
+  parameters by weight, three streams per behaviour. Each invocation runs in its own cgroup
+  when the cgroup filesystem is writable (a private cgroup namespace plus `SYS_ADMIN` to
+  remount it; tried against the daemon) and under the process id otherwise, which the log
+  says. Records go to `invocations.jsonl`, one per line. Tested under a fake clock: a run is
+  a function of the program and the seed, an implementation's draws shift nothing, a raising
+  implementation is a `failed` outcome, the curve is read in local time.
+- **impls**: the first runtimes, registered under `tiergen.impls.runtimes` by id so the
+  checker never imports them: `http.httpx` (`http.get`, `http.post_form`, one client per
+  invocation), `http.nginx` (nginx as a foreground child, generated site, access log under
+  the run's outputs, self-signed certificate for `https`), `scan.nmap` (one nmap over the
+  targets, no name resolution). Tests against this host; nginx's needs the binary and root.
+  `ServiceImpl` takes a `ServiceContext` (instance, served endpoints, output directory,
+  `Random`) instead of an invocation `Context`, which the reviews flagged; `Context` gained
+  `invocation` and `targets`.
+- **core**: the program carries the instance's `schedule` and its `services`, the server
+  signatures it binds, so the agent owns its timeline and knows what to start.
 - **core**: the data-link layer. **Breaking:** IR JSON written before this does not load.
   `Segment` (one broadcast domain, one prefix, a VLAN id) replaces `Network`; a
   `CapturePoint` observes one or several segments, tagged or not; `ActorKind.forwards` marks
