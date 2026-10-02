@@ -602,7 +602,7 @@ Atk = kind(
             dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
             action_map={
                 "idle": None,
-                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}),
+                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}, select="all"),
             },
         )
     ],
@@ -629,7 +629,8 @@ S = scenario(
                 "template:win2022-dc",
                 backend="libvirt",
                 manifest=resource("hq_lan.dc_manifest"),
-            )
+            ),
+            mac_oui="00:15:5d",
         ),
         Ws: binding(
             host("windows", "vm", "template:win11-workstation", backend="libvirt"),
@@ -638,16 +639,23 @@ S = scenario(
                 "smb.read": {"smb.windows_native": 1.0},
                 "kerberos.tgs": {"smb.windows_native": 1.0},
             },
+            mac_oui="00:15:5d",
         ),
         # Default hosts serve through the service implementations selected here.
         Fs: binding(
-            host("linux", "container", backend="docker"), {"smb.serve": {"smb.samba": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"smb.serve": {"smb.samba": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Web: binding(
-            host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"http.serve": {"http.nginx": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Atk: binding(
-            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"scan.tcp_syn": {"scan.nmap": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
     },
     topology=resource("hq_lan.topology"),
@@ -681,7 +689,7 @@ S = scenario(
 
 The whole LAN is one group, `hq`, so every tie is wired to `hq` by default. `examples/two_teams` is the same idea with structure: a `team()` function returns a group with its own LAN and file server, wires the workstations' `dc` tie to the organisation, and is called twice. The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC and the workstations are VMs from templates, custom hosts provided by libvirt. The DC's manifest resource says what it serves; a workstation serves nothing and needs none. The file server, web server and attacker are default hosts provided by Docker, which serve through the service implementations selected for them.
 
-`examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes six deliberate mistakes and fails checks 1, 4, 5, 9, 10 and 12.
+`examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes six deliberate mistakes and fails checks 1, 4, 5, 9, 10 and 12, plus the consequences check 10 draws from them.
 
 *Sketch*, not checkable before M5: external destinations and adapter-driven attacks take the same shapes. An `internet_stub` kind bound with `{"internet.serve": {"internet.stub": 1.0}}`, `egress="stub"` with `egress_overrides={"update.microsoft.com": "real"}`, an attacker bound with `{"attack.run": {"attack.caldera": 1.0}}`, and a schedule entry `at(hours(30), Atk, "run_sequence", "attack.caldera:discovery-then-kerberoast")`, which check 8 resolves against the adapter's catalog.
 
@@ -699,16 +707,16 @@ A diagnostic has a check id (`C01` to `C16`), a severity, an IR path and a messa
 4. Initial distribution and transition rows are stochastic; the matrix is square over the states; all states are reachable from the initial support; one dwell per state; a rate resource has 24 or 168 entries.
 5. Resource references resolve, and resolved shapes match declared shapes, distribution parameters included. Sensor configurations and the topology are opaque: they only have to exist.
 6. Every kind with instances has exactly one binding, and the host satisfies the kind's interface. A default host serves what its selected service implementations serve, and an endpoint counts only if every weighted alternative of some selection serves it. A custom host (`image:`, `template:`) serves what its manifest resource lists.
-7. Binding platform is in the kind's allowed platforms. The binding's backend is installed and offers that platform and host type. Every chosen implementation supports the platform, and the host capabilities it needs (`net_raw`, admin) are ones the backend's descriptor says it can grant such a host. A VM owns its kernel, so there a backend has nothing to grant and nothing to refuse.
+7. Binding platform is in the kind's allowed platforms. The binding's backend is installed and offers that platform and host type. Every chosen implementation supports the platform, and the host capabilities it needs (`net_raw`, admin) are ones the backend's descriptor says it can grant such a host. A VM owns its kernel, so there a backend has nothing to grant and nothing to refuse. On a default host every chosen implementation agrees on the base image. A binding without a MAC prefix gets the substrate's, which a sensor can fingerprint: a warning.
 8. Every client signature a kind's actions use has a selection in its binding; every choice names an installed implementation that provides the signature, and a variant it has; weights are positive; a `run_sequence` names an installed adapter and an entry of its catalog.
-9. Exactly one management network, overlapping no data-plane network. Every capture point is defined once, on a network that exists and is data-plane: a capture on the management network records the tool, not the network. At least one capture point is active, and every active one is defined. A `live` sensor's capture interface is `not_computed`, because a `SensorSpec` does not name one yet; M1 runs sensors offline.
-10. The address plan (section 7, `core/tiergen/core/addressing.py`) is complete and collision-free: every CIDR parses, no network is defined twice, every network has room for the instances attached to it, every pinned address belongs to an instance, lies on a network that instance joins, and is free. Data-plane networks do not overlap each other. Each group's attachments name real kinds and data-plane networks, and a kind a group holds joins at least one data-plane network in that group. That the backend can provide each bound host is check 7's. Whether egress is backed by an `internet_stub` kind or an allowlist resource, and whether every `egress_overrides` key is a fitted external destination, is `not_computed` unless egress is `none`: the destinations come from `fit` (M4).
-11. Label tuple unique per invocation: kind, tie, behaviour and state names are unique where a label is built from them, group paths are unique and every `parent` names a group, and no signature is selected twice in a binding. No primitive executable outside a labelled context: a client implementation selected for a signature no action invokes is a warning.
-12. Schedule events reference defined targets at times within `duration_s`: a group path (every instance under it), `path/kind` (every instance of that kind under the group) or `path/kind[i]` (one instance), each resolved against the scenario by `tiergen.core.groups.select`. `start` and `stop` take a behaviour some targeted kind has, `set_rate` a non-negative multiplier, `run_sequence` an `adapter_id:catalog_entry` string.
-13. At least one sensor is configured. Each `SensorSpec` names an installed sensor whose descriptor lists the pinned version and the mode, and every declared capability is one the descriptor can declare. An installed sensor meets the required core by construction. Reproducing the config itself is the sensor backend's job in M1.
+9. Exactly one management segment, overlapping no data-plane segment. Every capture point is defined once and observes segments that exist and are data-plane: a capture on the management segment records the tool, not the network. At least one capture point is active, and every active one is defined. A wired tie neither of whose ends sits on an observed segment would produce invocations no sensor sees: a warning. A `live` sensor's capture interface is `not_computed`, because a `SensorSpec` does not name one yet; M1 runs sensors offline.
+10. The address plan and the routes (section 7; `core/tiergen/core/addressing.py`, `routing.py`) are complete and collision-free: every CIDR parses, no segment is defined twice, every segment has room for the instances attached to it, every pinned address belongs to an instance, lies on a segment that instance joins, and is free; no instance has two equally short next hops to a segment. Data-plane segments do not overlap each other. Each group's attachments name real kinds and data-plane segments, and a kind a group holds joins at least one data-plane segment in that group. Every wired tie is reachable: source and target share a segment, or the source has a route to the target's segment through forwarders. That the backend can provide each bound host is check 7's. Whether egress is backed by an `internet_stub` kind or an allowlist resource, and whether every `egress_overrides` key is a fitted external destination, is `not_computed` unless egress is `none`: the destinations come from `fit` (M4).
+11. Label tuple unique per invocation: kind, tie, behaviour and state names are unique where a label is built from them, group paths are unique, every `parent` names a group, no group is named like a kind its parent holds (a schedule target could mean either), and no signature is selected twice in a binding. No primitive executable outside a labelled context: a client implementation selected for a signature no action invokes is a warning.
+12. `Scenario.start` is ISO 8601 with a UTC offset. Schedule events reference defined targets at times within `duration_s`: a group path (every instance under it), `path/kind` (every instance of that kind under the group) or `path/kind[i]` (one instance), each resolved against the scenario by `tiergen.core.groups.select`. `start` and `stop` take a behaviour every targeted kind has, `set_rate` a non-negative multiplier, `run_sequence` an `adapter_id:catalog_entry` string.
+13. At least one sensor is configured and sensor names are unique. Each `SensorSpec` names an installed sensor whose descriptor lists the pinned version and the mode, and every declared capability is one the descriptor can declare. An installed sensor meets the required core by construction. Reproducing the config itself is the sensor backend's job in M1.
 14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`; these two are errors. A scenario without fit provenance has nothing to compare.
 15. Coverage sanity: every capability `fit` relied on has measured coverage above the scenario's `coverage_floor` (default 0.5); below it, or with no coverage recorded, warn that the fitted distribution for that capability is sparse.
-16. Action parameters: every required parameter of the action's signature has a value and no parameter is unknown; literals and choice options have the declared type; a choice has at least one option and one positive weight per option. A choice held in a resource is resolved by check 5.
+16. Action parameters: an action on a `multiple` tie says `select`, all or one, and one on any other tie does not; every required parameter of the action's signature has a value and no parameter is unknown; literals and choice options have the declared type; a choice has at least one option and one positive weight per option. A choice held in a resource is resolved by check 5.
 
 Runtime checks before capture: clock sync within tolerance on every host; attribution backend loaded per host platform; capture and sensor interfaces up; every service healthcheck passes.
 
