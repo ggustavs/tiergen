@@ -5,31 +5,45 @@ from collections.abc import Mapping, Sequence
 import pytest
 
 from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
-from tiergen.interfaces import Attachment, BackendError, HostSpec, NetworkSpec, RunManifest
+from tiergen.interfaces import (
+    Attachment,
+    BackendError,
+    HostSpec,
+    NetworkSpec,
+    RouteSpec,
+    RunManifest,
+)
 
 MANIFEST = RunManifest(
     "r",
     "docker",
     (
-        NetworkSpec("lan", "10.0.0.0/24", "10.0.0.1", "data", True),
-        NetworkSpec("mgmt", "10.9.0.0/24", "10.9.0.1", "management", False),
+        NetworkSpec("lan", "10.0.0.0/24", "10.0.0.1", "data", True, "tg-lan"),
+        NetworkSpec("mgmt", "10.9.0.0/24", "10.9.0.1", "management", False, "tg-mgmt"),
     ),
     (
         HostSpec(
             "lab/ws[0]",
             "ws",
+            "linux",
+            "lab-ws-0",
             "img",
             ("sleep", "infinity"),
             ("NET_RAW",),
-            (Attachment("lan", "10.0.0.2"), Attachment("mgmt", "10.9.0.2")),
+            (Attachment("lan", "10.0.0.2", "3c:ec:ef:00:00:02"), Attachment("mgmt", "10.9.0.2")),
+            (RouteSpec("10.0.1.0/24", "10.0.0.80"),),
         ),
         HostSpec(
             "lab/web[0]",
             "web",
+            "linux",
+            "lab-web-0",
             "img",
             (),
             (),
             (Attachment("lan", "10.0.0.80"), Attachment("mgmt", "10.9.0.3")),
+            (),
+            True,
         ),
     ),
 )
@@ -46,9 +60,15 @@ class FakeClient:
         self.calls.append(("image", image))
 
     def create_network(
-        self, name: str, cidr: str, gateway: str, internal: bool, labels: Mapping[str, str]
+        self,
+        name: str,
+        cidr: str,
+        gateway: str,
+        internal: bool,
+        bridge: str,
+        labels: Mapping[str, str],
     ) -> None:
-        self.calls.append(("network", name, cidr, gateway, internal))
+        self.calls.append(("network", name, cidr, gateway, internal, bridge))
         self.live_networks[name] = dict(labels)
 
     def create_container(
@@ -60,17 +80,37 @@ class FakeClient:
         labels: Mapping[str, str],
         network: str,
         address: str,
-    ) -> None:
+        mac: str | None,
+        hostname: str,
+        sysctls: Mapping[str, str],
+    ) -> str:
         if self.fail_on == name:
             raise BackendError(f"image {image!r} is not available")
-        self.calls.append(("create", name, image, tuple(command), tuple(cap_add), network, address))
+        self.calls.append(
+            (
+                "create",
+                name,
+                image,
+                tuple(command),
+                tuple(cap_add),
+                network,
+                address,
+                mac,
+                hostname,
+                dict(sysctls),
+            )
+        )
         self.live_containers[name] = dict(labels)
+        return f"id-{name}"
 
-    def connect(self, container: str, network: str, address: str) -> None:
-        self.calls.append(("connect", container, network, address))
+    def connect(self, container: str, network: str, address: str, mac: str | None) -> None:
+        self.calls.append(("connect", container, network, address, mac))
 
     def start(self, container: str) -> None:
         self.calls.append(("start", container))
+
+    def exec(self, container: str, command: Sequence[str]) -> None:
+        self.calls.append(("exec", container, tuple(command)))
 
     def containers(self, labels: Mapping[str, str]) -> list[str]:
         return [n for n, held in self.live_containers.items() if labels.items() <= held.items()]
@@ -92,26 +132,45 @@ class FakeClient:
 
 def test_up_creates_networks_then_containers_attached_one_network_at_a_time() -> None:
     fake = FakeClient()
-    DockerBackend(lambda: fake).up(MANIFEST)
+    state = DockerBackend(lambda: fake).up(MANIFEST)
     assert fake.calls == [
         ("image", "img"),
-        ("network", "tiergen-r-lan", "10.0.0.0/24", "10.0.0.1", True),
-        ("network", "tiergen-r-mgmt", "10.9.0.0/24", "10.9.0.1", False),
+        ("network", "tiergen-r-lan", "10.0.0.0/24", "10.0.0.1", True, "tg-lan"),
+        ("network", "tiergen-r-mgmt", "10.9.0.0/24", "10.9.0.1", False, "tg-mgmt"),
+        # NET_ADMIN joins the asked-for NET_RAW because the host has a route to install.
         (
             "create",
             "tiergen-r-lab-ws-0",
             "img",
             ("sleep", "infinity"),
-            ("NET_RAW",),
+            ("NET_ADMIN", "NET_RAW"),
             "tiergen-r-lan",
             "10.0.0.2",
+            "3c:ec:ef:00:00:02",
+            "lab-ws-0",
+            {},
         ),
-        ("connect", "tiergen-r-lab-ws-0", "tiergen-r-mgmt", "10.9.0.2"),
-        ("create", "tiergen-r-lab-web-0", "img", (), (), "tiergen-r-lan", "10.0.0.80"),
-        ("connect", "tiergen-r-lab-web-0", "tiergen-r-mgmt", "10.9.0.3"),
+        ("connect", "tiergen-r-lab-ws-0", "tiergen-r-mgmt", "10.9.0.2", None),
+        # The forwarder gets the sysctl and nothing it did not ask for.
+        (
+            "create",
+            "tiergen-r-lab-web-0",
+            "img",
+            (),
+            (),
+            "tiergen-r-lan",
+            "10.0.0.80",
+            None,
+            "lab-web-0",
+            {"net.ipv4.ip_forward": "1"},
+        ),
+        ("connect", "tiergen-r-lab-web-0", "tiergen-r-mgmt", "10.9.0.3", None),
         ("start", "tiergen-r-lab-ws-0"),
+        ("exec", "tiergen-r-lab-ws-0", ("ip", "route", "add", "10.0.1.0/24", "via", "10.0.0.80")),
         ("start", "tiergen-r-lab-web-0"),
     ]
+    assert state.hosts["lab/ws[0]"].id == "id-tiergen-r-lab-ws-0"
+    assert state.bridges == {"lan": "tg-lan", "mgmt": "tg-mgmt"}
     assert fake.live_containers["tiergen-r-lab-web-0"] == {
         "tiergen.run": "r",
         "tiergen.instance": "lab/web[0]",

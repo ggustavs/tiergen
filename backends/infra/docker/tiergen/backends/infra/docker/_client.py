@@ -26,8 +26,16 @@ class Client(Protocol):
         ...
 
     def create_network(
-        self, name: str, cidr: str, gateway: str, internal: bool, labels: Mapping[str, str]
-    ) -> None: ...
+        self,
+        name: str,
+        cidr: str,
+        gateway: str,
+        internal: bool,
+        bridge: str,
+        labels: Mapping[str, str],
+    ) -> None:
+        """Create a bridge network whose Linux bridge is called ``bridge``."""
+        ...
 
     def create_container(
         self,
@@ -38,13 +46,20 @@ class Client(Protocol):
         labels: Mapping[str, str],
         network: str,
         address: str,
-    ) -> None:
-        """Create, attached to ``network`` at ``address``, not started."""
+        mac: str | None,
+        hostname: str,
+        sysctls: Mapping[str, str],
+    ) -> str:
+        """Create, attached to ``network`` at ``address``, not started. Returns the id."""
         ...
 
-    def connect(self, container: str, network: str, address: str) -> None: ...
+    def connect(self, container: str, network: str, address: str, mac: str | None) -> None: ...
 
     def start(self, container: str) -> None: ...
+
+    def exec(self, container: str, command: Sequence[str]) -> None:
+        """Run ``command`` in the running container; a non-zero exit is a ``BackendError``."""
+        ...
 
     def containers(self, labels: Mapping[str, str]) -> list[str]:
         """Names of all containers, running or not, carrying every label."""
@@ -92,7 +107,13 @@ class DaemonClient:
             raise BackendError(f"image {image!r} is not available: {err}") from err
 
     def create_network(
-        self, name: str, cidr: str, gateway: str, internal: bool, labels: Mapping[str, str]
+        self,
+        name: str,
+        cidr: str,
+        gateway: str,
+        internal: bool,
+        bridge: str,
+        labels: Mapping[str, str],
     ) -> None:
         pool = docker.types.IPAMPool(subnet=cidr, gateway=gateway)
         self._d.networks.create(
@@ -100,6 +121,7 @@ class DaemonClient:
             driver="bridge",
             internal=internal,
             ipam=docker.types.IPAMConfig(pool_configs=[pool]),
+            options={"com.docker.network.bridge.name": bridge},
             labels=dict(labels),
         )
 
@@ -112,15 +134,20 @@ class DaemonClient:
         labels: Mapping[str, str],
         network: str,
         address: str,
-    ) -> None:
-        endpoint = self._d.api.create_endpoint_config(ipv4_address=address)
+        mac: str | None,
+        hostname: str,
+        sysctls: Mapping[str, str],
+    ) -> str:
+        endpoint = self._d.api.create_endpoint_config(ipv4_address=address, mac_address=mac)
         try:
-            self._d.containers.create(
+            created = self._d.containers.create(
                 image,
                 command=list(command) or None,
                 name=name,
+                hostname=hostname,
                 labels=dict(labels),
                 cap_add=list(cap_add) or None,
+                sysctls=dict(sysctls) or None,
                 network=network,
                 networking_config={network: endpoint},
                 detach=True,
@@ -129,12 +156,22 @@ class DaemonClient:
             raise BackendError(f"image {image!r} is not available: {err}") from err
         except docker.errors.APIError as err:
             raise BackendError(f"cannot create {name!r}: {err}") from err
+        return created.id or name
 
-    def connect(self, container: str, network: str, address: str) -> None:
+    def connect(self, container: str, network: str, address: str, mac: str | None) -> None:
         try:
-            self._d.networks.get(network).connect(container, ipv4_address=address)
+            self._d.networks.get(network).connect(container, ipv4_address=address, mac_address=mac)
         except docker.errors.APIError as err:
             raise BackendError(f"cannot attach {container!r} to {network!r}: {err}") from err
+
+    def exec(self, container: str, command: Sequence[str]) -> None:
+        result = self._d.containers.get(container).exec_run(list(command))
+        if result.exit_code != 0:
+            raw = result.output if isinstance(result.output, bytes) else b"".join(result.output)
+            text = raw.decode(errors="replace").strip()
+            raise BackendError(
+                f"{' '.join(command)!r} in {container!r} failed ({result.exit_code}): {text}"
+            )
 
     def start(self, container: str) -> None:
         try:

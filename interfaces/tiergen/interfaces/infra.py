@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from tiergen.core.ir import HostType, Platform
-from tiergen.interfaces.manifest import RunManifest
+from tiergen.interfaces.manifest import RunManifest, RunState
 
 
 class BackendError(RuntimeError):
@@ -57,11 +57,12 @@ class InfraBackend(Protocol):
         """The descriptor id this backend implements: "docker", "libvirt"."""
         ...
 
-    def up(self, manifest: RunManifest) -> None:
-        """Create the manifest's networks and hosts and start the hosts.
+    def up(self, manifest: RunManifest) -> RunState:
+        """Create the manifest's networks and hosts, start the hosts, install their routes.
 
-        Every resource carries the run's label, so ``down`` can find it without state. On
-        failure, undo what was created and re-raise; a half-up run is never left behind.
+        Returns what was created under which substrate names. Every resource also carries
+        the run's label, so ``down`` can find it without state. On failure, undo what was
+        created and re-raise; a half-up run is never left behind.
         """
         ...
 
