@@ -3,10 +3,13 @@ name = "tiergen-infra-docker"
 version = "0.0.1"
 description = "Docker: Linux containers on the local Linux daemon."
 requires-python = ">=3.12"
-dependencies = ["tiergen-interfaces"]
+dependencies = ["tiergen-interfaces", "docker>=7.2,<8"]
 
 [project.entry-points."tiergen.infra"]
 docker = "tiergen.backends.infra.docker:DESCRIPTOR"
+
+[project.entry-points."tiergen.infra.backends"]
+docker = "tiergen.backends.infra.docker.backend:DockerBackend"
 
 [build-system]
 requires = ["hatchling"]

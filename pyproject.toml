@@ -12,6 +12,7 @@ dependencies = [
     "tiergen-cli",
     "tiergen-sensor-zeek",
     "tiergen-sensor-suricata",
+    "tiergen-infra-base",
     "tiergen-infra-docker",
     "tiergen-infra-libvirt",
     "tiergen-impl-httpx",
@@ -29,6 +30,7 @@ dev = [
     "pyright",
     "pytest",
     "ruff",
+    "types-docker",
 ]
 
 [tool.uv]
@@ -55,6 +57,7 @@ tiergen-check = { workspace = true }
 tiergen-cli = { workspace = true }
 tiergen-sensor-zeek = { workspace = true }
 tiergen-sensor-suricata = { workspace = true }
+tiergen-infra-base = { workspace = true }
 tiergen-infra-docker = { workspace = true }
 tiergen-infra-libvirt = { workspace = true }
 tiergen-impl-httpx = { workspace = true }
@@ -84,6 +87,7 @@ src = [
     "impls/smbclient_win",
     "backends/sensor/zeek",
     "backends/sensor/suricata",
+    "backends/infra/_base",
     "backends/infra/docker",
     "backends/infra/libvirt",
     "check",
@@ -99,6 +103,7 @@ exclude = ["*.md"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+markers = ["docker: needs a reachable Docker daemon; skipped otherwise"]
 # check/tests/support.py is shared by the per-check test modules.
 pythonpath = ["check/tests"]
 testpaths = [
@@ -113,6 +118,7 @@ testpaths = [
     "impls/smbclient_win/tests",
     "backends/sensor/zeek/tests",
     "backends/sensor/suricata/tests",
+    "backends/infra/_base/tests",
     "backends/infra/docker/tests",
     "backends/infra/libvirt/tests",
     "check/tests",

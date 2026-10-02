@@ -1,0 +1,13 @@
+[project]
+name = "tiergen-infra-base"
+version = "0.0.1"
+description = "Shared by infrastructure backends: building a run manifest from the IR."
+requires-python = ">=3.12"
+dependencies = ["tiergen-core", "tiergen-interfaces", "tiergen-impls-base"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]
