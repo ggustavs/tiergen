@@ -17,6 +17,12 @@ repos:
         language: system
         types_or: [python, pyi]
         stages: [pre-commit]
+      - id: stub-versions
+        name: stub versions match their packages
+        entry: uv run --frozen python scripts/check_stubs.py
+        language: system
+        files: ^uv\.lock$
+        pass_filenames: false
       - id: commit-message
         name: conventional commit message
         entry: uv run --frozen commit-check --message

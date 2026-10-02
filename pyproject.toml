@@ -70,7 +70,7 @@ tiergen-impl-smbclient-win = { workspace = true }
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 extraPaths = ["check/tests"]
-include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli", "examples"]
+include = ["core", "protocols", "interfaces", "impls", "backends", "check", "cli", "examples", "scripts"]
 
 [tool.ruff]
 line-length = 100
