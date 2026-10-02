@@ -9,6 +9,20 @@ no version numbers.
 
 ### Added
 
+- **core**: groups. **Breaking:** IR JSON written before this does not load. `Scenario.instances`
+  and `Topology.attachments` are gone; a `Group` holds instance counts, data-plane attachments
+  and the wiring of every tie of every kind it holds, and groups nest by path. An instance is
+  `path/kind[i]`; schedule targets are a group path, `path/kind` or one instance. Wiring is
+  explicit: a tie reaches the instances of its target kind in the groups its wiring names, and
+  nothing is looked up by walking the tree. Design decision 4.17 has the survey behind it.
+  `examples/two_teams` shows a `team()` function building two teams of one set of kinds.
+- **core**: `tiergen.core.groups`, the pure functions every consumer shares: paths, instance
+  ids, tie targets, schedule-target selection.
+- **check**: check 1 holds every tie to its wiring and its multiplicity exactly (`single` is
+  one, `optional` at most one, by counting). The old reading, "`single` needs at least one
+  instance somewhere", was the most a flat IR allowed. z3-solver is no longer a dependency:
+  with explicit wiring there is nothing left for a solver to decide. Check 11 holds group
+  paths unique and parents real; check 12 resolves the new target forms.
 - **interfaces**, **backends/infra**: `InfraDescriptor`, the hosts a backend offers and the host
   capabilities it can grant each, registered under `tiergen.infra`. `docker` offers Linux
   containers; `libvirt` offers Linux and Windows VMs, which own their kernel, so there is
