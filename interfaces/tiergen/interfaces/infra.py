@@ -7,6 +7,11 @@ from tiergen.core.ir import HostType, Platform
 from tiergen.interfaces.manifest import RunManifest
 
 
+class BackendError(RuntimeError):
+    """A backend could not do what its manifest asked: the substrate is unreachable, refused
+    a resource, or lacks an image. The message is the substrate's own, so it can be acted on."""
+
+
 @dataclass(frozen=True, slots=True)
 class HostOffer:
     """One sort of host a backend can provide.
