@@ -53,6 +53,7 @@ Scopes name a directory, so a scope always answers "where":
 | `core` `protocols` `interfaces` `check` `cli` | the workspace member of that name |
 | `impls` | `impls/_base` and every package under `impls/` |
 | `backends` | every package under `backends/` |
+| `runtime` | every package under `runtime/`: the agents |
 | `examples` | `examples/` |
 | `design` | `nids-gen-dsl-design.md` alone |
 | `workspace` | root config, CI, tooling, this file |

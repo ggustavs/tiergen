@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from random import Random
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from tiergen.core.codec import JsonValue
 from tiergen.core.records import LabelKey, Outcome, Peer
@@ -44,6 +44,7 @@ class Context(Protocol):
         ...
 
 
+@runtime_checkable
 class PrimitiveImpl(Protocol):
     """Runs the signatures a package provides, on the client actor's host.
 
