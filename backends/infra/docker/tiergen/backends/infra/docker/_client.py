@@ -71,9 +71,14 @@ class DaemonClient:
     def __init__(self) -> None:
         try:
             self._d = docker.from_env()
-            self._d.ping()
+            os_type = self._d.info().get("OSType")
         except docker.errors.DockerException as err:
             raise BackendError(f"docker daemon is not reachable: {err}") from err
+        if os_type != "linux":
+            # The Windows daemon runs Windows containers; that backend is a later task of M1.
+            raise BackendError(
+                f"docker daemon runs {os_type!r} containers; this backend needs linux"
+            )
 
     def ensure_image(self, image: str) -> None:
         try:
