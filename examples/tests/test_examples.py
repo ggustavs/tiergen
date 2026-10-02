@@ -8,7 +8,7 @@ from tiergen.core.loader import load_scenario
 from tiergen.core.resources import DirResources
 
 EXAMPLES = Path(__file__).parent.parent
-NAMES = ["hq_lan", "hq_lan_capgap", "hq_lan_broken", "linux_slice"]
+NAMES = ["hq_lan", "hq_lan_capgap", "hq_lan_broken", "linux_slice", "two_teams"]
 
 
 @pytest.mark.parametrize("name", NAMES)
