@@ -54,8 +54,8 @@ Each step is a CLI subcommand. The engineer stays in control at the describe ste
 2. **fit** `tiergen fit <sensor-logs> --sensor zeek --out models/`. Reads the sensor's logs through its ingest adapter into the common event model (section 4.3), then: host inventory, role clustering into proposed actor kinds, behaviour model per role, implementation mix per role, service inventory, topology and address plan, diurnal rate curves, external-destination inventory. Emits `scenario_proposed.py`, resources under `models/`, and `fit-report.md` listing everything it could not map. Section 11.
 3. **describe**. The engineer edits the scenario: confirms and names kinds, chooses bindings (default container, custom image, Windows container, VM), sets egress policy, adds attack schedules. Section 7.
 4. **check** and **predict**. `tiergen check scenario.py [--models DIR] [--emit-json PATH]` runs the static checks (section 8) over a `scenario.py` or over IR JSON, reading resources from `models/` beside the scenario unless told otherwise. It prints diagnostics grouped as errors, warnings and not computed, and exits 0 with no errors, 1 with errors, 2 if the scenario cannot be loaded. `predict` then gives predicted sensor-level statistics from the scenario's denotation and a fidelity report against the real logs, before anything runs (section 9). Iterate until acceptable.
-5. **build** `tiergen build scenario.py --out run1/`. Runs the checks and refuses to write anything if there are errors. Implemented so far: the run directory holds the IR as `scenario.json`, the address plan as `addresses.json`, and a copy of `models/`, so it checks on its own. Still to come, with the backends: infra manifests, per-host projected programs, sensor configuration, attribution configuration, label schema.
-6. **run** `tiergen run run1/`. Hosts up, agents started, clock sync verified, capture started, schedule executed, logs collected.
+5. **build** `tiergen build scenario.py --out run1/`. Runs the checks and refuses to write anything if there are errors. Implemented so far: the run directory holds the IR as `scenario.json`, the address plan as `addresses.json`, one run manifest per infrastructure backend as `manifest.<backend>.json` (section 10), and a copy of `models/`, so it checks on its own. Still to come: per-host projected programs, sensor configuration, attribution configuration, label schema.
+6. **run** `tiergen run run1/`. Hosts up, agents started, clock sync verified, capture started, schedule executed, logs collected. Implemented so far: the hosts-up and hosts-down halves, as `tiergen infra up run1/` and `tiergen infra down run1/`, for Docker.
 7. **assemble** `tiergen assemble run1/`. Every configured sensor over the pcaps, attribution join, per-sensor labels, conformance and fidelity reports, flagged events, manifest.
 8. **evaluate** (helper). Train reference detectors on the generated data, test on held-out real logs from the target network (benign FP rate) and on generated attacks. Section 13.
 9. Iterate on models, bindings and schedules until fidelity and FP rate are acceptable. Re-fit when the network changes.
@@ -240,7 +240,7 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
   interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
   check/                ✔ static checker: checks 1-16, diagnostics, runner; Z3 behind one typed module
-  cli/                  ✔ the `tiergen` command: `check`, `build` (run directory; no manifests yet), `impls list`
+  cli/                  ✔ the `tiergen` command: `check`, `build`, `infra up`, `infra down`, `impls list`
   examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
   semantics/              process interface, semi-Markov default, product-process analysis, prediction, Storm export
   fit/                    ingestion via Sensor, host inventory, role clustering, behaviour and impl-mix fitting, proposal
@@ -249,8 +249,9 @@ tiergen/                  uv workspace; one distribution per directory, all shar
       _base/              common event model helpers shared by ingest adapters
       zeek/  suricata/  ◐ descriptor only; ingest and label runtime in M1
     infra/
-      _base/              address planning, manifest helpers
-      docker/  libvirt/ ◐ descriptor only; InfraBackend implementations in M1 (nomad/, k8s/ later)
+      _base/            ✔ run manifests from the IR, the address plan and the implementation manifests
+      docker/           ✔ Linux containers on the local daemon: networks and idle hosts up and down
+      libvirt/          ◐ descriptor only (nomad/, k8s/ later)
     attrib/
       _base/              join logic
       linux_ebpf/  windows_etw/   AttributionBackend implementations (nfstream fallback)
@@ -709,6 +710,7 @@ Reported as a table with user-set thresholds. `predict` runs it before build; `a
 ## 10. Runtime
 
 - **Agents** (`agent_linux`, `agent_windows`). Receive the projected program: behaviours, action map, resolved implementations and variants, ties resolved to addresses, seed. Loop: sample state and dwell, execute the primitive through its implementation inside a fresh cgroup (Linux) or job object (Windows), log `(invocation id, label tuple, start, end, outcome, monotonic and wall clock)`. Long-lived processes such as a browser kept open across invocations are allowed when the scenario asks for them; their per-request labels rely on interval matching and carry a confidence field.
+- **Infrastructure backend** (Docker, implemented). `tiergen build` writes one run manifest per backend the bindings name: the networks to create, each with its CIDR, planned gateway and plane, and the hosts, each with image, command, host capabilities as the substrate names them, and its attachments in order with planned addresses. A backend reads nothing but its manifest. The Docker backend pulls the images, creates one bridge network per manifest network with the planned gateway (data-plane networks `internal` while egress is `none`), creates each container attached to its first network at its address and connects it to each further network one at a time (so interface order inside the container is the manifest's; two networks given at creation attach in Go map order), then starts them. Everything carries `tiergen.run=<run>`, so `down` needs no state and a failed `up` cleans up after itself. Default Linux hosts run a digest-pinned Debian that idles until the agent exists.
 - **Scheduler** (management plane): brings hosts up through the infra backend, starts agents, verifies clock sync, starts capture and any live sensors, drives the schedule, collects logs, stops.
 - **Attribution** (sensor-independent kernel truth). Linux: bcc programs on `tcp_connect`, `inet_csk_accept`, UDP send and receive, keyed by cgroup and PID; a `cgroup_skb` program for raw-socket tools. Windows: Sysmon event 3 (network connection with PID) by default, ETW `Microsoft-Windows-Kernel-Network` as the alternative. VMs use their guest OS backend. Fallback: nfstream system-visibility mode, coarser. The join produces `(host, pid/cgroup, 5-tuple, interval)` records; each configured sensor's label step maps those onto its own event ids by 5-tuple and time window. Known holes, handled by flagging rather than guessing: DNS via a system resolver daemon, OS background traffic, connection reuse across invocations in one process.
 - **Capture.** dumpcap at declared capture points; pcapng with interface ids; chrony on Linux, w32time on Windows, PTP where the substrate has it; per-host clock offsets recorded and applied at join.
@@ -901,7 +903,7 @@ Before phase A, both done (2026-09-21):
 2. ~~Settle the three open questions that block a run, then checks 9 and 10.~~ Action parameters, `Host.backend` and the typed `Topology` are in the IR (section 7); the address plan is a function of the IR; checks 9, 10 and 16 exist.
 
 Phase A, the Linux path. Exit: one Linux workstation, one web server, one attacker; labelled pcaps plus Zeek and Suricata logs from one command.
-3. An `InfraBackend` descriptor, and the Docker backend for the Linux daemon: data-plane and management networks, hosts from bindings, default images from `image_base`. Done: the descriptors, check 7's third clause, `tiergen build` writing the run directory, and `examples/linux_slice`, the scenario this phase runs. Next: the backend itself, bringing `linux_slice` up and down.
+3. ~~An `InfraBackend` descriptor, and the Docker backend for the Linux daemon.~~ Done (2026-10-02): descriptors, run manifests, the Docker backend, `tiergen infra up` and `down`; `examples/linux_slice` comes up on its two networks with the planned addresses and goes down without a trace. Default images come from a pinned base, not yet from `image_base`, which waits for the agent's image.
 4. Runtimes for `httpx`, `nginx` and `nmap`, in the packages that already hold their manifests, each with its conformance test (6.1).
 5. `agent_linux`: the projected program, the behaviour loop over the IR's process, a cgroup per invocation, the invocation log.
 6. `capture`: dumpcap on the data-plane bridge, pcapng, per-host clock offsets.

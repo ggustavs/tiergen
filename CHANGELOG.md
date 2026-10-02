@@ -9,6 +9,16 @@ no version numbers.
 
 ### Added
 
+- **backends/infra**: the Docker backend, the first `InfraBackend`. `tiergen build` now writes a
+  run manifest per backend (`manifest.<backend>.json`), built in `backends/infra/_base` from the
+  IR, the address plan and the implementation manifests; `tiergen infra up` and `down` drive the
+  backends from the run directory. The `InfraBackend` Protocol became `up(manifest)` and
+  `down(manifest)`; `platforms()` and `grantable()` duplicated the descriptor and went. Images
+  are pulled before anything is created, containers attach to one network at a time so
+  interface order is deterministic, and everything is labelled so `down` needs no state.
+  docker-py 7.2 with types-docker, behind one facade module checked at basic strictness, as
+  z3 was; `scripts/check_stubs.py` keeps the two in step.
+- **workspace**: pre-commit hooks run `uv run --frozen`, so a hook never rewrites `uv.lock`.
 - **core**: groups. **Breaking:** IR JSON written before this does not load. `Scenario.instances`
   and `Topology.attachments` are gone; a `Group` holds instance counts, data-plane attachments
   and the wiring of every tie of every kind it holds, and groups nest by path. An instance is
