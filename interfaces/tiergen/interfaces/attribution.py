@@ -10,19 +10,22 @@ from typing import Protocol
 
 from tiergen.core.events import FiveTuple
 from tiergen.core.ir import Platform
+from tiergen.core.records import AttributionKey
 
 
 @dataclass(frozen=True, slots=True)
 class AttributionRecord:
     """One observed connection and who owned it.
 
-    ``principal`` identifies the invocation's execution context on ``host``: a cgroup path
-    on Linux, a job object or PID on Windows. ``start`` and ``end`` are seconds since the
-    epoch on the host's clock; per-host offsets are applied at the join, not here.
+    ``instance`` is the id of the host it was seen on, ``path/kind[i]``, never a substrate
+    name; the backend that observes it maps from its own names. ``principal`` is the
+    execution context the observer saw, which the join matches to an
+    ``InvocationRecord.principal``. ``start`` and ``end`` are seconds since the epoch on
+    that host's clock; the record's ``ClockStamp`` moves them onto the capture host's.
     """
 
-    host: str
-    principal: str
+    instance: str
+    principal: AttributionKey
     five_tuple: FiveTuple
     start: float
     end: float
@@ -36,14 +39,14 @@ class AttributionBackend(Protocol):
         """The guest platform this backend instruments."""
         ...
 
-    def start(self, host: str) -> None:
-        """Begin recording on ``host``. Called before capture starts."""
+    def start(self, instance: str) -> None:
+        """Begin recording on the host of ``instance``. Called before capture starts."""
         ...
 
-    def stop(self, host: str) -> None:
-        """Stop recording on ``host``."""
+    def stop(self, instance: str) -> None:
+        """Stop recording on the host of ``instance``."""
         ...
 
-    def collect(self, host: str) -> Iterator[AttributionRecord]:
-        """Yield what was recorded on ``host``. Traffic with no record stays unattributed."""
+    def collect(self, instance: str) -> Iterator[AttributionRecord]:
+        """Yield what was recorded there. Traffic with no record stays unattributed."""
         ...

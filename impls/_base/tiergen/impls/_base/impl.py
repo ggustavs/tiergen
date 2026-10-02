@@ -5,20 +5,21 @@ from random import Random
 from typing import Protocol
 
 from tiergen.core.codec import JsonValue
-from tiergen.core.labels import Label, Outcome
+from tiergen.core.records import LabelKey, Outcome, Peer
 
 
 class Context(Protocol):
     """What an invocation is given by the agent that runs it."""
 
     @property
-    def label(self) -> Label:
-        """The label this invocation emits. No primitive runs without one."""
+    def label(self) -> LabelKey:
+        """The label this invocation will carry. No primitive runs without one."""
         ...
 
     @property
-    def ties(self) -> Mapping[str, tuple[str, ...]]:
-        """Each tie of the actor's kind, resolved to data-plane addresses."""
+    def ties(self) -> Mapping[str, tuple[Peer, ...]]:
+        """Each tie of the actor's kind, resolved to the peers it reaches: address and the
+        endpoints served there, so the port is known as well as the host."""
         ...
 
     @property

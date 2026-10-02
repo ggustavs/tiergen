@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tiergen.core.events import ConnEvent, Event, FiveTuple, SensorFlowId
 from tiergen.core.ir import Platform
+from tiergen.core.records import AttributionKey
 from tiergen.interfaces import (
     AttributionBackend,
     AttributionRecord,
@@ -16,7 +17,7 @@ from tiergen.interfaces import (
 )
 
 CONN = ConnEvent(
-    flow=SensorFlowId("fake", "C1"),
+    flow=SensorFlowId("fake", "span0", "C1"),
     five_tuple=FiveTuple("10.0.0.2", 50000, "10.0.0.1", 445, "tcp"),
     start=0.0,
     duration=None,
@@ -62,19 +63,21 @@ class NoInfra:
 class NoAttribution:
     platform: Platform = "linux"
 
-    def start(self, host: str) -> None: ...
+    def start(self, instance: str) -> None: ...
 
-    def stop(self, host: str) -> None: ...
+    def stop(self, instance: str) -> None: ...
 
-    def collect(self, host: str) -> Iterator[AttributionRecord]:
-        yield AttributionRecord(host, "cgroup:/x", CONN.five_tuple, 0.0, 1.0)
+    def collect(self, instance: str) -> Iterator[AttributionRecord]:
+        yield AttributionRecord(
+            instance, AttributionKey("linux", "cgroup:/x"), CONN.five_tuple, 0.0, 1.0
+        )
 
 
 def test_a_flow_only_sensor_meets_the_interface() -> None:
     sensor: Sensor = FlowOnlySensor()
     events = list(sensor.ingest(Path(".")))
     assert events == [CONN]
-    assert sensor.flow_key(events[0]) == SensorFlowId("fake", "C1")
+    assert sensor.flow_key(events[0]) == SensorFlowId("fake", "span0", "C1")
     assert Capability.APP_EVENTS not in sensor.capabilities()
 
 
@@ -83,7 +86,7 @@ def test_infra_and_attribution_fakes_meet_their_interfaces() -> None:
     attribution: AttributionBackend = NoAttribution()
     infra.up(RunManifest("r", "none", (), ()))
     assert isinstance(infra, InfraBackend)
-    assert [r.host for r in attribution.collect("h1")] == ["h1"]
+    assert [r.instance for r in attribution.collect("h1")] == ["h1"]
 
 
 def test_capability_names_are_what_the_ir_stores() -> None:

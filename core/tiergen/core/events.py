@@ -21,10 +21,13 @@ ConnState = Literal["attempted", "established", "closed", "reset", "rejected", "
 class SensorFlowId:
     """A sensor's native connection identity: Zeek ``uid``, Suricata ``flow_id``.
 
-    Ids from different sensors are never comparable, so the sensor is part of the id.
+    A native id is unique only within one sensor run over one pcap, and each active capture
+    point yields one pcap, so the sensor's name (``SensorSpec.name``) and the capture point
+    are part of the id. A connection that two capture points both see has two ids.
     """
 
     sensor: str
+    capture_point: str
     native: str
 
 

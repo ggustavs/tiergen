@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from typing import Protocol
 
 from tiergen.core.codec import JsonValue
-from tiergen.core.labels import Outcome
+from tiergen.core.records import Outcome
 from tiergen.impls._base.descriptor import CatalogEntry
 from tiergen.impls._base.impl import Context
 
