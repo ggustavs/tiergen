@@ -9,7 +9,8 @@ index. An allocation order is not a fitted parameter, so fixing one here invents
 about the network being modelled.
 """
 
-from dataclasses import dataclass
+import hashlib
+from dataclasses import dataclass, field
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network
 
 from tiergen.core.groups import instance_ids
@@ -29,13 +30,32 @@ class AddressProblem:
 
 @dataclass(frozen=True, slots=True)
 class AddressPlan:
-    """``addresses[instance][network]`` is an address; ``gateways[network]`` is the reserved one.
+    """What every instance is called and where it sits on each segment.
 
-    An instance is named ``path/kind[i]``. A network with a malformed CIDR is absent from both.
+    ``addresses[instance][segment]`` is an address; ``gateways[segment]`` is the substrate's
+    own address on the segment (the bridge), reserved first. ``hostnames[instance]`` is the
+    host's name, the instance id with ``/`` and ``_`` as ``-`` and the index after a dash,
+    which is a function of the IR like everything here. ``macs[instance][segment]`` is the
+    interface's MAC, present only when the binding gives an OUI: the vendor part is the OUI
+    and the rest a hash of the instance and segment. Without an OUI the substrate assigns
+    one, and check 7 says so. A segment with a malformed CIDR is absent from everything.
     """
 
     addresses: dict[str, dict[str, str]]
     gateways: dict[str, str]
+    hostnames: dict[str, str] = field(default_factory=dict[str, str])
+    macs: dict[str, dict[str, str]] = field(default_factory=dict[str, dict[str, str]])
+
+
+def hostname(instance: str) -> str:
+    """``corp/eng/workstation[3]`` becomes ``corp-eng-workstation-3``."""
+    return instance.replace("/", "-").replace("_", "-").replace("[", "-").replace("]", "")
+
+
+def mac_address(oui: str, instance: str, segment: str) -> str:
+    """``oui`` as ``"3c:ec:ef"`` plus three octets hashed from the interface's identity."""
+    digest = hashlib.blake2b(f"{instance}@{segment}".encode(), digest_size=3).digest()
+    return ":".join([oui.lower(), *(f"{b:02x}" for b in digest)])
 
 
 def plan_addresses(
@@ -122,8 +142,15 @@ def plan_addresses(
                 break
             assigned[instance][name] = address
 
+    ouis = {b.kind: b.mac_oui for b in scenario.bindings if b.mac_oui is not None}
     plan = AddressPlan(
         {instance: {n: str(a) for n, a in nets.items()} for instance, nets in assigned.items()},
         {name: str(address) for name, address in gateways.items()},
+        {instance: hostname(instance) for _, _, instance in everyone},
+        {
+            instance: {n: mac_address(ouis[kind], instance, n) for n in assigned[instance]}
+            for _, kind, instance in everyone
+            if kind in ouis
+        },
     )
     return plan, problems
