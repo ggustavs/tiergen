@@ -1,6 +1,6 @@
 # tiergen: site-specific NIDS dataset generation from a multi-tier DSL
 
-Working name `tiergen` (placeholder). Status: M0 implemented (IR, event model, interfaces, signatures, checker, `tiergen check` and `tiergen impls list`); nothing generates traffic yet. Version 4, September 2026.
+Working name `tiergen` (placeholder). Status: M0 done; M1 in progress. The IR has groups, action parameters and a typed topology; all sixteen checks exist; `tiergen build` writes a run directory and the Docker backend brings its Linux hosts up and down. No agent, capture, attribution or sensor runtime yet, so nothing generates traffic. Version 5, October 2026.
 
 This file is the project's memory. It records decisions and their rationale so later work (mine or Claude Code's) does not relitigate them without new evidence. *open* marks undecided items, *sketch* marks illustrative material that will change. Code blocks not marked *sketch* show what is implemented. What changed from earlier versions of this design, and why, is in `CHANGELOG.md`.
 
@@ -239,7 +239,7 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   core/                 ✔ IR, JSON codec, embedded DSL builders, resources, scenario loader, common event model, labels
   protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
   interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
-  check/                ✔ static checker: checks 1-16, diagnostics, runner; Z3 behind one typed module
+  check/                ✔ static checker: checks 1-16, diagnostics, runner
   cli/                  ✔ the `tiergen` command: `check`, `build`, `infra up`, `infra down`, `impls list`
   examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
   semantics/              process interface, semi-Markov default, product-process analysis, prediction, Storm export
@@ -448,7 +448,7 @@ class Binding:
 @dataclass(frozen=True, slots=True)
 class ScheduleEvent:
     at_s: float
-    target: str                                  # "kind" or "kind[i]"
+    target: str                                  # group path, "path/kind" or "path/kind[i]"
     op: ScheduleOp
     arg: str | float | None                      # start/stop: behaviour; set_rate: multiplier; run_sequence: "adapter:entry"
 
@@ -766,11 +766,11 @@ The engineer has the real network, so evaluation is direct:
 
 ## 14. Libraries
 
-Core, protocols, checker, interfaces, CLI, as used in M0: stdlib `dataclasses` (frozen, slots), `typing.Protocol` for the backend interfaces, `tomllib`, `importlib.metadata`, `argparse`, `ipaddress`. `z3-solver` was used by check 1 in M0 and dropped with groups: with explicit wiring the multiplicity check is plain counting. Tooling: `uv`, `hatchling`, `pyright` strict, `ruff`, `pytest`, `hypothesis`, `pre-commit`, `commit-check`. Planned and not used yet: `pydantic` at the user boundary (M0's boundaries, `impl.toml` and IR JSON, go through the IR's own codec), `networkx` (check 4's reachability is a short search and does not need it).
+Core, protocols, checker, interfaces, CLI, as used so far: stdlib `dataclasses` (frozen, slots), `typing.Protocol` for the backend interfaces, `tomllib`, `importlib.metadata`, `argparse`, `ipaddress`. `z3-solver` was used by check 1 in M0 and dropped with groups: with explicit wiring the multiplicity check is plain counting. Tooling: `uv`, `hatchling`, `pyright` strict, `ruff`, `pytest`, `hypothesis`, `pre-commit`, `commit-check`. Planned and not used yet: `pydantic` at the user boundary (M0's boundaries, `impl.toml` and IR JSON, go through the IR's own codec), `networkx` (check 4's reachability is a short search and does not need it).
 
 Semantics and fit: `numpy`, `scipy.stats`, `hmmlearn` or `pomegranate`, `scikit-learn` and `hdbscan` for role clustering, `polars` or `pandas` for logs (`zat` for Zeek, a small `eve.json` reader for Suricata), `stormpy` (Storm) or PRISM via subprocess.
 
-Backends: `docker` SDK or `python-on-whales` (both daemons), `libvirt-python`, `jinja2`, `ruamel.yaml`, `pyroute2`; later `python-nomad`, then a `kubernetes` client with KubeVirt if k8s is adopted.
+Backends: `docker` (docker-py) with `types-docker` for the Docker daemons (2026-10-02: chosen over `python-on-whales`, which shells out to the CLI and brings pydantic into a backend package; the SDK is wrapped in one facade module checked at basic strictness), `libvirt-python`, `jinja2`, `ruamel.yaml`, `pyroute2`; later `python-nomad`, then a `kubernetes` client with KubeVirt if k8s is adopted.
 
 Sensors: Zeek and Suricata as pinned containers driven over pcaps; ingest adapters written against their log schemas into the common event model.
 
@@ -881,6 +881,7 @@ Detectors for the evaluation harness
 - Python 3.12+, uv workspace, `pyright` strict, `ruff`. Members build with hatchling and share the PEP 420 namespace `tiergen.*`: no `tiergen/__init__.py` anywhere, a `py.typed` in every package. Every check has a unit test; every IR type has a JSON round-trip property test.
 - The IR is JSON. No callables in it; signatures, implementations, sensors, resources by name.
 - Nothing in `core/`, `protocols/`, `check/`, `semantics/`, `fit/` or `interfaces/` may assume Linux, Docker or network access. They install and run anywhere.
+- A third-party SDK without complete types (z3 in M0, docker-py now) is used from one facade module per backend, checked at basic strictness; nothing else imports the SDK, and the facade is a Protocol the rest of the backend is tested against with a fake.
 - Backend interfaces live in `interfaces/` and are defined before their implementations. A backend is one package under `backends/`; no cross-imports between backend implementations; shared code in each family's `_base`.
 - One package per tool under `impls/`, registered by what it provides. No imports between implementation packages; shared code in `impls/_base`. Adapter catalogs are data.
 - The deployed sensor defines flows and events. Never reconstruct flows anywhere; consume the sensor's output through the common event model.
