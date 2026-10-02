@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tiergen.backends.infra._base import build_manifests
-from tiergen.backends.infra._base.manifest import DEFAULT_IMAGE, IDLE
+from tiergen.backends.infra._base.manifest import AGENT_IMAGE, agent_command
 from tiergen.check.context import Context
 from tiergen.core.addressing import plan_addresses
 from tiergen.core.codec import from_json, to_json
@@ -44,7 +44,9 @@ def test_linux_slice_is_one_docker_manifest() -> None:
         "lab/attacker[0]",
     ]
     web = m.hosts[1]
-    assert (web.image, web.command) == (DEFAULT_IMAGE["linux"], IDLE)
+    assert (web.image, web.command) == (AGENT_IMAGE["linux"], agent_command("lab/web_server[0]"))
+    assert web.command == ("tiergen-agent", "/tiergen/run/program.lab-web_server-0.json")
+    assert web.agent is True
     assert [(a.network, a.address) for a in web.attachments] == [
         ("lan", "10.20.0.80"),
         ("mgmt", "10.98.0.3"),
@@ -71,7 +73,7 @@ def test_two_backends_split_the_hosts_and_share_the_networks_they_touch() -> Non
     libvirt = manifests["libvirt"]
     assert {h.kind for h in libvirt.hosts} == {"domain_controller", "workstation"}
     dc = next(h for h in libvirt.hosts if h.kind == "domain_controller")
-    assert (dc.image, dc.command) == ("win2022-dc", ())
+    assert (dc.image, dc.command, dc.agent) == ("win2022-dc", (), False)
     assert (dc.attachments[0].network, dc.attachments[0].address) == ("lan", "10.10.0.10")  # pinned
     assert dc.attachments[0].mac is not None
     assert dc.attachments[0].mac.startswith("00:15:5d:")
@@ -79,7 +81,7 @@ def test_two_backends_split_the_hosts_and_share_the_networks_they_touch() -> Non
     docker = manifests["docker"]
     assert {h.kind for h in docker.hosts} == {"file_server", "intranet_web", "attacker"}
     web = next(h for h in docker.hosts if h.kind == "intranet_web")
-    assert web.image == DEFAULT_IMAGE["linux"]
+    assert (web.image, web.agent) == (AGENT_IMAGE["linux"], True)
 
 
 def test_manifests_are_data() -> None:

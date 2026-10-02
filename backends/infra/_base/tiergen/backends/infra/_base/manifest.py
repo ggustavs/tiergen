@@ -11,19 +11,24 @@ from collections.abc import Mapping
 from tiergen.core.addressing import AddressPlan
 from tiergen.core.groups import instance_ids
 from tiergen.core.ir import Host, HostRef, ImplSelection, Scenario, Topology
+from tiergen.core.program import flat_id
 from tiergen.core.resolve import Resolver
 from tiergen.core.resources import Resources
 from tiergen.core.routing import RoutePlan
 from tiergen.impls._base import ImplDescriptor, ImplRef
 from tiergen.interfaces import Attachment, HostSpec, NetworkSpec, RouteSpec, RunManifest
 
-DEFAULT_IMAGE = {
-    # A Linux default host is a small Alpine that idles until the agent exists; it carries
-    # iproute2, which installing the planned routes needs. The agent's image (M1 task 5)
-    # replaces it. By digest alone: a tag beside a digest is ignored by the daemon.
-    "linux": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",
+AGENT_IMAGE = {
+    # A default host runs the platform's agent from the backend's own image, named here
+    # without a tag: the backend builds or finds it and records the id it ran in the state.
+    "linux": "tiergen/base-linux",
 }
-IDLE = ("sleep", "infinity")
+RUN_MOUNT = "/tiergen/run"
+"""Where an agent host sees the run directory."""
+
+
+def agent_command(instance: str) -> tuple[str, ...]:
+    return ("tiergen-agent", f"{RUN_MOUNT}/program.{flat_id(instance)}.json")
 
 
 def bridge_name(run: str, segment: str) -> str:
@@ -32,12 +37,14 @@ def bridge_name(run: str, segment: str) -> str:
     return "tg-" + hashlib.blake2b(f"{run}|{segment}".encode(), digest_size=6).hexdigest()
 
 
-def _image_and_command(host: Host) -> tuple[str, tuple[str, ...]]:
+def _image_and_command(host: Host, instance: str) -> tuple[str, tuple[str, ...], bool]:
+    """Image, command and whether the host runs the agent: a default host does, from the
+    agent image; a custom image runs its own entrypoint."""
     parsed = HostRef.parse(host.ref)
     assert parsed is not None  # check 6 holds the syntax before build gets here
     if parsed.kind == "default":
-        return DEFAULT_IMAGE[host.platform], IDLE
-    return parsed.ref, ()
+        return AGENT_IMAGE[host.platform], agent_command(instance), True
+    return parsed.ref, (), False
 
 
 def _capabilities(
@@ -72,7 +79,7 @@ def build_manifests(
     hosts: dict[str, list[HostSpec]] = {}
     for path, kind, instance in instance_ids(scenario):
         binding = bindings[kind]
-        image, command = _image_and_command(binding.host)
+        image, command, agent = _image_and_command(binding.host, instance)
         cap_add = set[str]()
         for selection in binding.impls:
             cap_add |= _capabilities(selection, impls, resolver)
@@ -91,6 +98,7 @@ def build_manifests(
                 attachments=tuple(Attachment(n, addresses[n], macs.get(n)) for n in joined),
                 routes=tuple(RouteSpec(r.cidr, r.via) for r in routes.routes.get(instance, ())),
                 forwards=kinds[kind].forwards,
+                agent=agent,
             )
         )
     manifests: dict[str, RunManifest] = {}
