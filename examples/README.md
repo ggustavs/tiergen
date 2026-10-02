@@ -19,6 +19,15 @@ The numbers under `models/` are placeholders chosen to exercise the checker: a f
 workstation process, a two-state attacker, made-up paths, shares and coverage values. They are not fitted
 from any network and say nothing about real traffic. In normal use `tiergen fit` writes
 `models/` from the target network's sensor logs, and the sensor configuration files are the
-network's own. Nothing runs them yet. `linux_slice` is the first that will: it is the scenario the Docker
-backend is being built against. `tiergen build examples/linux_slice/scenario.py --out run1`
-already writes its run directory, with the address of every host.
+network's own.
+
+`linux_slice` is the one that runs so far. With a Docker daemon reachable:
+
+```
+uv run tiergen build examples/linux_slice/scenario.py --out run1
+uv run tiergen infra up run1      # three idle containers on their planned addresses
+uv run tiergen infra down run1
+```
+
+The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
+do not come up.

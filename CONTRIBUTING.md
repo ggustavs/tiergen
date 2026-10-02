@@ -11,8 +11,13 @@ uv run pre-commit install
 ```
 
 `uv sync` installs every workspace member editable plus the dev tools. `pre-commit install` adds
-three git hooks: ruff on commit, the commit message check, and the branch name check on push.
-Nothing here needs Docker.
+git hooks: ruff and the stub-version check on commit, the commit message check, and the branch
+name check on push. The hooks run `uv run --frozen`, so they never rewrite `uv.lock`; if
+`pyproject.toml` is modified but unstaged, the hooks see a tree that disagrees with the lock and
+fail, so stage the pyproject and lock changes together with what needs them.
+
+Nothing here needs Docker except the tests marked `docker`, which skip when no daemon is
+reachable.
 
 ## Before you push
 
@@ -23,8 +28,10 @@ uv run pyright
 uv run pytest
 ```
 
-CI runs the same four, plus `uv lock --check`. If you add or change a dependency or a workspace
-member, run `uv lock` and commit `uv.lock`.
+CI runs the same four on Linux and the tests on Windows, plus `uv lock --check` and
+`scripts/check_stubs.py`, which fails if a stub package stops matching the package it stubs.
+If you add or change a dependency or a workspace member, run `uv lock` and commit `uv.lock`.
+The `integration` job runs the `docker` tests against a daemon on the runner.
 
 ## Commits
 
@@ -94,5 +101,6 @@ and every commit message in the pull request. The rules live in `cchk.toml`; the
 drives the local hooks.
 
 Repository settings that back this up (set by a maintainer, not by this repo): require the
-`lint`, `types`, `test`, `lock` and `conventions` checks on `main`, require linear history, and
-allow only rebase merging.
+`lint`, `types`, `test`, `test-windows`, `lock` and `conventions` checks on `main`, require
+linear history, and allow only rebase merging. `integration` is not required until it has been
+stable.
