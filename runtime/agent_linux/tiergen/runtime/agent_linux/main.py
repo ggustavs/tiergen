@@ -74,29 +74,41 @@ def load_service(impl_id: str) -> ServiceImpl:
 
 def start_services(
     program: Program, out: Path, service: Callable[[str], ServiceImpl], log: logging.Logger
-) -> list[tuple[ServiceImpl, ServiceContext]]:
-    """Start one service per server signature and wait until each answers its healthcheck."""
+) -> tuple[list[tuple[ServiceImpl, ServiceContext]], int]:
+    """Start one service per server signature and wait until each answers its healthcheck.
+
+    A service that cannot be loaded, started or reached is logged and counted, not fatal:
+    the host stays up with its addresses and routes, and the scheduler reads the log.
+    """
     selection = rng(program.seed, program.instance, "selection")
     started: list[tuple[ServiceImpl, ServiceContext]] = []
+    failed = 0
     for signature in program.services:
         ref = ImplRef.parse(weighted(selection, program.impls[signature]))
-        impl = service(ref.impl)
-        ctx = ServiceContext(
-            program.instance,
-            impl.served(),
-            out / ref.impl,
-            rng(program.seed, f"{program.instance}/{signature}", "impl"),
-        )
-        ctx.out.mkdir(parents=True, exist_ok=True)
-        impl.start(ctx)
-        started.append((impl, ctx))
-        deadline = time.monotonic() + HEALTH_TIMEOUT
-        while not impl.healthcheck(ctx):
-            if time.monotonic() > deadline:
-                raise RuntimeError(f"{ref.impl} did not answer within {HEALTH_TIMEOUT:g} s")
-            time.sleep(0.2)
+        try:
+            impl = service(ref.impl)
+            ctx = ServiceContext(
+                program.instance,
+                impl.served(),
+                out / ref.impl,
+                rng(program.seed, f"{program.instance}/{signature}", "impl"),
+            )
+            ctx.out.mkdir(parents=True, exist_ok=True)
+            impl.start(ctx)
+            started.append((impl, ctx))
+            deadline = time.monotonic() + HEALTH_TIMEOUT
+            while not impl.healthcheck(ctx):
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"did not answer within {HEALTH_TIMEOUT:g} s")
+                time.sleep(0.2)
+        except Exception:
+            failed += 1
+            log.exception(
+                "%s for %s cannot start; the host stays up without it", ref.impl, signature
+            )
+            continue
         log.info("%s serves %s", ref.impl, ", ".join(f"{e.protocol}/{e.port}" for e in ctx.served))
-    return started
+    return started, failed
 
 
 def run(
@@ -110,7 +122,7 @@ def run(
     clock: Clock | None = None,
 ) -> int:
     """Services, then one process per behaviour, until the duration or SIGTERM."""
-    services = start_services(program, out, service, log)
+    services, failed = start_services(program, out, service, log)
     clock = clock or MonotonicClock()
     recorder = Recorder(out)
     children: list[int] = []
@@ -123,7 +135,6 @@ def run(
             os.kill(pid, signal.SIGTERM)
 
     signal.signal(signal.SIGTERM, terminate)
-    failed = 0
     try:
         for behaviour in program.behaviours:
             pid = os.fork()
@@ -158,7 +169,7 @@ def run(
         for impl, ctx in reversed(services):
             impl.stop(ctx)
         recorder.close()
-    log.info("done%s, %d behaviour(s) failed", " (terminated)" if stopped else "", failed)
+    log.info("done%s, %d failure(s)", " (terminated)" if stopped else "", failed)
     return 1 if failed else 0
 
 
