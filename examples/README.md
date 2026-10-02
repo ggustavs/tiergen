@@ -8,7 +8,7 @@ organisation of two teams, written with the builders in `tiergen.core.dsl`. Each
 | `hq_lan/` | a well-formed scenario | passes |
 | `hq_lan_capgap/` | `fit` relied on a capability the label sensor lacks | passes with a check 14 warning |
 | `linux_slice/` | a workstation, a web server and an attacker, all Linux containers; written inline, topology included | passes |
-| `two_teams/` | one organisation, two teams built by a function; each team's workstations wired to their own file server | passes |
+| `two_teams/` | one organisation, two teams built by a function on three VLANs behind one forwarding host, captured at a tagged trunk SPAN; each team's workstations wired to their own file server | passes |
 | `hq_lan_broken/` | six deliberate mistakes, listed at the top of its `scenario.py` | fails checks 1, 4, 5, 9, 10 and 12 |
 
 ```
@@ -30,4 +30,6 @@ uv run tiergen infra down run1
 ```
 
 The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
-do not come up.
+do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
+brings up the file servers, the attacker and `core_router`, and a connection from one team's
+file server to the other's crosses the router.
