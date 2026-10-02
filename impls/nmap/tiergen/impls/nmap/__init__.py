@@ -1,6 +1,7 @@
 """Port scans through nmap.
 
-Manifest only. The runtime lands in this package in M1.
+The descriptor is loaded here; the runtime is ``tiergen.impls.nmap.runtime``, registered
+under ``tiergen.impls.runtimes`` and imported only by the agent.
 """
 
 from importlib.resources import files
