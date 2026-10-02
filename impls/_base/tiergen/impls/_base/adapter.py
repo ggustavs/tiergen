@@ -1,4 +1,4 @@
-"""The runtime interface of an adapter to an external framework. Nothing in M0 implements it."""
+"""The runtime interface of an adapter to an external framework."""
 
 from collections.abc import Iterable
 from typing import Protocol

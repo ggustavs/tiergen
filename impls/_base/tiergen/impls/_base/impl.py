@@ -1,4 +1,4 @@
-"""The runtime interface of a primitive implementation. Nothing in M0 implements it."""
+"""The runtime interface of a primitive implementation."""
 
 from collections.abc import Mapping
 from random import Random
@@ -14,6 +14,17 @@ class Context(Protocol):
     @property
     def label(self) -> LabelKey:
         """The label this invocation will carry. No primitive runs without one."""
+        ...
+
+    @property
+    def invocation(self) -> str:
+        """The invocation id, ``label.invocation``, for anything the implementation names."""
+        ...
+
+    @property
+    def targets(self) -> tuple[Peer, ...]:
+        """The peers this invocation is aimed at: one for ``select="one"``, every peer of the
+        tie for ``select="all"``. The same instances as ``label.targets``, with addresses."""
         ...
 
     @property
