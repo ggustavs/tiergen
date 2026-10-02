@@ -23,6 +23,8 @@ from tiergen.interfaces import BackendError, RunManifest
 from tiergen.interfaces.registry import load_infra, load_infra_backends, load_sensors
 from tiergen.protocols import SIGNATURES
 
+SERVERS = frozenset(s.id for s in SIGNATURES.values() if s.role == "server")
+
 OK, FAILED, UNUSABLE = 0, 1, 2
 HEADINGS = (("error", "errors"), ("warning", "warnings"), ("not_computed", "not computed"))
 
@@ -140,7 +142,7 @@ def _build(scenario_path: Path, models: Path | None, out: Path) -> int:
     routes, _ = plan_routes(scenario, topology, plan)
     manifests = build_manifests(scenario, topology, plan, routes, impls, resources)
     programs = programs_by_file(
-        build_programs(scenario, topology, plan, routes, Resolver(resources))
+        build_programs(scenario, topology, plan, routes, Resolver(resources), SERVERS)
     )
 
     out.mkdir(parents=True, exist_ok=True)
