@@ -54,7 +54,7 @@ class NoInfra:
     def __init__(self) -> None:
         self.seen = []
 
-    def up(self, manifest: RunManifest) -> RunState:
+    def up(self, manifest: RunManifest, run_dir: Path) -> RunState:
         self.seen.append(f"up {manifest.run}")
         return RunState(manifest.run, self.id)
 
@@ -86,7 +86,7 @@ def test_a_flow_only_sensor_meets_the_interface() -> None:
 def test_infra_and_attribution_fakes_meet_their_interfaces() -> None:
     infra: InfraBackend = NoInfra()
     attribution: AttributionBackend = NoAttribution()
-    infra.up(RunManifest("r", "none", (), ()))
+    infra.up(RunManifest("r", "none", (), ()), Path("run"))
     assert isinstance(infra, InfraBackend)
     assert [r.instance for r in attribution.collect("h1")] == ["h1"]
 

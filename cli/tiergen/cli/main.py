@@ -188,7 +188,7 @@ def _infra(verb: str, run_dir: Path) -> int:
         for manifest in manifests:
             backend = backends[manifest.backend]
             if verb == "up":
-                _dump(backend.up(manifest), run_dir / f"state.{manifest.backend}.json")
+                _dump(backend.up(manifest, run_dir), run_dir / f"state.{manifest.backend}.json")
             else:
                 backend.down(manifest)
                 (run_dir / f"state.{manifest.backend}.json").unlink(missing_ok=True)

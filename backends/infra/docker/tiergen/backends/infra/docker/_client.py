@@ -10,12 +10,15 @@ daemon-wide, so every name is prefixed with the run.
 
 import contextlib
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from pathlib import Path
+from typing import Literal, Protocol
 
 import docker
 import docker.errors
 import docker.types
 from tiergen.interfaces.infra import BackendError
+
+CgroupNs = Literal["private", "host"]
 
 
 class Client(Protocol):
@@ -23,6 +26,14 @@ class Client(Protocol):
 
     def ensure_image(self, image: str) -> None:
         """Make ``image`` available locally, pulling it if need be."""
+        ...
+
+    def image_id(self, tag: str) -> str | None:
+        """The id of the local image tagged ``tag``, or None if there is none."""
+        ...
+
+    def build_image(self, tag: str, context: Path) -> str:
+        """Build ``context/Dockerfile`` as ``tag``. Returns the image id."""
         ...
 
     def create_network(
@@ -49,8 +60,16 @@ class Client(Protocol):
         mac: str | None,
         hostname: str,
         sysctls: Mapping[str, str],
+        mounts: Sequence[tuple[Path, str, bool]],
+        cgroupns: CgroupNs | None,
+        security_opt: Sequence[str],
     ) -> str:
-        """Create, attached to ``network`` at ``address``, not started. Returns the id."""
+        """Create, attached to ``network`` at ``address``, not started. Returns the id.
+
+        ``mounts`` are bind mounts, (host path, container path, read-only); ``cgroupns`` is
+        the container's cgroup namespace mode, "private" or "host", or the daemon's default;
+        ``security_opt`` are the daemon's security options, such as an AppArmor profile.
+        """
         ...
 
     def connect(self, container: str, network: str, address: str, mac: str | None) -> None: ...
@@ -106,6 +125,21 @@ class DaemonClient:
         except docker.errors.APIError as err:
             raise BackendError(f"image {image!r} is not available: {err}") from err
 
+    def image_id(self, tag: str) -> str | None:
+        try:
+            return self._d.images.get(tag).id
+        except docker.errors.ImageNotFound:
+            return None
+
+    def build_image(self, tag: str, context: Path) -> str:
+        try:
+            image, _ = self._d.images.build(path=str(context), tag=tag, rm=True)
+        except docker.errors.BuildError as err:
+            raise BackendError(f"cannot build {tag!r}: {err}") from err
+        except docker.errors.APIError as err:
+            raise BackendError(f"cannot build {tag!r}: {err}") from err
+        return image.id or tag
+
     def create_network(
         self,
         name: str,
@@ -137,8 +171,15 @@ class DaemonClient:
         mac: str | None,
         hostname: str,
         sysctls: Mapping[str, str],
+        mounts: Sequence[tuple[Path, str, bool]],
+        cgroupns: CgroupNs | None,
+        security_opt: Sequence[str],
     ) -> str:
         endpoint = self._d.api.create_endpoint_config(ipv4_address=address, mac_address=mac)
+        binds = [
+            docker.types.Mount(target, str(source), type="bind", read_only=read_only)
+            for source, target, read_only in mounts
+        ]
         try:
             created = self._d.containers.create(
                 image,
@@ -148,6 +189,9 @@ class DaemonClient:
                 labels=dict(labels),
                 cap_add=list(cap_add) or None,
                 sysctls=dict(sysctls) or None,
+                mounts=binds or None,
+                cgroupns=cgroupns,
+                security_opt=list(security_opt) or None,
                 network=network,
                 networking_config={network: endpoint},
                 detach=True,

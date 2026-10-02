@@ -49,7 +49,10 @@ class HostSpec:
     """One host to create. ``image`` is what the backend runs, ``command`` what it runs in
     it, ``cap_add`` the host capabilities the chosen implementations need, as the substrate
     names them. ``forwards`` makes the host a router; ``routes`` are installed after it
-    starts, and need the substrate's route-adding capability, which the backend adds."""
+    starts, and need the substrate's route-adding capability, which the backend adds.
+    ``agent`` says the host runs the platform's agent, which the backend gives the run
+    directory and whatever the agent needs of the host: the mounts, the cgroup namespace
+    and the capability to write it."""
 
     instance: str
     kind: str
@@ -61,6 +64,7 @@ class HostSpec:
     attachments: tuple[Attachment, ...]
     routes: tuple[RouteSpec, ...] = ()
     forwards: bool = False
+    agent: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,9 +88,11 @@ class HostState:
 @dataclass(frozen=True, slots=True)
 class RunState:
     """What ``up`` created, by instance id and by segment: what attribution and capture need
-    to find the substrate's objects. ``down`` does not read it; labels suffice there."""
+    to find the substrate's objects, and the id of every image the run's hosts were created
+    from, by the name the manifest used. ``down`` does not read it; labels suffice there."""
 
     run: str
     backend: str
     hosts: dict[str, HostState] = field(default_factory=dict[str, HostState])
     bridges: dict[str, str] = field(default_factory=dict[str, str])
+    images: dict[str, str] = field(default_factory=dict[str, str])

@@ -1,6 +1,7 @@
 """The infrastructure backend interface and its descriptor. No implementation lives here."""
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from tiergen.core.ir import HostType, Platform
@@ -57,12 +58,14 @@ class InfraBackend(Protocol):
         """The descriptor id this backend implements: "docker", "libvirt"."""
         ...
 
-    def up(self, manifest: RunManifest) -> RunState:
+    def up(self, manifest: RunManifest, run_dir: Path) -> RunState:
         """Create the manifest's networks and hosts, start the hosts, install their routes.
 
-        Returns what was created under which substrate names. Every resource also carries
-        the run's label, so ``down`` can find it without state. On failure, undo what was
-        created and re-raise; a half-up run is never left behind.
+        ``run_dir`` is the directory ``tiergen build`` wrote: an agent host reads its program
+        from it and writes its records under ``run_dir/out/<instance>``. Returns what was
+        created under which substrate names. Every resource also carries the run's label, so
+        ``down`` can find it without state. On failure, undo what was created and re-raise;
+        a half-up run is never left behind.
         """
         ...
 

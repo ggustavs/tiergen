@@ -55,7 +55,7 @@ def test_linux_slice_comes_up_as_planned_and_goes_down_without_a_trace(
 ) -> None:
     plan = json.loads((run_dir / "addresses.json").read_text())
     backend = DockerBackend()
-    backend.up(manifest)
+    backend.up(manifest, run_dir)
 
     run = {"tiergen.run": manifest.run}
     assert sorted(daemon.containers(run)) == sorted(
@@ -97,14 +97,16 @@ def test_linux_slice_comes_up_as_planned_and_goes_down_without_a_trace(
     assert daemon.networks(run) == []
 
 
-def test_a_failed_up_leaves_nothing_behind(manifest: RunManifest, daemon: DaemonClient) -> None:
+def test_a_failed_up_leaves_nothing_behind(
+    run_dir: Path, manifest: RunManifest, daemon: DaemonClient
+) -> None:
     broken_hosts = (
         *manifest.hosts[:-1],
         replace(manifest.hosts[-1], image="tiergen/does-not-exist:never"),
     )
     broken = RunManifest(manifest.run, manifest.backend, manifest.networks, broken_hosts)
     with pytest.raises(BackendError, match="not available"):
-        DockerBackend().up(broken)
+        DockerBackend().up(broken, run_dir)
     run = {"tiergen.run": manifest.run}
     assert daemon.containers(run) == []
     assert daemon.networks(run) == []
@@ -123,8 +125,8 @@ def two_teams(tmp_path: Path, daemon: DaemonClient) -> Iterator[tuple[Path, RunM
 def test_routed_traffic_crosses_the_core_router(
     two_teams: tuple[Path, RunManifest], daemon: DaemonClient
 ) -> None:
-    _, manifest = two_teams
-    state = DockerBackend().up(manifest)
+    run_dir, manifest = two_teams
+    state = DockerBackend().up(manifest, run_dir)
     eng_fs = container_name(manifest.run, "corp/eng/file_server[0]")
     sales_fs = container_name(manifest.run, "corp/sales/file_server[0]")
     sales_addr = daemon.addresses(sales_fs)[network_name(manifest.run, "sales")]
