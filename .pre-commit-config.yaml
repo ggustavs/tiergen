@@ -7,24 +7,24 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --force-exclude
+        entry: uv run --frozen ruff check --force-exclude
         language: system
         types_or: [python, pyi]
         stages: [pre-commit]
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format --check --force-exclude
+        entry: uv run --frozen ruff format --check --force-exclude
         language: system
         types_or: [python, pyi]
         stages: [pre-commit]
       - id: commit-message
         name: conventional commit message
-        entry: uv run commit-check --message
+        entry: uv run --frozen commit-check --message
         language: system
         stages: [commit-msg]
       - id: branch-name
         name: conventional branch name
-        entry: uv run commit-check --branch
+        entry: uv run --frozen commit-check --branch
         language: system
         stages: [pre-push]
         pass_filenames: false
