@@ -32,6 +32,21 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
             signature = ctx.signatures.get(act.signature)
             if signature is None or signature.role != "client":
                 continue  # check 3 reports these
+            tie = next((t for t in kind.ties if t.name == act.tie), None)
+            if tie is not None:
+                if tie.multiplicity == "multiple" and act.select is None:
+                    yield error(
+                        ID,
+                        f"{path}.select",
+                        f"tie {act.tie!r} is multiple: say whether {act.signature} hits all "
+                        "its targets or one",
+                    )
+                elif tie.multiplicity != "multiple" and act.select is not None:
+                    yield error(
+                        ID,
+                        f"{path}.select",
+                        f"tie {act.tie!r} is {tie.multiplicity}; select means nothing there",
+                    )
             declared = {p.name: p for p in signature.params}
             for name in sorted(
                 n for n, p in declared.items() if p.required and n not in act.params

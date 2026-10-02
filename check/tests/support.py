@@ -109,9 +109,12 @@ def good(behaviour: ir.Behaviour | None = None) -> ir.Scenario:
             cli: dsl.binding(
                 dsl.host("linux", "container", backend="docker"),
                 {"http.get": {"http.cli:a": 2.0, "http.cli:b": 1.0}},
+                mac_oui="3c:ec:ef",
             ),
             srv: dsl.binding(
-                dsl.host("linux", "container", backend="docker"), {"http.serve": {"http.srv": 1.0}}
+                dsl.host("linux", "container", backend="docker"),
+                {"http.serve": {"http.srv": 1.0}},
+                mac_oui="3c:ec:ef",
             ),
         },
         topology="lan.topology",

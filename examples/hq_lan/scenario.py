@@ -64,7 +64,7 @@ Atk = kind(
             dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
             action_map={
                 "idle": None,
-                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}),
+                "syn_scan": action("scan.tcp_syn", "victim", {"ports": "1-1024"}, select="all"),
             },
         )
     ],
@@ -91,7 +91,8 @@ S = scenario(
                 "template:win2022-dc",
                 backend="libvirt",
                 manifest=resource("hq_lan.dc_manifest"),
-            )
+            ),
+            mac_oui="00:15:5d",
         ),
         Ws: binding(
             host("windows", "vm", "template:win11-workstation", backend="libvirt"),
@@ -100,16 +101,23 @@ S = scenario(
                 "smb.read": {"smb.windows_native": 1.0},
                 "kerberos.tgs": {"smb.windows_native": 1.0},
             },
+            mac_oui="00:15:5d",
         ),
         # Default hosts serve through the service implementations selected here.
         Fs: binding(
-            host("linux", "container", backend="docker"), {"smb.serve": {"smb.samba": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"smb.serve": {"smb.samba": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Web: binding(
-            host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"http.serve": {"http.nginx": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Atk: binding(
-            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"scan.tcp_syn": {"scan.nmap": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
     },
     topology=resource("hq_lan.topology"),

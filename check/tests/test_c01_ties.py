@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from support import good, only, with_group, with_kind
+from support import good, only, run, with_group, with_kind
 
 from tiergen.core import ir
 
@@ -22,9 +22,14 @@ def test_nothing_held_means_nothing_to_wire() -> None:
 
 
 def test_multiple_accepts_any_count_and_optional_at_most_one() -> None:
+    # A multiple tie also obliges the action to say "all" or "one" (check 16); not this check's.
     s = with_kind(good(), 0, ties=(ir.Tie("web", "srv", "multiple"),))
-    assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 0})) == []
-    assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 5})) == []
+    assert [
+        d for d in run(with_group(s, 0, instances={"cli": 3, "srv": 0})) if d.check == "C01"
+    ] == []
+    assert [
+        d for d in run(with_group(s, 0, instances={"cli": 3, "srv": 5})) if d.check == "C01"
+    ] == []
     s = with_kind(good(), 0, ties=(ir.Tie("web", "srv", "optional"),))
     assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 0})) == []
     [d] = only("C01", with_group(s, 0, instances={"cli": 3, "srv": 2}))

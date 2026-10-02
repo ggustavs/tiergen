@@ -7,7 +7,8 @@
       "path": {
         "resource": "ws_office.http_paths"
       }
-    }
+    },
+    "select": "one"
   },
   "smb_read": {
     "signature": "smb.read",
@@ -26,7 +27,8 @@
           0.2
         ]
       }
-    }
+    },
+    "select": "one"
   },
   "krb_tgs": {
     "signature": "kerberos.tgs",
