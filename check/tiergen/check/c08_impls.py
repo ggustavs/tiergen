@@ -5,6 +5,7 @@ from collections.abc import Iterator
 
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic, error
+from tiergen.impls._base import ImplRef
 
 ID = "C08"
 
@@ -43,7 +44,8 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                 )
             for choice, weight in choices.items():
                 where = f"{path}.choices[{choice!r}]"
-                impl_id, _, variant = choice.partition(":")
+                ref = ImplRef.parse(choice)
+                impl_id, variant = ref.impl, ref.variant
                 impl = ctx.impls.get(impl_id)
                 if impl is None:
                     yield error(ID, where, f"implementation {impl_id!r} is not installed")

@@ -1,10 +1,9 @@
 """What every check is given, and how it reads a field that may name a resource."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Any, cast
+from dataclasses import dataclass, field
+from typing import Any
 
-from tiergen.core.codec import CodecError, decode
 from tiergen.core.ir import (
     Action,
     ActorKind,
@@ -21,15 +20,14 @@ from tiergen.core.ir import (
     SemiMarkov,
     Topology,
 )
+from tiergen.core.resolve import Floats, Resolver
 from tiergen.core.resources import Resources
 from tiergen.impls._base import ImplDescriptor
 from tiergen.interfaces import InfraDescriptor, SensorDescriptor
 from tiergen.protocols import Signature
 
-Floats = tuple[float, ...]
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Context:
     """A scenario and everything it is checked against.
 
@@ -45,55 +43,46 @@ class Context:
     infra: Mapping[str, InfraDescriptor]
     signatures: Mapping[str, Signature]
 
+    resolver: Resolver = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "resolver", Resolver(self.resources))
+
     def resolve(self, value: object, tp: Any) -> Any:
-        """``value`` itself if inline; the decoded resource if it is a name; else None."""
-        if not isinstance(value, str):
-            return value
-        try:
-            return decode(tp, self.resources.get(value))
-        except (KeyError, CodecError):
-            return None
+        return self.resolver.resolve(value, tp)
 
     def states(self, p: SemiMarkov) -> tuple[str, ...] | None:
-        return cast(tuple[str, ...] | None, self.resolve(p.states, tuple[str, ...]))
+        return self.resolver.states(p)
 
     def initial(self, p: SemiMarkov) -> Floats | None:
-        return cast(Floats | None, self.resolve(p.initial, Floats))
+        return self.resolver.initial(p)
 
     def transitions(self, p: SemiMarkov) -> tuple[Floats, ...] | None:
-        return cast(tuple[Floats, ...] | None, self.resolve(p.transitions, tuple[Floats, ...]))
+        return self.resolver.transitions(p)
 
     def dwell(self, p: SemiMarkov) -> tuple[Distribution, ...] | None:
-        return cast(
-            tuple[Distribution, ...] | None, self.resolve(p.dwell, tuple[Distribution, ...])
-        )
+        return self.resolver.dwell(p)
 
     def rate(self, p: SemiMarkov) -> Floats | None:
-        return None if p.rate is None else cast(Floats | None, self.resolve(p.rate, Floats))
+        return self.resolver.rate(p)
 
     def action_map(self, b: Behaviour) -> dict[str, Action | None] | None:
-        return cast(
-            dict[str, Action | None] | None, self.resolve(b.action_map, dict[str, Action | None])
-        )
+        return self.resolver.action_map(b)
 
     def choice(self, value: Choice | ChoiceRef) -> Choice | None:
-        if isinstance(value, Choice):
-            return value
-        return cast(Choice | None, self.resolve(value.resource, Choice))
+        return self.resolver.choice(value)
 
     def choices(self, s: ImplSelection) -> dict[str, float] | None:
-        return cast(dict[str, float] | None, self.resolve(s.choices, dict[str, float]))
+        return self.resolver.choices(s)
 
     def host_manifest(self, h: Host) -> tuple[Endpoint, ...] | None:
-        if h.manifest is None:
-            return None
-        return cast(tuple[Endpoint, ...] | None, self.resolve(h.manifest, tuple[Endpoint, ...]))
+        return self.resolver.host_manifest(h)
 
     def provenance(self) -> FitProvenance | None:
-        return cast(FitProvenance | None, self.resolve(self.scenario.fit_provenance, FitProvenance))
+        return self.resolver.provenance(self.scenario)
 
     def topology(self) -> Topology | None:
-        return cast(Topology | None, self.resolve(self.scenario.topology, Topology))
+        return self.resolver.topology(self.scenario)
 
     def held(self, kind: str) -> int:
         """How many instances of ``kind`` the scenario's groups hold in all."""

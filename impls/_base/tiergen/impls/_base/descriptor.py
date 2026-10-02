@@ -10,6 +10,21 @@ from typing import Literal
 from tiergen.core.ir import Endpoint, Platform
 
 ImplKind = Literal["primitive", "service", "adapter"]
+
+
+@dataclass(frozen=True, slots=True)
+class ImplRef:
+    """A binding's choice key, ``"impl_id"`` or ``"impl_id:variant"``, taken apart."""
+
+    impl: str
+    variant: str | None
+
+    @staticmethod
+    def parse(text: str) -> "ImplRef":
+        impl, _, variant = text.partition(":")
+        return ImplRef(impl, variant or None)
+
+
 FingerprintRole = Literal["client", "server"]
 
 

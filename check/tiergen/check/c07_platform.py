@@ -9,6 +9,7 @@ from collections.abc import Iterator
 
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic, error
+from tiergen.impls._base import ImplRef
 
 ID = "C07"
 
@@ -44,7 +45,7 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
 
         for j, selection in enumerate(binding.impls):
             for choice in ctx.choices(selection) or {}:
-                impl = ctx.impls.get(choice.split(":", 1)[0])
+                impl = ctx.impls.get(ImplRef.parse(choice).impl)
                 if impl is None:
                     continue  # check 8 reports it
                 path = f"bindings[{i}].impls[{j}].choices[{choice!r}]"

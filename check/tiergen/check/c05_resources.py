@@ -7,7 +7,7 @@ defaulted: a scenario that names a resource it does not have is ill formed.
 from collections.abc import Iterator
 from typing import Any
 
-from tiergen.check.context import Context, Floats
+from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic, error
 from tiergen.core.codec import CodecError, decode
 from tiergen.core.ir import (
@@ -19,6 +19,7 @@ from tiergen.core.ir import (
     FitProvenance,
     Topology,
 )
+from tiergen.core.resolve import Floats
 
 ID = "C05"
 

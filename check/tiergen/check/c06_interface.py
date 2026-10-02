@@ -9,10 +9,10 @@ from collections.abc import Iterator
 
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic, error
-from tiergen.core.ir import Binding, Endpoint
+from tiergen.core.ir import Binding, Endpoint, HostRef
+from tiergen.impls._base import ImplRef
 
 ID = "C06"
-CUSTOM = ("image:", "template:")
 
 
 def _served_by_default_host(ctx: Context, binding: Binding) -> set[Endpoint]:
@@ -26,7 +26,7 @@ def _served_by_default_host(ctx: Context, binding: Binding) -> set[Endpoint]:
         tables = [
             set(impl.service.served)
             for choice in ctx.choices(selection) or {}
-            if (impl := ctx.impls.get(choice.split(":", 1)[0])) and impl.service
+            if (impl := ctx.impls.get(ImplRef.parse(choice).impl)) and impl.service
         ]
         if tables:
             common = tables[0]
@@ -55,10 +55,18 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
             continue
         path = f"bindings[{s.bindings.index(binding)}]"
         host = binding.host
-        if host.ref == "default":
+        parsed = HostRef.parse(host.ref)
+        if parsed is None:
+            yield error(
+                ID,
+                f"{path}.host.ref",
+                f"{host.ref!r} is not 'default', 'image:<ref>' or 'template:<ref>'",
+            )
+            continue
+        if parsed.kind == "default":
             served = _served_by_default_host(ctx, binding)
             source = "its selected service implementations"
-        elif host.ref.startswith(CUSTOM) and host.ref.split(":", 1)[1]:
+        else:
             if host.manifest is None and not kind.serves:
                 continue  # nothing to serve, nothing to declare
             if host.manifest is None:
@@ -73,13 +81,6 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                 continue
             served = set(manifest)
             source = f"manifest {host.manifest!r}"
-        else:
-            yield error(
-                ID,
-                f"{path}.host.ref",
-                f"{host.ref!r} is not 'default', 'image:<ref>' or 'template:<ref>'",
-            )
-            continue
         for endpoint in kind.serves:
             if endpoint not in served:
                 yield error(

@@ -138,6 +138,27 @@ class ActorKind:
     forwards: bool = False
 
 
+HostRefKind = Literal["default", "image", "template"]
+
+
+@dataclass(frozen=True, slots=True)
+class HostRef:
+    """``Host.ref`` taken apart: "default", or "image:<ref>" / "template:<ref>" with the ref."""
+
+    kind: HostRefKind
+    ref: str
+
+    @staticmethod
+    def parse(text: str) -> "HostRef | None":
+        """None if ``text`` is none of the three forms, or names an empty ref."""
+        if text == "default":
+            return HostRef("default", "")
+        kind, _, ref = text.partition(":")
+        if kind in ("image", "template") and ref:
+            return HostRef(kind, ref)  # pyright: ignore[reportArgumentType]
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class Host:
     """Where instances of a kind run.
