@@ -18,6 +18,8 @@ no version numbers.
   interface order is deterministic, and everything is labelled so `down` needs no state.
   docker-py 7.2 with types-docker, behind one facade module checked at basic strictness, as
   z3 was; `scripts/check_stubs.py` keeps the two in step.
+  The backend refuses a daemon that runs Windows containers (the Windows CI runner has one),
+  since Windows containers are a later task.
 - **workspace**: pre-commit hooks run `uv run --frozen`, so a hook never rewrites `uv.lock`.
 - **core**: groups. **Breaking:** IR JSON written before this does not load. `Scenario.instances`
   and `Topology.attachments` are gone; a `Group` holds instance counts, data-plane attachments
