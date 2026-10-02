@@ -56,7 +56,7 @@ Atk = kind(
         semi_markov(
             "recon",
             states=["idle", "syn_scan"],
-            initial=[1.0, 0.0],
+            initial=[0.0, 1.0],  # scans as soon as recon starts, then idles between scans
             transitions=[[0.0, 1.0], [1.0, 0.0]],
             dwell=[dist("exponential", [300.0]), dist("exponential", [30.0])],
             action_map={
@@ -100,7 +100,7 @@ S = scenario(
         [Lan, Mgmt], [capture_point("lan-span", Lan)], {"lab/web_server[0]": "10.20.0.80"}
     ),
     egress="none",
-    schedule=[at(0, Lab, "start", "browse", kind=Ws), at(600, Lab, "start", "recon", kind=Atk)],
+    schedule=[at(0, Lab, "start", "browse", kind=Ws), at(30, Lab, "start", "recon", kind=Atk)],
     start="2026-10-05T08:00:00+02:00",
     duration_s=3600,
     capture_points=["lan-span"],
