@@ -5,11 +5,11 @@ else, so it never sees a resource name, never resolves a tie, and never derives 
 The program is data: a run is reproducible from the run directory and the seed.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
 from tiergen.core.addressing import AddressPlan
-from tiergen.core.groups import instance_ids, targets
+from tiergen.core.groups import instance_ids, select, targets
 from tiergen.core.ir import (
     Action,
     Choice,
@@ -18,6 +18,7 @@ from tiergen.core.ir import (
     ParamScalar,
     Platform,
     Scenario,
+    ScheduleEvent,
     Select,
     Topology,
 )
@@ -54,10 +55,13 @@ class Program:
     """One instance's projected program.
 
     ``impls`` maps each signature the instance may run to its weighted implementation
-    choices; ``peers`` maps each tie to the instances it reaches, with their address on the
+    choices; ``services`` are the server signatures among them, which the agent starts at
+    boot. ``peers`` maps each tie to the instances it reaches, with their address on the
     segment the source shares with them or routes to, and what they serve. ``routes`` are
-    the static routes the host installs. ``credentials`` names the resource the
-    implementations authenticate with, by name: its contents are theirs, not the agent's.
+    the static routes the host installs. ``schedule`` is the scenario's schedule narrowed to
+    the events that select this instance, so the agent owns its own timeline.
+    ``credentials`` names the resource the implementations authenticate with, by name: its
+    contents are theirs, not the agent's.
     """
 
     scenario: str
@@ -71,8 +75,10 @@ class Program:
     duration_s: float
     behaviours: tuple[ResolvedBehaviour, ...]
     impls: dict[str, dict[str, float]]
+    services: tuple[str, ...]
     peers: dict[str, tuple[Peer, ...]]
     routes: tuple[Route, ...]
+    schedule: tuple[ScheduleEvent, ...]
     forwards: bool
     credentials: str | None
 
@@ -116,11 +122,20 @@ def build_programs(
     plan: AddressPlan,
     routes: RoutePlan,
     resolver: Resolver,
+    server_signatures: Collection[str],
 ) -> dict[str, Program]:
-    """One program per instance, keyed by instance id. The scenario has passed the checks."""
+    """One program per instance, keyed by instance id. The scenario has passed the checks.
+
+    ``server_signatures`` are the signature ids with role ``server`` (from ``tiergen.protocols``,
+    which core does not import), so the program can say which bindings are services.
+    """
     kinds = {k.name: k for k in scenario.kinds}
     bindings = {b.kind: b for b in scenario.bindings}
     data = {seg.name for seg in topology.segments if seg.plane == "data"}
+    selected: dict[str, list[ScheduleEvent]] = {}
+    for event in scenario.schedule:
+        for instance in select(scenario, event.target) or []:
+            selected.setdefault(instance, []).append(event)
     programs: dict[str, Program] = {}
     for path, kind_name, instance in instance_ids(scenario):
         kind = kinds[kind_name]
@@ -188,8 +203,10 @@ def build_programs(
             duration_s=scenario.duration_s,
             behaviours=tuple(behaviours),
             impls=impls,
+            services=tuple(s for s in impls if s in server_signatures),
             peers=peers,
             routes=routes.routes.get(instance, ()),
+            schedule=tuple(selected.get(instance, ())),
             forwards=kind.forwards,
             credentials=binding.credentials,
         )

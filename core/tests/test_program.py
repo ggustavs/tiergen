@@ -12,6 +12,7 @@ from tiergen.core.resources import DirResources
 from tiergen.core.routing import plan_routes
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
+SERVERS = frozenset({"http.serve", "dns.serve", "smb.serve", "kerberos.serve", "ssh.serve"})
 
 
 def _programs(name: str) -> dict[str, Program]:
@@ -21,7 +22,7 @@ def _programs(name: str) -> dict[str, Program]:
     assert topology is not None
     plan, _ = plan_addresses(scenario, topology)
     routes, _ = plan_routes(scenario, topology, plan)
-    return build_programs(scenario, topology, plan, routes, resolver)
+    return build_programs(scenario, topology, plan, routes, resolver, SERVERS)
 
 
 def test_hq_lan_programs_have_every_resource_inlined() -> None:
@@ -42,6 +43,11 @@ def test_hq_lan_programs_have_every_resource_inlined() -> None:
     assert len(ws.peers["fs"]) == 2
     assert (ws.group, ws.kind, ws.platform) == ("hq", "workstation", "windows")
     assert ws.credentials is None
+    assert ws.services == ()
+    assert [(e.at_s, e.op, e.arg) for e in ws.schedule] == [(0.0, "start", "office")]
+    web = programs["hq/intranet_web[0]"]
+    assert web.services == ("http.serve",)
+    assert web.schedule == ()
 
 
 def test_two_teams_peers_are_reached_on_the_routed_segment() -> None:
@@ -73,4 +79,4 @@ def test_a_missing_resource_is_an_error_not_a_default() -> None:
     plan, _ = plan_addresses(scenario, topology)
     routes, _ = plan_routes(scenario, topology, plan)
     with pytest.raises(UnresolvedError, match="office"):
-        build_programs(scenario, topology, plan, routes, resolver)
+        build_programs(scenario, topology, plan, routes, resolver, SERVERS)
