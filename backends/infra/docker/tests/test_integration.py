@@ -1,12 +1,14 @@
-"""Against a real daemon: linux_slice up, addressed as planned, and down without a trace.
+"""Against a real daemon: linux_slice up, browsing and scanning, and down without a trace.
 
-Skipped when no daemon is reachable. Runs the whole example, so it also pulls the base
-image the first time.
+Skipped when no daemon is reachable. Runs the whole example, so it also builds the agent
+image the first time, which takes a few minutes.
 """
 
 import json
+import os
 import subprocess
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from dataclasses import replace
 from pathlib import Path
 
@@ -16,7 +18,9 @@ from tiergen.backends.infra.docker._client import DaemonClient
 from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
 from tiergen.cli.main import main
 from tiergen.core.codec import from_json
+from tiergen.core.records import InvocationRecord
 from tiergen.interfaces import BackendError, RunManifest
+from tiergen.runtime.agent_linux.records import read_records
 
 EXAMPLES = Path(__file__).parents[4] / "examples"
 pytestmark = pytest.mark.docker
@@ -50,49 +54,101 @@ def _docker(*args: str) -> str:
     return subprocess.run(["docker", *args], check=True, capture_output=True, text=True).stdout
 
 
-def test_linux_slice_comes_up_as_planned_and_goes_down_without_a_trace(
+def _wait(
+    path: Path, wanted: Callable[[list[InvocationRecord]], bool], seconds: float
+) -> list[InvocationRecord]:
+    deadline = time.monotonic() + seconds
+    while True:
+        records = read_records(path) if path.is_file() else []
+        if wanted(records) or time.monotonic() > deadline:
+            return records
+        time.sleep(2)
+
+
+def _release(out: Path) -> None:
+    """The agents ran as root, so their files are root's; hand them back before cleanup."""
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{out}:/o",
+            "alpine",
+            "chown",
+            "-R",
+            f"{os.getuid()}:{os.getgid()}",
+            "/o",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
     run_dir: Path, manifest: RunManifest, daemon: DaemonClient
 ) -> None:
     plan = json.loads((run_dir / "addresses.json").read_text())
     backend = DockerBackend()
-    backend.up(manifest, run_dir)
+    state = backend.up(manifest, run_dir)
+    try:
+        assert state.images["tiergen/base-linux"].startswith("sha256:")
+        run = {"tiergen.run": manifest.run}
+        assert sorted(daemon.containers(run)) == sorted(
+            container_name(manifest.run, h.instance) for h in manifest.hosts
+        )
+        for host in manifest.hosts:
+            got = daemon.addresses(container_name(manifest.run, host.instance))
+            want = {
+                network_name(manifest.run, n): a
+                for n, a in plan["addresses"][host.instance].items()
+            }
+            assert got == want, host.instance
+        lan = json.loads(_docker("network", "inspect", network_name(manifest.run, "lan")))[0]
+        assert lan["Internal"] is True
+        assert lan["IPAM"]["Config"][0] == {"Subnet": "10.20.0.0/24", "Gateway": "10.20.0.1"}
 
-    run = {"tiergen.run": manifest.run}
-    assert sorted(daemon.containers(run)) == sorted(
-        container_name(manifest.run, h.instance) for h in manifest.hosts
-    )
-    for host in manifest.hosts:
-        got = daemon.addresses(container_name(manifest.run, host.instance))
-        want = {
-            network_name(manifest.run, n): a for n, a in plan["addresses"][host.instance].items()
-        }
-        assert got == want, host.instance
-    lan = json.loads(_docker("network", "inspect", network_name(manifest.run, "lan")))[0]
-    assert lan["Internal"] is True
-    assert lan["IPAM"]["Config"][0] == {"Subnet": "10.20.0.0/24", "Gateway": "10.20.0.1"}
-
-    # The web server is reachable on the data plane: nothing listens yet, so the connection
-    # is refused rather than timing out, which is what reachability looks like at this stage.
-    ws = container_name(manifest.run, "lab/workstation[0]")
-    probe = (
-        "import socket,sys\ns=socket.socket();s.settimeout(3)\n"
-        "try:\n s.connect(('10.20.0.80',80))\nexcept ConnectionRefusedError:\n sys.exit(0)\n"
-        "except OSError as e:\n sys.exit(2)\nsys.exit(0)"
-    )
-    code = subprocess.run(
-        [
-            "docker",
-            "exec",
-            ws,
-            "sh",
-            "-c",
-            f'command -v python3 >/dev/null || exit 3; python3 -c "{probe}"',
-        ],
-        capture_output=True,
-    ).returncode
-    assert code in (0, 3)  # 3: the base image has no python; the address assertions above stand
-
-    backend.down(manifest)
+        # The workstation browses the web server; the attacker scans it once recon starts.
+        out = run_dir / "out"
+        browsed = _wait(
+            out / "lab-workstation-0" / "invocations.jsonl",
+            lambda rs: any(r.outcome == "succeeded" for r in rs),
+            120,
+        )
+        assert browsed, (out / "lab-workstation-0" / "agent.log").read_text()
+        first = browsed[0]
+        assert (first.key.behaviour, first.key.action, first.key.impl) == (
+            "browse",
+            "web_get",
+            "http.httpx",
+        )
+        assert first.key.invocation == "lab/workstation[0]/browse#1"
+        assert first.key.targets == ("lab/web_server[0]",)
+        assert first.principal.platform == "linux"
+        # A cgroup per invocation, or the log says why the process id stands in for it.
+        ws_log = (out / "lab-workstation-0" / "agent.log").read_text()
+        if "attribution keys are process ids" in ws_log:
+            assert first.principal.principal.startswith("pid:"), ws_log
+        else:
+            assert first.principal.principal.startswith(
+                "cgroup:/tiergen/lab-workstation[0]-browse#"
+            ), ws_log
+        scanned = _wait(
+            out / "lab-attacker-0" / "invocations.jsonl",
+            lambda rs: any(r.outcome == "succeeded" for r in rs),
+            120,
+        )
+        assert scanned, (out / "lab-attacker-0" / "agent.log").read_text()
+        assert scanned[0].key.action == "syn_scan"
+        assert scanned[0].key.impl == "scan.nmap"
+        access = (out / "lab-web_server-0" / "http.nginx" / "access.log").read_text()
+        assert plan["addresses"]["lab/workstation[0]"]["lan"] in access
+        assert "GET /" in access
+        web_log = (out / "lab-web_server-0" / "agent.log").read_text()
+        assert "http.nginx serves http/80, https/443" in web_log
+    finally:
+        backend.down(manifest)
+        _release(run_dir / "out")
     assert daemon.containers(run) == []
     assert daemon.networks(run) == []
 
@@ -134,17 +190,21 @@ def test_routed_traffic_crosses_the_core_router(
     # The route to sales is installed, via the router's address on eng.
     routes = _docker("exec", eng_fs, "ip", "route")
     assert "10.32.0.0/24 via 10.31.0." in routes
-    # Nothing listens on sales' file server yet, so a connection is refused, not timed out:
-    # the packet got there and back through core_router. busybox nc exits 1 either way, so
-    # time it: a refusal is immediate, an unreachable address waits for the timeout.
-    probe = subprocess.run(
-        ["docker", "exec", eng_fs, "sh", "-c", f"time -p nc -z -w 3 {sales_addr} 445; echo rc=$?"],
-        capture_output=True,
-        text=True,
+    # Nothing listens on sales' file server, so a connection is refused, not timed out: the
+    # packet got there and back through core_router. A refusal is immediate; an unreachable
+    # address waits for the timeout.
+    probe = (
+        "import socket,sys,time\nt=time.monotonic();s=socket.socket();s.settimeout(3)\n"
+        f"try:\n s.connect(('{sales_addr}',445));r='open'\n"
+        "except ConnectionRefusedError: r='refused'\nexcept OSError: r='unreachable'\n"
+        "print(r, round(time.monotonic()-t,3))"
     )
-    assert "rc=1" in probe.stdout
-    real = next(line for line in probe.stderr.splitlines() if line.startswith("real"))
-    assert float(real.split()[1]) < 1.0, probe
+    result = subprocess.run(
+        ["docker", "exec", eng_fs, "python3", "-c", probe], capture_output=True, text=True
+    )
+    verdict, elapsed = result.stdout.split()
+    assert verdict == "refused", result
+    assert float(elapsed) < 1.0, result
     router = container_name(manifest.run, "corp/core_router[0]")
     forward = _docker("exec", router, "cat", "/proc/sys/net/ipv4/ip_forward")
     assert forward.strip() == "1"
