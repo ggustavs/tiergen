@@ -169,3 +169,35 @@ def test_plan_properties(cli: int, srv: int, prefix: int, pins: dict[int, int]) 
     if not problems:
         assert all(set(nets) == {"lan", "mgmt"} for nets in plan.addresses.values())
         assert len(plan.addresses) == cli + srv
+
+
+@st.composite
+def group_trees(draw: st.DrawFn) -> list[ir.Group]:
+    """Up to seven groups in a tree of depth at most three, each holding a few cli and srv on
+    the shared lan, in an order where every parent comes before its children."""
+    count = draw(st.integers(1, 7))
+    groups: list[ir.Group] = []
+    for i in range(count):
+        parent = None if i == 0 else draw(st.sampled_from([None, *[g.path for g in groups]]))
+        depth = 0 if parent is None else parent.count("/") + 1
+        if depth > 2:
+            parent = None
+        held = {"cli": draw(st.integers(0, 4)), "srv": draw(st.integers(0, 2))}
+        groups.append(ir.Group(f"g{i}", parent, held, {"cli": ("lan",), "srv": ("lan",)}, {}))
+    return groups
+
+
+@given(groups=group_trees(), pin=st.integers(2, 200))
+@settings(max_examples=100, deadline=None)
+def test_plan_over_a_group_tree(groups: list[ir.Group], pin: int) -> None:
+    s = replace(_scenario(), groups=tuple(groups))
+    ids = [i for _, _, i in instance_ids(s)]
+    addresses = {ids[0]: f"10.0.0.{pin}"} if ids else {}
+    plan, problems = plan_addresses(s, topology([LAN, MGMT], addresses=addresses))
+    assert problems == []
+    assert list(plan.addresses) == ids  # plan order is instance order, groups first
+    held = [nets["lan"] for nets in plan.addresses.values()]
+    assert len(held) == len(set(held))
+    assert all(ip_address(a) in ip_network(LAN.cidr) for a in held)
+    if ids:
+        assert plan.addresses[ids[0]]["lan"] == f"10.0.0.{pin}"
