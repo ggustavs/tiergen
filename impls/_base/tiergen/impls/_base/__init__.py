@@ -12,7 +12,7 @@ from tiergen.impls._base.descriptor import (
 from tiergen.impls._base.impl import Context, PrimitiveImpl
 from tiergen.impls._base.manifest import ManifestError, load_manifest, parse_manifest
 from tiergen.impls._base.registry import load_impls
-from tiergen.impls._base.service import ServiceImpl
+from tiergen.impls._base.service import ServiceContext, ServiceImpl
 
 __all__ = [
     "AdapterImpl",
@@ -24,6 +24,7 @@ __all__ = [
     "ImplRef",
     "ManifestError",
     "PrimitiveImpl",
+    "ServiceContext",
     "ServiceImpl",
     "ServiceTable",
     "load_impls",
