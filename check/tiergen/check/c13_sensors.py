@@ -22,8 +22,17 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
             "sensors",
             "a scenario needs at least one sensor; the sensor defines flows and events",
         )
+    names: dict[str, int] = {}
     for i, spec in enumerate(sensors):
         path = f"sensors[{i}]"
+        if spec.name in names:
+            yield error(
+                ID,
+                f"{path}.name",
+                f"sensor name {spec.name!r} is used twice (also sensors[{names[spec.name]}]); "
+                "flow ids and labels key by it",
+            )
+        names.setdefault(spec.name, i)
         descriptor = ctx.sensors.get(spec.impl)
         if descriptor is None:
             yield error(ID, f"{path}.impl", f"sensor {spec.impl!r} is not installed")

@@ -36,8 +36,18 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
                     ID, f"{path}.behaviours[{b}].process.states", f"state {name!r} is listed twice"
                 )
 
+    kind_names = {k.name for k in s.kinds}
     seen: dict[str, int] = {}
     for g, group in enumerate(s.groups):
+        if group.parent is not None and group.name in kind_names:
+            parent = next((p for p in s.groups if p.path == group.parent), None)
+            if parent is not None and parent.instances.get(group.name, 0) > 0:
+                yield error(
+                    ID,
+                    f"groups[{g}].name",
+                    f"group {group.path!r} is named like kind {group.name!r}, which its parent "
+                    "holds: a schedule target could mean either",
+                )
         if group.path in seen:
             yield error(
                 ID,

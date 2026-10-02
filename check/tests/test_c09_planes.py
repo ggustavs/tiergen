@@ -48,8 +48,9 @@ def test_capture_points_are_defined_once_on_a_real_network_and_active_ones_exist
 
 
 def test_a_run_needs_an_active_capture_point() -> None:
-    [d] = only("C09", replace(good(), capture_points=()))
-    assert d.path == "capture_points"
+    found = only("C09", replace(good(), capture_points=()))
+    assert [d.path for d in found if d.severity == "error"] == ["capture_points"]
+    assert [d.severity for d in found] == ["error", "warning"]  # and nothing is observed
 
 
 def test_a_live_sensors_interface_cannot_be_checked_yet() -> None:
@@ -60,3 +61,24 @@ def test_a_live_sensors_interface_cannot_be_checked_yet() -> None:
 
 def test_an_unresolved_topology_is_left_to_check_5() -> None:
     assert only("C05", good(), {k: v for k, v in RESOURCES.items() if k != "lan.topology"})
+
+
+def test_a_tie_no_capture_point_observes_is_a_warning() -> None:
+    on_mgmt = replace(
+        good(),
+        capture_points=("span0",),
+        topology=ir.Topology((LAN, MGMT), (ir.CapturePoint("span0", ("mgmt",)),)),
+    )
+    assert [d.severity for d in only("C09", on_mgmt)] == ["error", "warning"]
+    dmz = ir.Segment("dmz", "10.0.1.0/24", "data")
+    unseen = replace(
+        good(),
+        topology=ir.Topology((LAN, dmz, MGMT), (SPAN, ir.CapturePoint("far", ("dmz",)))),
+        capture_points=("far",),
+    )
+    found = only("C09", unseen)
+    [d] = [d for d in found if d.severity == "warning"]
+    assert d.path == "groups[0].wiring['cli.web']"
+    assert "no active capture point observes" in d.message
+    assert "3 such pair(s)" in d.message
+    assert only("C09", replace(good(), capture_points=("span0",))) == []

@@ -6,6 +6,7 @@ kind under the group) or ``path/kind[i]`` (one instance), resolved by
 """
 
 from collections.abc import Iterator
+from datetime import datetime
 
 from tiergen.check.context import Context
 from tiergen.check.diagnostics import Diagnostic, error
@@ -17,6 +18,17 @@ ID = "C12"
 def check(ctx: Context) -> Iterator[Diagnostic]:
     s = ctx.scenario
     kind_of = {instance: kind for _, kind, instance in instance_ids(s)}
+    try:
+        moment = datetime.fromisoformat(s.start)
+    except ValueError:
+        moment = None
+    if moment is None or moment.utcoffset() is None:
+        yield error(
+            ID,
+            "start",
+            f"{s.start!r} is not an ISO 8601 time with a UTC offset; the rate curves are in "
+            "the network's local time and need an hour and a weekday to anchor to",
+        )
     for e, event in enumerate(s.schedule):
         path = f"schedule[{e}]"
         if not 0 <= event.at_s <= s.duration_s:
@@ -40,9 +52,13 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
         if event.op in ("start", "stop"):
             if not isinstance(arg, str):
                 yield error(ID, f"{path}.arg", f"{event.op} takes the name of a behaviour")
-            elif kinds and not any(arg in {b.name for b in k.behaviours} for k in kinds):
-                names = ", ".join(k.name for k in kinds)
-                yield error(ID, f"{path}.arg", f"no behaviour {arg!r} on {names}")
+            elif lacking := [k.name for k in kinds if arg not in {b.name for b in k.behaviours}]:
+                yield error(
+                    ID,
+                    f"{path}.arg",
+                    f"no behaviour {arg!r} on {', '.join(lacking)}; every targeted kind "
+                    "must have it",
+                )
         elif event.op == "set_rate":
             if isinstance(arg, str) or arg is None or arg < 0:
                 yield error(ID, f"{path}.arg", "set_rate takes a non-negative rate multiplier")

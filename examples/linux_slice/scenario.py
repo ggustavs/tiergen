@@ -40,7 +40,9 @@ Ws = kind(
             dwell=[dist("exponential", [20.0]), dist("exponential", [2.0])],
             action_map={
                 "idle": None,
-                "web_get": action("http.get", "web", {"path": choice(["/", "/news"], [0.8, 0.2])}),
+                "web_get": action(
+                    "http.get", "web", {"path": choice(["/", "/news"], [0.8, 0.2])}, select="one"
+                ),
             },
         )
     ],
@@ -59,7 +61,7 @@ Atk = kind(
             dwell=[dist("exponential", [300.0]), dist("exponential", [30.0])],
             action_map={
                 "idle": None,
-                "syn_scan": action("scan.tcp_syn", "targets", {"ports": "1-1024"}),
+                "syn_scan": action("scan.tcp_syn", "targets", {"ports": "1-1024"}, select="all"),
             },
         )
     ],
@@ -78,14 +80,20 @@ S = scenario(
     groups=[Lab],
     bindings={
         Ws: binding(
-            host("linux", "container", backend="docker"), {"http.get": {"http.httpx": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"http.get": {"http.httpx": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Web: binding(
-            host("linux", "container", backend="docker"), {"http.serve": {"http.nginx": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"http.serve": {"http.nginx": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         # nmap's SYN scan opens raw sockets; Docker can grant a container net_raw.
         Atk: binding(
-            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"scan.tcp_syn": {"scan.nmap": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
     },
     topology=topology(

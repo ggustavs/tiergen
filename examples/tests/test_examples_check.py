@@ -74,7 +74,8 @@ def test_hq_lan_capgap_warns_about_smb_dialect_and_nothing_else() -> None:
 
 def test_hq_lan_broken_fails_the_six_checks_it_was_broken_for() -> None:
     errors = [d for d in _summary(_check("hq_lan_broken")) if d[1] == "error"]
-    assert errors == [
+    assert {c for c, _, _ in errors} == {"C01", "C04", "C05", "C09", "C10", "C12"}
+    deliberate = [
         ("C01", "error", "groups[0].wiring['workstation.dc']"),
         ("C01", "error", "groups[0].wiring['attacker.dc']"),
         ("C04", "error", "kinds[4].behaviours[0].process.transitions[0]"),
@@ -83,3 +84,11 @@ def test_hq_lan_broken_fails_the_six_checks_it_was_broken_for() -> None:
         ("C10", "error", "topology.segments"),
         ("C12", "error", "schedule[1].at_s"),
     ]
+    assert [e for e in errors if e in deliberate] == deliberate
+    # The /26 leaves hosts unaddressed, and an unaddressed host reaches nothing: consequences,
+    # reported under check 10 as well.
+    assert all(
+        c == "C10" and p.startswith("groups[0].wiring")
+        for c, _, p in errors
+        if (c, "error", p) not in deliberate
+    )

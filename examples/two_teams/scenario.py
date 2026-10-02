@@ -5,6 +5,9 @@ server over the ``fs`` tie and the organisation's domain controller over ``dc``,
 each team's group wires them so; the packets cross ``core_router``, the one host that
 forwards, which is attached to all three LANs. Nothing is looked up by walking the tree;
 ``team()`` passes the site in, the way a Terraform module takes its dependencies as inputs.
+
+The sensor sits on a SPAN of the core switch's trunk, so it sees all three VLANs, tagged,
+and a routed flow twice: once on each VLAN it crosses.
 """
 
 from tiergen.core.dsl import (
@@ -74,13 +77,16 @@ Atk = kind(
             initial=[1.0, 0.0],
             transitions=[[0.0, 1.0], [1.0, 0.0]],
             dwell=[dist("exponential", [600.0]), dist("exponential", [45.0])],
-            action_map={"idle": None, "scan": action("scan.tcp_syn", "victims", {"ports": "445"})},
+            action_map={
+                "idle": None,
+                "scan": action("scan.tcp_syn", "victims", {"ports": "445"}, select="all"),
+            },
         )
     ],
     platforms=["linux"],
 )
 
-Core = segment("core", "10.30.0.0/24")
+Core = segment("core", "10.30.0.0/24", vlan=10)
 Mgmt = segment("mgmt", "10.97.0.0/24", "management")
 
 
@@ -96,8 +102,8 @@ def team(name: str, site: str, lan: Segment, workstations: int) -> GroupHandle:
     )
 
 
-EngNet = segment("eng", "10.31.0.0/24")
-SalesNet = segment("sales", "10.32.0.0/24")
+EngNet = segment("eng", "10.31.0.0/24", vlan=20)
+SalesNet = segment("sales", "10.32.0.0/24", vlan=30)
 Eng = team("eng", "corp", EngNet, workstations=12)
 Sales = team("sales", "corp", SalesNet, workstations=8)
 Corp = group(
@@ -118,10 +124,13 @@ S = scenario(
                 "template:win2022-dc",
                 backend="libvirt",
                 manifest=resource("two_teams.dc_manifest"),
-            )
+            ),
+            mac_oui="00:15:5d",
         ),
         Fs: binding(
-            host("linux", "container", backend="docker"), {"smb.serve": {"smb.samba": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"smb.serve": {"smb.samba": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
         Ws: binding(
             host("windows", "vm", "template:win11-workstation", backend="libvirt"),
@@ -129,13 +138,19 @@ S = scenario(
                 "smb.read": {"smb.windows_native": 1.0},
                 "kerberos.tgs": {"smb.windows_native": 1.0},
             },
+            mac_oui="00:15:5d",
         ),
         Atk: binding(
-            host("linux", "container", backend="docker"), {"scan.tcp_syn": {"scan.nmap": 1.0}}
+            host("linux", "container", backend="docker"),
+            {"scan.tcp_syn": {"scan.nmap": 1.0}},
+            mac_oui="3c:ec:ef",
         ),
-        Rt: binding(host("linux", "container", backend="docker")),
+        Rt: binding(host("linux", "container", backend="docker"), mac_oui="3c:ec:ef"),
     },
-    topology=topology([Core, EngNet, SalesNet, Mgmt], [capture_point("core-span", Core)]),
+    topology=topology(
+        [Core, EngNet, SalesNet, Mgmt],
+        [capture_point("core-span", [Core, EngNet, SalesNet], tagged=True)],
+    ),
     egress="none",
     schedule=[at(0, Corp, "start", "office", kind=Ws), at(3600, Corp, "start", "recon", kind=Atk)],
     start="2026-10-05T08:00:00+02:00",
