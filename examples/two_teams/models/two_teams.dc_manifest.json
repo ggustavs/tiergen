@@ -1,0 +1,1 @@
+[{"protocol": "kerberos", "port": 88, "transport": "tcp"}, {"protocol": "smb", "port": 445, "transport": "tcp"}]

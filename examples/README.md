@@ -1,13 +1,14 @@
 # Examples
 
-Three versions of one small Active Directory LAN, and a three-host Linux slice, written with
-the builders in `tiergen.core.dsl`. Each directory holds a `scenario.py` and the `models/` it refers to.
+Three versions of one small Active Directory LAN, a three-host Linux slice, and an
+organisation of two teams, written with the builders in `tiergen.core.dsl`. Each directory holds a `scenario.py` and the `models/` it refers to.
 
 | directory | what it shows | `tiergen check` |
 |---|---|---|
 | `hq_lan/` | a well-formed scenario | passes |
 | `hq_lan_capgap/` | `fit` relied on a capability the label sensor lacks | passes with a check 14 warning |
 | `linux_slice/` | a workstation, a web server and an attacker, all Linux containers; written inline, topology included | passes |
+| `two_teams/` | one organisation, two teams built by a function; each team's workstations wired to their own file server | passes |
 | `hq_lan_broken/` | six deliberate mistakes, listed at the top of its `scenario.py` | fails checks 1, 4, 5, 9, 10 and 12 |
 
 ```
