@@ -89,8 +89,8 @@ def test_build_writes_a_self_contained_run_directory(
 
     plan = json.loads((out / "addresses.json").read_text())
     assert plan["gateways"] == {"lan": "10.20.0.1", "mgmt": "10.98.0.1"}
-    assert plan["addresses"]["web_server[0]"] == {"lan": "10.20.0.80", "mgmt": "10.98.0.3"}
-    assert plan["addresses"]["workstation[0]"] == {"lan": "10.20.0.2", "mgmt": "10.98.0.2"}
+    assert plan["addresses"]["lab/web_server[0]"] == {"lan": "10.20.0.80", "mgmt": "10.98.0.3"}
+    assert plan["addresses"]["lab/workstation[0]"] == {"lan": "10.20.0.2", "mgmt": "10.98.0.2"}
 
     # The run directory checks on its own: IR as JSON, with its resources beside it.
     assert main(["check", str(out / "scenario.json")]) == 0

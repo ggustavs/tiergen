@@ -1,61 +1,81 @@
 from dataclasses import replace
-from itertools import product
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
-from support import good, only, with_kind
+from support import good, only, with_group, with_kind
 
-from tiergen.check._solver import unsatisfiable
 from tiergen.core import ir
 
 
-def test_single_tie_to_a_kind_with_no_instances() -> None:
-    s = replace(good(), instances={"cli": 3, "srv": 0})
-    [d] = only("C01", s)
-    assert d.severity == "error"
-    assert d.path == "kinds[0].ties[0]"
-    assert "no 'srv'" in d.message
+def test_single_tie_wired_to_a_group_holding_none_of_its_target() -> None:
+    [d] = only("C01", with_group(good(), 0, instances={"cli": 3, "srv": 0}))
+    assert (d.severity, d.path) == ("error", "groups[0].wiring['cli.web']")
+    assert "exactly one 'srv'; 'lan' hold 0" in d.message
 
 
-def test_single_tie_is_fine_when_the_source_has_no_instances_either() -> None:
-    s = replace(good(), instances={"cli": 0, "srv": 0}, schedule=())
-    assert only("C01", s) == []
+def test_single_tie_wired_to_groups_holding_two() -> None:
+    [d] = only("C01", with_group(good(), 0, instances={"cli": 3, "srv": 2}))
+    assert "'lan' hold 2" in d.message
 
 
-def test_multiple_and_optional_ties_accept_zero_targets() -> None:
-    for multiplicity in ("multiple", "optional"):
-        s = with_kind(good(), 0, ties=(ir.Tie("web", "srv", multiplicity),))
-        assert only("C01", replace(s, instances={"cli": 3, "srv": 0})) == []
+def test_nothing_held_means_nothing_to_wire() -> None:
+    s = with_group(good(), 0, instances={"cli": 0, "srv": 0}, wiring={})
+    assert only("C01", replace(s, schedule=())) == []
+
+
+def test_multiple_accepts_any_count_and_optional_at_most_one() -> None:
+    s = with_kind(good(), 0, ties=(ir.Tie("web", "srv", "multiple"),))
+    assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 0})) == []
+    assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 5})) == []
+    s = with_kind(good(), 0, ties=(ir.Tie("web", "srv", "optional"),))
+    assert only("C01", with_group(s, 0, instances={"cli": 3, "srv": 0})) == []
+    [d] = only("C01", with_group(s, 0, instances={"cli": 3, "srv": 2}))
+    assert "at most one 'srv'; 'lan' hold 2" in d.message
+
+
+def test_a_tie_left_unwired_is_an_error_not_a_lookup() -> None:
+    [d] = only("C01", with_group(good(), 0, wiring={}))
+    assert d.path == "groups[0].wiring"
+    assert "cli.web is not wired" in d.message
+
+
+def test_wiring_counts_across_the_named_groups() -> None:
+    s = good()
+    lan = s.groups[0]
+    site = ir.Group("site", None, {"srv": 1}, {"srv": ("lan",)}, {})
+    team = replace(
+        lan, name="team", parent="site", instances={"cli": 2}, wiring={"cli.web": ("site",)}
+    )
+    assert only("C01", replace(s, groups=(site, team), schedule=())) == []
+    both = replace(team, instances={"cli": 2, "srv": 1}, wiring={"cli.web": ("site", "site/team")})
+    [d] = only("C01", replace(s, groups=(site, both), schedule=()))
+    assert "'site', 'site/team' hold 2" in d.message
+
+
+def test_wiring_to_a_group_that_does_not_exist_or_to_nothing() -> None:
+    [d] = only("C01", with_group(good(), 0, wiring={"cli.web": ("mars",)}))
+    assert "'mars' is not a group" in d.message
+    [d] = only("C01", with_group(good(), 0, wiring={"cli.web": ()}))
+    assert "wired to no group" in d.message
+
+
+def test_wiring_keys_name_held_kinds_and_their_ties() -> None:
+    s = with_group(
+        good(), 0, wiring={"cli.web": ("lan",), "cli.nope": ("lan",), "srv.web": ("lan",)}
+    )
+    found = {d.path: d.message for d in only("C01", s)}
+    assert "no tie 'nope'" in found["groups[0].wiring['cli.nope']"]
+    assert "no tie 'web'" in found["groups[0].wiring['srv.web']"]
 
 
 def test_unknown_tie_target() -> None:
     s = with_kind(
         good(), 0, ties=(ir.Tie("web", "srv", "single"), ir.Tie("dc", "ghost", "multiple"))
     )
+    s = with_group(s, 0, wiring={"cli.web": ("lan",), "cli.dc": ("lan",)})
     [d] = only("C01", s)
     assert d.path == "kinds[0].ties[1].target_kind"
 
 
-def test_instance_counts_must_cover_exactly_the_kinds() -> None:
-    s = replace(good(), instances={"cli": 3, "ghost": 1, "srv": -1}, schedule=())
-    found = {(d.path, d.severity) for d in only("C01", s)}
-    assert found == {("instances['ghost']", "error"), ("instances['srv']", "error")}
-    [d] = only("C01", replace(good(), instances={"srv": 1}, schedule=()))
-    assert d.path == "instances"
-    assert "'cli'" in d.message
-
-
-KINDS = ["a", "b", "c"]
-PAIRS = [(x, y) for x, y in product(KINDS, KINDS) if x != y]
-
-
-@given(
-    counts=st.fixed_dictionaries({k: st.integers(0, 3) for k in KINDS}),
-    needs=st.lists(st.sampled_from(PAIRS), max_size=5),
-)
-@settings(max_examples=60, deadline=None)
-def test_solver_agrees_with_arithmetic(
-    counts: dict[str, int], needs: list[tuple[str, str]]
-) -> None:
-    expected = [i for i, (src, tgt) in enumerate(needs) if counts[src] > 0 and counts[tgt] < 1]
-    assert unsatisfiable(counts, needs) == expected
+def test_instance_counts_name_kinds_and_are_not_negative() -> None:
+    s = with_group(good(), 0, instances={"cli": 3, "ghost": 1, "srv": -1})
+    found = {d.path for d in only("C01", replace(s, schedule=())) if "instances" in d.path}
+    assert found == {"groups[0].instances['ghost']", "groups[0].instances['srv']"}

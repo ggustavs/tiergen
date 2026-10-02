@@ -50,7 +50,7 @@ def check(ctx: Context) -> Iterator[Diagnostic]:
     for k, kind in enumerate(s.kinds):
         binding = ctx.binding(kind.name)
         if binding is None:
-            if s.instances.get(kind.name, 0) > 0:
+            if ctx.held(kind.name):
                 yield error(ID, f"kinds[{k}]", f"kind {kind.name!r} has instances but no binding")
             continue
         path = f"bindings[{s.bindings.index(binding)}]"

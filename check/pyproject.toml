@@ -8,7 +8,6 @@ dependencies = [
     "tiergen-protocols",
     "tiergen-interfaces",
     "tiergen-impls-base",
-    "z3-solver",
 ]
 
 [build-system]
