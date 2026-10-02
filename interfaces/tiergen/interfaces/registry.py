@@ -8,11 +8,12 @@ without being able to run any of it.
 from importlib.metadata import entry_points
 from typing import Protocol
 
-from tiergen.interfaces.infra import InfraDescriptor
+from tiergen.interfaces.infra import InfraBackend, InfraDescriptor
 from tiergen.interfaces.sensor import SensorDescriptor
 
 GROUP = "tiergen.sensors"
 INFRA_GROUP = "tiergen.infra"
+INFRA_BACKEND_GROUP = "tiergen.infra.backends"
 
 
 class _HasId(Protocol):
@@ -46,3 +47,27 @@ def load_sensors() -> dict[str, SensorDescriptor]:
 def load_infra() -> dict[str, InfraDescriptor]:
     """Every installed infrastructure backend descriptor, by id."""
     return load_group(INFRA_GROUP, InfraDescriptor)
+
+
+def load_infra_backends(only: set[str] | None = None) -> dict[str, InfraBackend]:
+    """The installed infrastructure backend runtimes, by id, each constructed.
+
+    Unlike a descriptor, a backend has a runtime behind it, so ``only`` names the ids to
+    load and the rest are not imported.
+    """
+    found: dict[str, InfraBackend] = {}
+    for ep in entry_points(group=INFRA_BACKEND_GROUP):
+        if only is not None and ep.name not in only:
+            continue
+        backend = ep.load()()
+        if not isinstance(backend, InfraBackend):
+            raise TypeError(
+                f"entry point {ep.name!r} in {INFRA_BACKEND_GROUP} is not an InfraBackend"
+            )
+        if backend.id != ep.name:
+            raise ValueError(
+                f"entry point {ep.name!r} in {INFRA_BACKEND_GROUP} names a backend "
+                f"with id {backend.id!r}"
+            )
+        found[backend.id] = backend
+    return found

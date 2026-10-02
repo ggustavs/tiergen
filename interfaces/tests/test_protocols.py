@@ -4,13 +4,14 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 from tiergen.core.events import ConnEvent, Event, FiveTuple, SensorFlowId
-from tiergen.core.ir import HostType, Platform, Scenario
+from tiergen.core.ir import Platform
 from tiergen.interfaces import (
     AttributionBackend,
     AttributionRecord,
     Capability,
     CapabilityInfo,
     InfraBackend,
+    RunManifest,
     Sensor,
 )
 
@@ -46,18 +47,16 @@ class FlowOnlySensor:
 
 class NoInfra:
     id = "none"
+    seen: list[str]
 
-    def platforms(self) -> frozenset[tuple[Platform, HostType]]:
-        return frozenset()
+    def __init__(self) -> None:
+        self.seen = []
 
-    def grantable(self, platform: Platform, host_type: HostType) -> frozenset[str]:
-        return frozenset()
+    def up(self, manifest: RunManifest) -> None:
+        self.seen.append(f"up {manifest.run}")
 
-    def plan(self, scenario: Scenario, run_dir: Path) -> None: ...
-
-    def up(self, run_dir: Path) -> None: ...
-
-    def down(self, run_dir: Path) -> None: ...
+    def down(self, manifest: RunManifest) -> None:
+        self.seen.append(f"down {manifest.run}")
 
 
 class NoAttribution:
@@ -82,7 +81,8 @@ def test_a_flow_only_sensor_meets_the_interface() -> None:
 def test_infra_and_attribution_fakes_meet_their_interfaces() -> None:
     infra: InfraBackend = NoInfra()
     attribution: AttributionBackend = NoAttribution()
-    assert infra.platforms() == frozenset()
+    infra.up(RunManifest("r", "none", (), ()))
+    assert isinstance(infra, InfraBackend)
     assert [r.host for r in attribution.collect("h1")] == ["h1"]
 
 

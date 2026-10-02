@@ -1,14 +1,10 @@
-"""The infrastructure backend interface. No implementation lives in this package.
-
-The method set is the smallest the M0 checker and the M1 scheduler need; M1's first
-backends will refine it.
-"""
+"""The infrastructure backend interface and its descriptor. No implementation lives here."""
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
-from tiergen.core.ir import HostType, Platform, Scenario
+from tiergen.core.ir import HostType, Platform
+from tiergen.interfaces.manifest import RunManifest
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,30 +38,28 @@ class InfraDescriptor:
         )
 
 
+@runtime_checkable
 class InfraBackend(Protocol):
-    """Brings a scenario's hosts and networks up and down on some substrate."""
+    """Brings the hosts and networks of a run manifest up and down on some substrate.
+
+    A backend reads nothing but its manifest, which ``tiergen build`` wrote from the IR, the
+    address plan and the implementation manifests. Registered under the entry-point group
+    ``tiergen.infra.backends`` as a class with a no-argument constructor, named by ``id``.
+    """
 
     @property
     def id(self) -> str:
-        """The backend id: "docker", "libvirt"."""
+        """The descriptor id this backend implements: "docker", "libvirt"."""
         ...
 
-    def platforms(self) -> frozenset[tuple[Platform, HostType]]:
-        """The (platform, host type) pairs this backend can provide."""
+    def up(self, manifest: RunManifest) -> None:
+        """Create the manifest's networks and hosts and start the hosts.
+
+        Every resource carries the run's label, so ``down`` can find it without state. On
+        failure, undo what was created and re-raise; a half-up run is never left behind.
+        """
         ...
 
-    def grantable(self, platform: Platform, host_type: HostType) -> frozenset[str]:
-        """Host capabilities, such as "net_raw", this backend can grant on such a host."""
-        ...
-
-    def plan(self, scenario: Scenario, run_dir: Path) -> None:
-        """Write the manifests for ``scenario`` under ``run_dir``. Starts nothing."""
-        ...
-
-    def up(self, run_dir: Path) -> None:
-        """Start everything ``plan`` described. The management network is never captured."""
-        ...
-
-    def down(self, run_dir: Path) -> None:
-        """Stop and remove everything ``up`` started."""
+    def down(self, manifest: RunManifest) -> None:
+        """Stop and remove everything of this run, whether or not ``up`` completed."""
         ...
