@@ -84,6 +84,18 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
       - run: uv lock --check
+      - run: uv run --frozen python scripts/check_stubs.py
+
+  integration:
+    # The Docker backend against a real daemon. Not required on main until it has been stable.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+      - run: uv sync --locked
+      - run: uv run pytest -q -m docker backends/infra/docker/tests/test_integration.py
+      - name: Nothing left behind
+        run: test -z "$(docker ps -aq --filter label=tiergen.run)"
 
   conventions:
     if: github.event_name == 'pull_request'
