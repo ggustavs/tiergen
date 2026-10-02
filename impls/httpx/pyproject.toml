@@ -3,10 +3,13 @@ name = "tiergen-impl-httpx"
 version = "0.0.1"
 description = "HTTP client primitives through the httpx library."
 requires-python = ">=3.12"
-dependencies = ["tiergen-impls-base"]
+dependencies = ["tiergen-impls-base", "httpx>=0.28,<1"]
 
 [project.entry-points."tiergen.impls"]
 "http.httpx" = "tiergen.impls.httpx:DESCRIPTOR"
+
+[project.entry-points."tiergen.impls.runtimes"]
+"http.httpx" = "tiergen.impls.httpx.runtime:HttpxRuntime"
 
 [build-system]
 requires = ["hatchling"]
