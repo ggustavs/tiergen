@@ -190,6 +190,12 @@ The backend interfaces (`Sensor`, `InfraBackend`, `AttributionBackend`) and the 
 
 The output is a usable tool, not a paper. One-command install of `core`, `protocols`, `check`, `semantics` and `fit` on any platform without Docker; a CLI with clear errors; reproducible runs; documentation of the section 3 workflow written for a security engineer; fit and fidelity reports readable without knowing the internals. Novelty is not a criterion for including anything.
 
+### 4.17 Repeated structure is a group; ties are wired, never looked up
+
+A network bigger than one site repeats a structure: a team, a branch, a site. The IR holds that structure as nested `Group`s. Kinds stay global roles, which is what `fit` produces (section 11); a group says how many of each kind it holds, which data-plane networks they join, and, for every tie of every kind it holds, which groups' instances of the target kind the tie reaches. Instances are named by path, `corp/eng/workstation[3]`, as CDK, Pulumi and hardware description languages name theirs.
+
+Wiring is explicit and total. Nothing is resolved by walking up the tree to the nearest group that happens to hold a matching kind, and nothing is inherited from a parent. That rule was considered and rejected (2026-10-02): every system surveyed that emits a flat artefact (CDK, Pulumi, Terraform, Amaranth, the network emulators, ScalaLoci, Choral) wires cross-scope references explicitly, and the closest precedent for the implicit rule, Modelica's `inner`/`outer`, is documented to bind names hard and to fall through silently when a kind is added to an enclosing group. The cost of explicitness is one dictionary per group, which a Python function writes once (`examples/two_teams`); the gain is that `single` and `optional` are checked exactly by counting, and `check` reports against the text the engineer wrote. Composition belongs in Python, per 4.6: the IR is the expanded form, not a template. Per-group overrides of bindings or rates are an open question until a scenario shows Python-side composition is not enough.
+
 ---
 
 ## 5. Glossary
@@ -211,10 +217,13 @@ The output is a usable tool, not a paper. One-command install of `core`, `protoc
 | Capability | A named, typed extension a sensor declares above the required core: `APP_EVENTS`, `TLS_JA4`, `HTTP_USER_AGENT`, `SSH_STRINGS`, `SMB_DIALECT`, `X509`, extensible. Each carries a schema and a coverage claim. Consumers query capabilities and degrade explicitly when one is absent. |
 | Coverage | The fraction of applicable events on which a sensor actually populates a capability's field, measured at fit time. Distinguishes a trustworthy distribution from a sparse one. |
 | Binding | For a kind in a scenario: the host (default container, image, VM template) and the implementation selection per signature, fixed or weighted. |
-| Topology | The networks of a scenario, each a CIDR on the data plane or the management plane; which data-plane networks each kind joins; the named capture points; and any pinned addresses. Every instance also joins the management network. Addresses not pinned are allocated from the CIDR in a fixed order, so the address plan is a function of the IR. |
-| Scenario | Kinds, instance counts, bindings, topology, egress policy, schedule, duration, capture points, sensor set, fit provenance, coverage floor. |
+| Topology | The networks of a scenario, each a CIDR on the data plane or the management plane; the named capture points; and any pinned addresses by instance id. Which networks an instance joins is said by its group. Every instance also joins the management network. Addresses not pinned are allocated from the CIDR in a fixed order, so the address plan is a function of the IR. |
+| Group | A nested scope holding instances: a team, a branch, a site. Named by path (`corp/eng`). Counts each kind it holds, attaches each to data-plane networks, and wires each tie of each kind it holds to the groups whose instances are its targets. Nothing is inherited. |
+| Instance id | `path/kind[i]`: the group's path, the kind, the index. What pinned addresses, schedule targets, labels and backends name a host by. |
+| Wiring | A group's `"kind.tie"` to group paths. The targets of a tie from an instance of that kind in that group are the instances of the tie's target kind in the named groups. `single` must find exactly one, `optional` at most one. |
+| Scenario | Kinds, groups, bindings, topology, egress policy, schedule, duration, capture points, sensor set, fit provenance, coverage floor. |
 | Resource | A named value a scenario refers to instead of carrying inline; fitted parameters are resources. JSON resources live as `models/<name>.json` and have a declared shape. Opaque resources, such as a sensor's configuration, only have to exist. |
-| Schedule | Time-indexed events: start or stop behaviours, change rates, run scripted sequences (attacks). |
+| Schedule | Time-indexed events: start or stop behaviours, change rates, run scripted sequences (attacks). A target is a group path, `path/kind` or one instance. |
 | Label | `(scenario, instance, behaviour, action, invocation id, implementation id, variant, expected target, outcome)`; attached, per configured sensor, to that sensor's connection id and sub-connection events. |
 | Attribution | Kernel-level join of observed connections to invocations, sensor-independent: eBPF (Linux), ETW or Sysmon (Windows), keyed by cgroup or PID and time. |
 | Fidelity | Distance between generated and real traffic at the common-event level, per metric in section 9. |
@@ -471,15 +480,22 @@ class CapturePoint:
 @dataclass(frozen=True, slots=True)
 class Topology:
     networks: tuple[Network, ...]
-    attachments: dict[str, tuple[str, ...]]      # kind -> its data-plane networks; management is implicit
     capture_points: tuple[CapturePoint, ...]
-    addresses: dict[str, str] = field(default_factory=dict)   # "kind[i]" -> pinned address; the rest is allocated
+    addresses: dict[str, str] = field(default_factory=dict)   # instance id -> pinned address; the rest is allocated
+
+@dataclass(frozen=True, slots=True)
+class Group:
+    name: str                                    # unique among siblings; path = parent + "/" + name
+    parent: str | None                           # enclosing group's path; None at the top
+    instances: dict[str, int]                    # kind -> count held here
+    attachments: dict[str, tuple[str, ...]]      # kind -> its data-plane networks here; management is implicit
+    wiring: dict[str, tuple[str, ...]] = field(default_factory=dict)   # "kind.tie" -> group paths of its targets
 
 @dataclass(frozen=True, slots=True)
 class Scenario:
     name: str
     kinds: tuple[ActorKind, ...]
-    instances: dict[str, int]
+    groups: tuple[Group, ...]
     bindings: tuple[Binding, ...]
     topology: Topology | str
     egress: EgressPolicy
@@ -493,7 +509,7 @@ class Scenario:
     coverage_floor: float = 0.5                  # check 15: below this, a capability fit relied on is sparse
 ```
 
-Embedded DSL, in `core/tiergen/core/dsl.py`. The builders only assemble data: they refuse what the IR cannot represent, such as two kinds with one name, and leave everything else to the checker. `kind()` returns a handle that works as a dictionary key and as a tie target, and `scenario` takes its kinds from the keys of `instances`. This is `examples/hq_lan/scenario.py`, as `fit` would propose it and the engineer would edit:
+Embedded DSL, in `core/tiergen/core/dsl.py`. The builders only assemble data: they refuse what the IR cannot represent, such as two kinds with one name, and leave everything else to the checker. `kind()` returns a handle that works as a dictionary key and as a tie target; `group()` returns one that works as a parent and as a wiring target, and fills in the one convenience the IR does not have: a tie left unwired is wired to the group itself if the group holds the target kind, else left for check 1 to report. `scenario` takes its kinds from its groups and bindings, in order of first mention. This is `examples/hq_lan/scenario.py`, as `fit` would propose it and the engineer would edit:
 
 ```python
 from tiergen.core.dsl import (
@@ -502,6 +518,7 @@ from tiergen.core.dsl import (
     binding,
     dist,
     endpoint,
+    group,
     host,
     hours,
     kind,
@@ -563,9 +580,16 @@ Atk = kind(
     platforms=["linux"],
 )
 
+# One site. Every kind here is wired to this group by default, which is where it lives.
+Hq = group(
+    "hq",
+    instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Atk: 1},
+    attachments={Dc: ["lan"], Fs: ["lan"], Web: ["lan"], Ws: ["lan"], Atk: ["lan"]},
+)
+
 S = scenario(
     "hq_lan",
-    instances={Ws: 60, Dc: 1, Fs: 2, Web: 1, Atk: 1},
+    groups=[Hq],
     bindings={
         # A VM from a template is a custom host: its manifest says what it serves. The
         # workstation is one too, and serves nothing, so it needs no manifest.
@@ -599,7 +623,7 @@ S = scenario(
     },
     topology=resource("hq_lan.topology"),
     egress="none",
-    schedule=[at(0, Ws, "start", "office"), at(hours(30), Atk, "start", "recon")],
+    schedule=[at(0, Hq, "start", "office", kind=Ws), at(hours(30), Hq, "start", "recon", kind=Atk)],
     duration_s=7 * 24 * 3600,
     capture_points=["core-switch-span"],
     sensors=[
@@ -625,7 +649,7 @@ S = scenario(
 )
 ```
 
-The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC and the workstations are VMs from templates, custom hosts provided by libvirt. The DC's manifest resource says what it serves; a workstation serves nothing and needs none. The file server, web server and attacker are default hosts provided by Docker, which serve through the service implementations selected for them.
+The whole LAN is one group, `hq`, so every tie is wired to `hq` by default. `examples/two_teams` is the same idea with structure: a `team()` function returns a group with its own LAN and file server, wires the workstations' `dc` tie to the organisation, and is called twice. The workstation's behaviour is what `fit` emits, every part a resource under `models/`, its action map included: there `http.get` draws its `path` from a fitted popularity resource, `smb.read` has a literal `share` and an inline choice of `path`, and `kerberos.tgs` a literal `spn`. The attacker's is written inline, as an engineer adding it by hand would. The DC and the workstations are VMs from templates, custom hosts provided by libvirt. The DC's manifest resource says what it serves; a workstation serves nothing and needs none. The file server, web server and attacker are default hosts provided by Docker, which serve through the service implementations selected for them.
 
 `examples/hq_lan_capgap` is the same scenario with one resource changed: its fit provenance says `fit` relied on `SMB_DIALECT`, which the Suricata label sensor does not declare. Check 14 warns: a detector trained on SMB-dialect-derived features will not see them in a Suricata deployment. The engineer either drops that capability from the fit, adds the Suricata config that provides it, or accepts the gap knowingly. `examples/hq_lan_broken` makes six deliberate mistakes and fails checks 1, 4, 5, 9, 10 and 12.
 
@@ -637,9 +661,9 @@ The workstation's behaviour is what `fit` emits, every part a resource under `mo
 
 All sixteen checks are implemented in `check/`, one module each, with unit tests and, where the input space allows, a hypothesis property test.
 
-A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a message. `error` makes the scenario ill formed. `warning` is a gap the engineer may accept knowingly. `not_computed` says part of a check could not run and names what was missing; it is never a pass. Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic, not a cascade.
+A diagnostic has a check id (`C01` to `C16`), a severity, an IR path and a message. `error` makes the scenario ill formed. `warning` is a gap the engineer may accept knowingly. `not_computed` says part of a check could not run and names what was missing; it is never a pass. Check 5 is the only check that reports a missing or ill-shaped resource. Every other check skips what it cannot resolve, so one missing file is one diagnostic, not a cascade.
 
-1. Every kind has an instance count and every count belongs to a kind; tie targets exist; multiplicities are satisfiable by the instance counts (Z3). Multiplicities read as in ScalaLoci: `single` is exactly one peer, `optional` zero or one, `multiple` any number including none. Only `single` constrains counts: a kind with instances and a `single` tie needs at least one instance of the target.
+1. Every group's instance counts name kinds and are not negative; tie targets exist. Every tie of every kind a group holds is wired there, to groups that exist, and the wiring satisfies the multiplicity exactly: `single` reaches exactly one instance of the target kind across the named groups, `optional` at most one, `multiple` any number. A wiring key for a kind the group does not hold, or a tie the kind does not have, is an error. Nothing is looked up by walking the tree, so an unwired tie is reported here rather than guessed at run time. Plain counting; the Z3 dependency of M0 went with the old reading of multiplicities.
 2. Every action is directed at a tie its kind has, and the tie's target serves an endpoint the signature accepts (protocol, transport). A scan needs the tie and no endpoint.
 3. Every behaviour state has exactly one action-map entry, an action or an explicit `None`; no entry names a state that does not exist; every signature is a known client signature.
 4. Initial distribution and transition rows are stochastic; the matrix is square over the states; all states are reachable from the initial support; one dwell per state; a rate resource has 24 or 168 entries.
@@ -648,9 +672,9 @@ A diagnostic has a check id (`C01` to `C15`), a severity, an IR path and a messa
 7. Binding platform is in the kind's allowed platforms. The binding's backend is installed and offers that platform and host type. Every chosen implementation supports the platform, and the host capabilities it needs (`net_raw`, admin) are ones the backend's descriptor says it can grant such a host. A VM owns its kernel, so there a backend has nothing to grant and nothing to refuse.
 8. Every client signature a kind's actions use has a selection in its binding; every choice names an installed implementation that provides the signature, and a variant it has; weights are positive; a `run_sequence` names an installed adapter and an entry of its catalog.
 9. Exactly one management network, overlapping no data-plane network. Every capture point is defined once, on a network that exists and is data-plane: a capture on the management network records the tool, not the network. At least one capture point is active, and every active one is defined. A `live` sensor's capture interface is `not_computed`, because a `SensorSpec` does not name one yet; M1 runs sensors offline.
-10. The address plan (section 7, `core/tiergen/core/addressing.py`) is complete and collision-free: every CIDR parses, no network is defined twice, every network has room for the instances attached to it, every pinned address belongs to an instance, lies on a network that instance joins, and is free. Data-plane networks do not overlap each other. Attachments name real kinds and data-plane networks, and every kind with instances joins at least one. That the backend can provide each bound host is check 7's. Whether egress is backed by an `internet_stub` kind or an allowlist resource, and whether every `egress_overrides` key is a fitted external destination, is `not_computed` unless egress is `none`: the destinations come from `fit` (M4).
-11. Label tuple unique per invocation: kind, tie, behaviour and state names are unique where a label is built from them, and no signature is selected twice in a binding. No primitive executable outside a labelled context: a client implementation selected for a signature no action invokes is a warning.
-12. Schedule events reference defined targets, `kind` or `kind[i]` with `0 <= i < instances[kind]`, at times within `duration_s`. `start` and `stop` take a behaviour of the target kind, `set_rate` a non-negative multiplier, `run_sequence` an `adapter_id:catalog_entry` string.
+10. The address plan (section 7, `core/tiergen/core/addressing.py`) is complete and collision-free: every CIDR parses, no network is defined twice, every network has room for the instances attached to it, every pinned address belongs to an instance, lies on a network that instance joins, and is free. Data-plane networks do not overlap each other. Each group's attachments name real kinds and data-plane networks, and a kind a group holds joins at least one data-plane network in that group. That the backend can provide each bound host is check 7's. Whether egress is backed by an `internet_stub` kind or an allowlist resource, and whether every `egress_overrides` key is a fitted external destination, is `not_computed` unless egress is `none`: the destinations come from `fit` (M4).
+11. Label tuple unique per invocation: kind, tie, behaviour and state names are unique where a label is built from them, group paths are unique and every `parent` names a group, and no signature is selected twice in a binding. No primitive executable outside a labelled context: a client implementation selected for a signature no action invokes is a warning.
+12. Schedule events reference defined targets at times within `duration_s`: a group path (every instance under it), `path/kind` (every instance of that kind under the group) or `path/kind[i]` (one instance), each resolved against the scenario by `tiergen.core.groups.select`. `start` and `stop` take a behaviour some targeted kind has, `set_rate` a non-negative multiplier, `run_sequence` an `adapter_id:catalog_entry` string.
 13. At least one sensor is configured. Each `SensorSpec` names an installed sensor whose descriptor lists the pinned version and the mode, and every declared capability is one the descriptor can declare. An installed sensor meets the required core by construction. Reproducing the config itself is the sensor backend's job in M1.
 14. Cross-sensor consistency: every capability in `fit_provenance.capabilities_used` is declared by every sensor whose `role` includes `label`. A violation is a warning, not an error, and names the capability, the fit sensor and the label sensor lacking it, because the engineer may accept the gap deliberately. Exactly one sensor has a `role` including `fit`, and it matches `fit_provenance.sensor`; these two are errors. A scenario without fit provenance has nothing to compare.
 15. Coverage sanity: every capability `fit` relied on has measured coverage above the scenario's `coverage_floor` (default 0.5); below it, or with no coverage recorded, warn that the fitted distribution for that capability is sparse.
@@ -706,7 +730,7 @@ Input: the target network's logs for the collection period, read through the sen
 5. **Implementation mix per role.** For each fingerprint capability present, map its values (JA4, user agent, SSH strings, SMB dialect and OS strings) to installed implementation variants using the fingerprints measured by conformance tests, weighting by that capability's coverage. Absent capability: no fingerprint-driven mix for that protocol, so bindings fall back to a single default client per role and the report says the diversity is unfitted rather than silently uniform. Unmapped fingerprint values go in the report with their traffic share.
 6. **Services.** Responders' endpoints and any version strings become server kinds and suggested bindings (`nginx:1.27`, `samba:4.20`, a Windows DC template).
 7. **External destinations.** SNI and hostname distribution per role; emitted for the internet stub or as an egress allowlist. SNI needs `TLS_JA4` or a TLS `AppEvent` carrying server name; without it, external destinations are known only by IP and the report flags the coarser egress model.
-8. **Topology and address plan.** Subnets from observed addresses, gateway behaviour from `ConnEvent` routing patterns, VLAN hints from the engineer.
+8. **Topology, groups and address plan.** Subnets from observed addresses, gateway behaviour from `ConnEvent` routing patterns, VLAN hints from the engineer; or, where the network has a directory, its sites, subnets and organisational units read directly, which propose groups and their networks from better evidence than traffic.
 9. **Privacy.** Fitted resources can carry hostnames, SNI and user agents. `fit --anonymise` replaces them with consistent pseudonyms; the report says what was replaced.
 
 Identifiability caveat, recorded so nobody rediscovers it: aggregate fits describe the role, not any individual. That is fine for the purpose in section 1; the fidelity report, not the fit, decides whether it is good enough.
@@ -740,7 +764,7 @@ The engineer has the real network, so evaluation is direct:
 
 ## 14. Libraries
 
-Core, protocols, checker, interfaces, CLI, as used in M0: stdlib `dataclasses` (frozen, slots), `typing.Protocol` for the backend interfaces, `tomllib`, `importlib.metadata`, `argparse`, `z3-solver`. Tooling: `uv`, `hatchling`, `pyright` strict, `ruff`, `pytest`, `hypothesis`, `pre-commit`, `commit-check`. Planned and not used yet: `pydantic` at the user boundary (M0's boundaries, `impl.toml` and IR JSON, go through the IR's own codec), `networkx` (check 4's reachability is a short search and does not need it).
+Core, protocols, checker, interfaces, CLI, as used in M0: stdlib `dataclasses` (frozen, slots), `typing.Protocol` for the backend interfaces, `tomllib`, `importlib.metadata`, `argparse`, `ipaddress`. `z3-solver` was used by check 1 in M0 and dropped with groups: with explicit wiring the multiplicity check is plain counting. Tooling: `uv`, `hatchling`, `pyright` strict, `ruff`, `pytest`, `hypothesis`, `pre-commit`, `commit-check`. Planned and not used yet: `pydantic` at the user boundary (M0's boundaries, `impl.toml` and IR JSON, go through the IR's own codec), `networkx` (check 4's reachability is a short search and does not need it).
 
 Semantics and fit: `numpy`, `scipy.stats`, `hmmlearn` or `pomegranate`, `scikit-learn` and `hdbscan` for role clustering, `polars` or `pandas` for logs (`zat` for Zeek, a small `eve.json` reader for Suricata), `stormpy` (Storm) or PRISM via subprocess.
 
@@ -786,6 +810,10 @@ No dates. Each milestone ends with something an engineer can run.
 - *open* Keep a per-invocation netns isolation mode as an option for DetGen-style microstructure control.
 - *closed 2026-09-20* Action parameters live in the IR: `Action.params` gives each parameter a literal or a weighted choice, inline or from a resource, and check 16 holds them to the signature. Leaving values to each implementation would have hidden them from `check` and `predict`, made them differ between implementations of one signature, and amounted to the invented parameters section 18 forbids. Still open: numeric parameters drawn from a distribution, not a finite choice (body sizes), which `Distribution` could serve once something needs it.
 - *closed 2026-09-20* Infrastructure lives in the IR. `Host.backend` names the backend that provides a host, next to the platform and host type it already carried; the M1 slice uses two at once, Docker for containers and libvirt for VMs. Networks, the management network included, are in a typed `Topology`. Checks 9, 10 and 7 stay static over the IR, and the run manifest is complete with the IR alone. The cost, accepted: a scenario names its substrate, and moving it to another means editing bindings. A separate run configuration would have kept scenarios portable at the price of a second artifact and schema.
+- *closed 2026-10-02* Repeated structure: nested groups with explicit wiring, decision 4.17. Instance ids carry the group path.
+- *open* Per-group overrides: a different binding, browser mix or rate for one group. Deferred until a scenario shows that a Python function returning a group is not enough; the schedule's `set_rate` on a group path covers rates now.
+- *open* Users and identities per group. Actors are hosts; a logged-in user is a behaviour. A directory's user population has an obvious home in a group once something needs it, probably the GHOSTS adapter in M5.
+- *open* Directory import for `fit`: AD sites and OUs, NetBox sites and prefixes, as a source of groups beside observed traffic. Section 11 step 8 names it; nothing is designed.
 - *closed 2026-09-20* `Topology` has a schema (section 7), and addresses are allocated deterministically from each network's CIDR with optional pins, in `core/tiergen/core/addressing.py`. An allocation order is not a statistic, so "no defaults" is untouched. Still open: links, gateways and per-link conditions (`tc netem`), which the schema has no place for yet.
 - *open* `Fingerprint` in `impl.toml` covers what the 6.1 sample shows, JA4 and user agent. SSH strings, SMB dialects and OS strings have no slot, and 4.10 needs them.
 - *open* Whether to require signed commits on pull-request branches through a second ruleset. `main` cannot require them: GitHub recreates every commit in a rebase-merge and cannot sign what it recreates.
