@@ -33,8 +33,10 @@ cat run1/out/lab-attacker-0/invocations.jsonl       # the attacker's SYN scan, f
 uv run tiergen infra down run1
 ```
 
-The agents run as root in their containers, so what they write under `run1/out/` is root's.
-Nothing captures the traffic yet; that is the next task.
+The daemon must run with its user-namespace remap on (`{"userns-remap": "default"}` in
+`/etc/docker/daemon.json`, then restart it); `infra up` says so otherwise. The agents run as
+the remapped root, so what they write under `run1/out/` belongs to that uid and is readable
+through the ACL `up` sets. Nothing captures the traffic yet; that is the next task.
 
 The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
 do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
