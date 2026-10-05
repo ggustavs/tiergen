@@ -97,6 +97,15 @@ class Client(Protocol):
         """``network name -> IPv4 address`` of a container, as the daemon reports them."""
         ...
 
+    def run_helper(
+        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+    ) -> str:
+        """Run ``command`` to completion in a throwaway container as the daemon's own root
+        (no user-namespace remap), on ``network`` ("host", or "container:<name>" to join a
+        container's network namespace), with ``cap_add``. Returns its output; a non-zero
+        exit is a ``BackendError``."""
+        ...
+
 
 def _selector(labels: Mapping[str, str]) -> dict[str, str | list[str] | bool]:
     return {"label": [f"{k}={v}" for k, v in labels.items()]}
@@ -248,6 +257,25 @@ class DaemonClient:
     def remove_network(self, name: str) -> None:
         with contextlib.suppress(docker.errors.NotFound):
             self._d.networks.get(name).remove()
+
+    def run_helper(
+        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+    ) -> str:
+        try:
+            output = self._d.containers.run(
+                image,
+                command=list(command),
+                remove=True,
+                network_mode=network,
+                userns_mode="host",
+                cap_add=list(cap_add),
+                stderr=True,
+            )
+        except docker.errors.ContainerError as err:
+            raise BackendError(f"helper {' '.join(command)!r} failed: {err}") from err
+        except docker.errors.APIError as err:
+            raise BackendError(f"cannot run helper {' '.join(command)!r}: {err}") from err
+        return output.decode(errors="replace") if isinstance(output, bytes) else str(output)
 
     def addresses(self, container: str) -> dict[str, str]:
         attrs = self._d.containers.get(container).attrs

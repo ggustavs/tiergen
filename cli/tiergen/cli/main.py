@@ -218,6 +218,12 @@ def _capture(verb: str, run_dir: Path) -> int:
         if verb == "start":
             run = points.load_run(run_dir)
             found = points.capture_points(run.scenario, run.topology, run.bridges)
+            backends = load_infra_backends(only=set(run.states))
+            for name, run_state in run.states.items():
+                manifest = from_json(
+                    RunManifest, json.loads((run_dir / f"manifest.{name}.json").read_text("utf-8"))
+                )
+                backends[name].quiesce(manifest, run_state)
             state = dumpcap.start(run.scenario.name, found, out)
             offsets.write_offsets(out, offsets.offsets(run.states))
             for c in state.captures:
@@ -228,7 +234,7 @@ def _capture(verb: str, run_dir: Path) -> int:
                 tagged = state.tagged_packets.get(c.point)
                 suffix = f", {tagged} packet(s) tagged" if tagged is not None else ""
                 print(f"{c.point}: capture/{c.file}{suffix}")
-    except (OSError, CodecError, points.CaptureError) as err:
+    except (OSError, CodecError, BackendError, points.CaptureError) as err:
         print(f"tiergen: {err}", file=sys.stderr)
         return UNUSABLE
     return OK

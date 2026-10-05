@@ -72,3 +72,9 @@ class InfraBackend(Protocol):
     def down(self, manifest: RunManifest) -> None:
         """Stop and remove everything of this run, whether or not ``up`` completed."""
         ...
+
+    def quiesce(self, manifest: RunManifest, state: RunState) -> None:
+        """Make the run's hosts put wire-sized frames on their segments, so a capture sees
+        what a sensor on a real wire would: segmentation offloads off on every host
+        interface, by whatever means the substrate has. Called before capture starts."""
+        ...

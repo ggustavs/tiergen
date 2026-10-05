@@ -32,6 +32,11 @@ INSTANCE_LABEL = "tiergen.instance"
 NETWORK_LABEL = "tiergen.network"
 RUN_MOUNT = "/tiergen/run"
 OUT_MOUNT = "/tiergen/out"
+QUIESCE = "for d in /sys/class/net/eth*; do ethtool -K $(basename $d) tso off gso off; done"
+"""What makes a container put wire-sized frames on its bridge. Measured 2026-10-05: a 20 MB
+HTTP transfer captured on the bridge showed 65 KB frames until TSO and GSO were off on the
+sending container's own interface (1514 bytes after); the host-side veths and the bridge
+made no difference, so they are left alone."""
 NEEDS_REMAP = (
     "the daemon runs without a user-namespace remap, which agent hosts need (design "
     'decision 4.19): set "userns-remap" in daemon.json and restart the daemon'
@@ -115,6 +120,15 @@ class DockerBackend:
 
     def down(self, manifest: RunManifest) -> None:
         self._remove(self._connect(), manifest.run)
+
+    def quiesce(self, manifest: RunManifest, state: RunState) -> None:
+        """TSO and GSO off on every interface of every host, through a helper from the agent
+        image that joins the host's network namespace with ``NET_ADMIN``."""
+        client = self._connect()
+        tag = self._agent_image(client, state)
+        for host in manifest.hosts:
+            name = container_name(manifest.run, host.instance)
+            client.run_helper(tag, ["sh", "-c", QUIESCE], f"container:{name}", ["NET_ADMIN"])
 
     @staticmethod
     def _agent_image(client: Client, state: RunState) -> str:
