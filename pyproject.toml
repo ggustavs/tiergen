@@ -21,6 +21,7 @@ dependencies = [
     "tiergen-impl-samba",
     "tiergen-impl-smbclient-win",
     "tiergen-agent-linux",
+    "tiergen-capture",
 ]
 
 [dependency-groups]
@@ -69,6 +70,7 @@ tiergen-impl-nginx = { workspace = true }
 tiergen-impl-samba = { workspace = true }
 tiergen-impl-smbclient-win = { workspace = true }
 tiergen-agent-linux = { workspace = true }
+tiergen-capture = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -95,6 +97,7 @@ src = [
     "backends/infra/docker",
     "backends/infra/libvirt",
     "runtime/agent_linux",
+    "runtime/capture",
     "check",
     "cli",
 ]
@@ -127,6 +130,7 @@ testpaths = [
     "backends/infra/docker/tests",
     "backends/infra/libvirt/tests",
     "runtime/agent_linux/tests",
+    "runtime/capture/tests",
     "check/tests",
     "cli/tests",
     "examples/tests",
