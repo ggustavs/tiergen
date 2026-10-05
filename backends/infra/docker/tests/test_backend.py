@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from tiergen.backends.infra.docker._client import CgroupNs
-from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
+from tiergen.backends.infra.docker.backend import (
+    QUIESCE,
+    DockerBackend,
+    container_name,
+    network_name,
+)
 from tiergen.interfaces import (
     Attachment,
     BackendError,
@@ -160,6 +165,12 @@ class FakeClient:
     def addresses(self, container: str) -> dict[str, str]:
         return {}
 
+    def run_helper(
+        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+    ) -> str:
+        self.calls.append(("helper", image, tuple(command), network, tuple(cap_add)))
+        return ""
+
 
 def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
     tmp_path: Path,
@@ -267,6 +278,26 @@ def test_without_the_remap_agent_hosts_are_refused_before_anything_exists(
     # Hosts from custom images need no remap.
     state = DockerBackend(lambda: fake).up(MANIFEST, tmp_path)
     assert set(state.hosts) == {"lab/ws[0]", "lab/web[0]"}
+
+
+def test_quiesce_turns_segmentation_off_inside_every_host(tmp_path: Path) -> None:
+    fake = FakeClient()
+    backend = DockerBackend(lambda: fake, acl=lambda a: None)
+    manifest = RunManifest("r", "docker", MANIFEST.networks, (*MANIFEST.hosts, AGENT))
+    state = backend.up(manifest, tmp_path / "run")
+    fake.calls.clear()
+    backend.quiesce(manifest, state)
+    helpers = [c for c in fake.calls if c[0] == "helper"]
+    assert [c[3] for c in helpers] == [
+        "container:tiergen-r-lab-ws-0",
+        "container:tiergen-r-lab-web-0",
+        "container:tiergen-r-lab-atk-0",
+    ]
+    image = helpers[0][1]
+    assert isinstance(image, str)
+    assert image.startswith("tiergen/base-linux:")
+    assert all(c[2] == ("sh", "-c", QUIESCE) and c[4] == ("NET_ADMIN",) for c in helpers)
+    assert ("image-id", image) in fake.calls  # found or built, never pulled
 
 
 def test_down_removes_containers_before_networks_and_nothing_else(tmp_path: Path) -> None:

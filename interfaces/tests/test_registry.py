@@ -43,6 +43,8 @@ class FakeBackend:
 
     def down(self, manifest: object) -> None: ...
 
+    def quiesce(self, manifest: object, state: object) -> None: ...
+
 
 def test_backends_are_constructed_only_when_asked_for(monkeypatch: pytest.MonkeyPatch) -> None:
     eps = [

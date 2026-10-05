@@ -61,6 +61,9 @@ class NoInfra:
     def down(self, manifest: RunManifest) -> None:
         self.seen.append(f"down {manifest.run}")
 
+    def quiesce(self, manifest: RunManifest, state: RunState) -> None:
+        self.seen.append(f"quiesce {manifest.run}")
+
 
 class NoAttribution:
     platform: Platform = "linux"
