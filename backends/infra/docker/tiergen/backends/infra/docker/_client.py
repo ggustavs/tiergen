@@ -28,6 +28,11 @@ class Client(Protocol):
         """Make ``image`` available locally, pulling it if need be."""
         ...
 
+    def userns(self) -> tuple[int, int] | None:
+        """The host uid and gid the daemon's user-namespace remap gives a container's root,
+        or None when the daemon runs without one."""
+        ...
+
     def image_id(self, tag: str) -> str | None:
         """The id of the local image tagged ``tag``, or None if there is none."""
         ...
@@ -62,13 +67,11 @@ class Client(Protocol):
         sysctls: Mapping[str, str],
         mounts: Sequence[tuple[Path, str, bool]],
         cgroupns: CgroupNs | None,
-        security_opt: Sequence[str],
     ) -> str:
         """Create, attached to ``network`` at ``address``, not started. Returns the id.
 
         ``mounts`` are bind mounts, (host path, container path, read-only); ``cgroupns`` is
-        the container's cgroup namespace mode, "private" or "host", or the daemon's default;
-        ``security_opt`` are the daemon's security options, such as an AppArmor profile.
+        the container's cgroup namespace mode, "private" or "host", or the daemon's default.
         """
         ...
 
@@ -105,9 +108,10 @@ class DaemonClient:
     def __init__(self) -> None:
         try:
             self._d = docker.from_env()
-            os_type = self._d.info().get("OSType")
+            self._info = self._d.info()
         except docker.errors.DockerException as err:
             raise BackendError(f"docker daemon is not reachable: {err}") from err
+        os_type = self._info.get("OSType")
         if os_type != "linux":
             # The Windows daemon runs Windows containers; that backend is a later task of M1.
             raise BackendError(
@@ -124,6 +128,14 @@ class DaemonClient:
             self._d.images.pull(image)
         except docker.errors.APIError as err:
             raise BackendError(f"image {image!r} is not available: {err}") from err
+
+    def userns(self) -> tuple[int, int] | None:
+        # With a remap the daemon lists "name=userns" and keeps its data under a directory
+        # named "<uid>.<gid>" of the remapped root; that is the only place the ids appear.
+        if "name=userns" not in self._info.get("SecurityOptions", []):
+            return None
+        uid, _, gid = Path(self._info["DockerRootDir"]).name.partition(".")
+        return int(uid), int(gid)
 
     def image_id(self, tag: str) -> str | None:
         try:
@@ -173,7 +185,6 @@ class DaemonClient:
         sysctls: Mapping[str, str],
         mounts: Sequence[tuple[Path, str, bool]],
         cgroupns: CgroupNs | None,
-        security_opt: Sequence[str],
     ) -> str:
         endpoint = self._d.api.create_endpoint_config(ipv4_address=address, mac_address=mac)
         binds = [
@@ -191,7 +202,6 @@ class DaemonClient:
                 sysctls=dict(sysctls) or None,
                 mounts=binds or None,
                 cgroupns=cgroupns,
-                security_opt=list(security_opt) or None,
                 network=network,
                 networking_config={network: endpoint},
                 detach=True,

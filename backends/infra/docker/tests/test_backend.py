@@ -63,14 +63,20 @@ AGENT = HostSpec(
 
 
 class FakeClient:
-    def __init__(self, fail_on: str | None = None) -> None:
+    def __init__(
+        self, fail_on: str | None = None, userns: tuple[int, int] | None = (100000, 100000)
+    ) -> None:
         self.calls: list[tuple[object, ...]] = []
+        self._userns = userns
         self.live_containers: dict[str, dict[str, str]] = {}
         self.live_networks: dict[str, dict[str, str]] = {}
         self.fail_on = fail_on
 
     def ensure_image(self, image: str) -> None:
         self.calls.append(("image", image))
+
+    def userns(self) -> tuple[int, int] | None:
+        return self._userns
 
     def image_id(self, tag: str) -> str | None:
         self.calls.append(("image-id", tag))
@@ -106,7 +112,6 @@ class FakeClient:
         sysctls: Mapping[str, str],
         mounts: Sequence[tuple[Path, str, bool]],
         cgroupns: CgroupNs | None,
-        security_opt: Sequence[str],
     ) -> str:
         if self.fail_on == name:
             raise BackendError(f"image {image!r} is not available")
@@ -124,7 +129,6 @@ class FakeClient:
                 dict(sysctls),
                 tuple((str(s), t, ro) for s, t, ro in mounts),
                 cgroupns,
-                tuple(security_opt),
             )
         )
         self.live_containers[name] = dict(labels)
@@ -180,7 +184,6 @@ def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
             {},
             (),
             None,
-            (),
         ),
         ("connect", "tiergen-r-lab-ws-0", "tiergen-r-mgmt", "10.9.0.2", None),
         # The forwarder gets the sysctl and nothing it did not ask for.
@@ -197,7 +200,6 @@ def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
             {"net.ipv4.ip_forward": "1"},
             (),
             None,
-            (),
         ),
         ("connect", "tiergen-r-lab-web-0", "tiergen-r-mgmt", "10.9.0.3", None),
         ("start", "tiergen-r-lab-ws-0"),
@@ -216,8 +218,11 @@ def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
 
 def test_an_agent_host_gets_the_image_the_mounts_and_its_cgroups(tmp_path: Path) -> None:
     fake = FakeClient()
+    acls: list[list[str]] = []
     manifest = RunManifest("r", "docker", MANIFEST.networks[:1], (AGENT,))
-    state = DockerBackend(lambda: fake).up(manifest, tmp_path / "run")
+    state = DockerBackend(lambda: fake, acl=lambda a: acls.append(list(a))).up(
+        manifest, tmp_path / "run"
+    )
     tag = fake.calls[0][1]
     assert isinstance(tag, str)
     assert tag.startswith("tiergen/base-linux:")
@@ -234,15 +239,34 @@ def test_an_agent_host_gets_the_image_the_mounts_and_its_cgroups(tmp_path: Path)
     create = next(c for c in fake.calls if c[0] == "create")
     assert create[2] == tag
     assert create[3] == ("tiergen-agent", "/tiergen/run/program.lab-atk-0.json")
-    assert create[4] == ("NET_RAW", "SYS_ADMIN")
+    assert create[4] == ("NET_RAW",)  # nothing added: the remap makes the cgroups writable
     run_dir = (tmp_path / "run").resolve()
     assert create[10] == (
         (str(run_dir), "/tiergen/run", True),
         (str(run_dir / "out" / "lab-atk-0"), "/tiergen/out", False),
     )
     assert create[11] == "private"
-    assert create[12] == ("apparmor=unconfined",)
+    assert len(create) == 12
     assert (tmp_path / "run" / "out" / "lab-atk-0").is_dir()
+    # The remapped root is let into the run directory to read and into its out directory to write.
+    assert acls == [
+        ["-R", "-m", "u:100000:rX", str(run_dir)],
+        ["-m", "u:100000:rwx", str(run_dir / "out" / "lab-atk-0")],
+    ]
+
+
+def test_without_the_remap_agent_hosts_are_refused_before_anything_exists(
+    tmp_path: Path,
+) -> None:
+    fake = FakeClient(userns=None)
+    manifest = RunManifest("r", "docker", MANIFEST.networks[:1], (AGENT,))
+    with pytest.raises(BackendError, match=r"4\.19"):
+        DockerBackend(lambda: fake, acl=lambda a: None).up(manifest, tmp_path)
+    assert fake.calls == []
+    assert fake.live_containers == {}
+    # Hosts from custom images need no remap.
+    state = DockerBackend(lambda: fake).up(MANIFEST, tmp_path)
+    assert set(state.hosts) == {"lab/ws[0]", "lab/web[0]"}
 
 
 def test_down_removes_containers_before_networks_and_nothing_else(tmp_path: Path) -> None:
