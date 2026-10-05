@@ -1,4 +1,5 @@
-"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``capture start``
+and ``stop``, ``impls list``."""
 
 import argparse
 import json
@@ -22,6 +23,7 @@ from tiergen.impls._base import load_impls
 from tiergen.interfaces import BackendError, RunManifest
 from tiergen.interfaces.registry import load_infra, load_infra_backends, load_sensors
 from tiergen.protocols import SIGNATURES
+from tiergen.runtime.capture import dumpcap, offsets, points
 
 SERVERS = frozenset(s.id for s in SIGNATURES.values() if s.role == "server")
 
@@ -78,6 +80,17 @@ def _parser() -> argparse.ArgumentParser:
     ):
         sub = infra_commands.add_parser(verb, help=text)
         sub.add_argument("run_dir", type=Path, help="a directory written by tiergen build")
+
+    capture = commands.add_parser("capture", help="capture at a running run's capture points")
+    capture_commands = capture.add_subparsers(
+        dest="capture_command", required=True, metavar="subcommand"
+    )
+    for verb, text in (
+        ("start", "start dumpcap at every capture point, over the run's bridges"),
+        ("stop", "stop them, insert the tags of tagged points, write capture.json"),
+    ):
+        sub = capture_commands.add_parser(verb, help=text)
+        sub.add_argument("run_dir", type=Path, help="a directory tiergen infra up brought up")
 
     impls = commands.add_parser("impls", help="inspect installed implementations")
     impl_commands = impls.add_subparsers(dest="impls_command", required=True, metavar="subcommand")
@@ -199,6 +212,28 @@ def _infra(verb: str, run_dir: Path) -> int:
     return OK
 
 
+def _capture(verb: str, run_dir: Path) -> int:
+    out = run_dir / "capture"
+    try:
+        if verb == "start":
+            run = points.load_run(run_dir)
+            found = points.capture_points(run.scenario, run.topology, run.bridges)
+            state = dumpcap.start(run.scenario.name, found, out)
+            offsets.write_offsets(out, offsets.offsets(run.states))
+            for c in state.captures:
+                print(f"{c.point}: {', '.join(c.bridges)} -> capture/{c.file}")
+        else:
+            state = dumpcap.stop(out)
+            for c in state.captures:
+                tagged = state.tagged_packets.get(c.point)
+                suffix = f", {tagged} packet(s) tagged" if tagged is not None else ""
+                print(f"{c.point}: capture/{c.file}{suffix}")
+    except (OSError, CodecError, points.CaptureError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    return OK
+
+
 def _report(name: str, found: list[Diagnostic]) -> None:
     counts: list[str] = []
     for severity, heading in HEADINGS:
@@ -238,6 +273,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _build(args.scenario, args.models, args.out)
     if args.command == "infra":
         return _infra(args.infra_command, args.run_dir)
+    if args.command == "capture":
+        return _capture(args.capture_command, args.run_dir)
     return _impls_list(args.protocol, args.platform, args.kind)
 
 

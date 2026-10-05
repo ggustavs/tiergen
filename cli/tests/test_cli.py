@@ -148,3 +148,14 @@ def test_infra_needs_a_built_run_directory(
 ) -> None:
     assert main(["infra", "up", str(tmp_path)]) == 2
     assert "holds no manifest" in capsys.readouterr().err
+
+
+def test_capture_needs_a_run_that_is_up(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        main(["build", str(EXAMPLES / "linux_slice" / "scenario.py"), "--out", str(tmp_path / "r")])
+        == 0
+    )
+    assert main(["capture", "start", str(tmp_path / "r")]) == 2
+    assert "is the run up" in capsys.readouterr().err
+    assert main(["capture", "stop", str(tmp_path / "r")]) == 2
+    assert "nothing is capturing" in capsys.readouterr().err
