@@ -9,6 +9,12 @@ no version numbers.
 
 ### Added
 
+- **design**: decision 4.19. The invocation's identity on Linux stays a cgroup, to be had
+  without any capability under Docker's user-namespace remap, which a probe against a
+  second daemon showed mounts the cgroup filesystem writable and hands the container its
+  own cgroup directory (report: `userns-consequences.md` beside the pull requests). The
+  rate curve stays a time change of the whole process, with the reasons a chain per hour
+  and idle-only scaling were not taken. Two open questions closed.
 - **backends/infra**: the agent image and the run directory in the container. A default host
   now runs `tiergen-agent` from `tiergen/base-linux`, which the Docker backend builds through
   the SDK from the installed workspace members (Dockerfile beside the backend) when the daemon
