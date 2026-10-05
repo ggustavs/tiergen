@@ -47,6 +47,12 @@ jobs:
           echo '{"userns-remap": "default"}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
           docker info --format '{{.SecurityOptions}}' | grep -q name=userns
+      - name: dumpcap for the capture tests
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireshark-common >/dev/null
+          sudo chmod 755 /usr/bin/dumpcap
+          sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/dumpcap
+          dumpcap --version | head -1
       - run: uv run pytest
       - name: The installed command checks the examples
         run: |
@@ -103,6 +109,12 @@ jobs:
           echo '{"userns-remap": "default"}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
           docker info --format '{{.SecurityOptions}}' | grep -q name=userns
+      - name: dumpcap for the capture tests
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireshark-common >/dev/null
+          sudo chmod 755 /usr/bin/dumpcap
+          sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/dumpcap
+          dumpcap --version | head -1
       - run: uv run pytest -q -m docker backends/infra/docker/tests/test_integration.py
       - name: Nothing left behind
         run: test -z "$(docker ps -aq --filter label=tiergen.run)"

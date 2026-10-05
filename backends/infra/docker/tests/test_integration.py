@@ -6,6 +6,9 @@ image the first time, which takes a few minutes.
 
 import json
 import os
+import shutil
+import socket
+import struct
 import subprocess
 import time
 from collections.abc import Callable, Iterator
@@ -17,10 +20,11 @@ import pytest
 from tiergen.backends.infra.docker._client import DaemonClient
 from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
 from tiergen.cli.main import main
-from tiergen.core.codec import from_json
+from tiergen.core.codec import from_json, to_json
 from tiergen.core.records import InvocationRecord
 from tiergen.interfaces import BackendError, RunManifest
 from tiergen.runtime.agent_linux.records import read_records
+from tiergen.runtime.capture.pcapng import Packet, read
 
 EXAMPLES = Path(__file__).parents[4] / "examples"
 pytestmark = pytest.mark.docker
@@ -91,13 +95,34 @@ def _release(out: Path, image: str) -> None:
     )
 
 
+def _tcp(packets: list[Packet]) -> list[tuple[str, str, int, int]]:
+    """(source, destination, destination port, TCP flags) of every IPv4 TCP packet."""
+    found: list[tuple[str, str, int, int]] = []
+    for p in packets:
+        d = p.data
+        if len(d) < 34 or d[12:14] != b"\x08\x00" or d[23] != 6:
+            continue
+        ihl = (d[14] & 0x0F) * 4
+        tcp = 14 + ihl
+        if len(d) < tcp + 14:
+            continue
+        dport = struct.unpack_from(">H", d, tcp + 2)[0]
+        found.append((socket.inet_ntoa(d[26:30]), socket.inet_ntoa(d[30:34]), dport, d[tcp + 13]))
+    return found
+
+
 def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
     run_dir: Path, manifest: RunManifest, daemon: DaemonClient
 ) -> None:
+    if shutil.which("dumpcap") is None:
+        pytest.skip("dumpcap is not installed")
     plan = json.loads((run_dir / "addresses.json").read_text())
     backend = DockerBackend()
     state = backend.up(manifest, run_dir)
     try:
+        # What tiergen infra up would have written; capture start reads it.
+        (run_dir / "state.docker.json").write_text(json.dumps(to_json(state)))
+        assert main(["capture", "start", str(run_dir)]) == 0
         assert state.images["tiergen/base-linux"].startswith("sha256:")
         run = {"tiergen.run": manifest.run}
         assert sorted(daemon.containers(run)) == sorted(
@@ -148,6 +173,37 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         assert "GET /" in access
         web_log = (out / "lab-web_server-0" / "agent.log").read_text()
         assert "http.nginx serves http/80, https/443" in web_log
+
+        # The capture point saw the browsing and the scan, in wire-sized frames.
+        assert main(["capture", "stop", str(run_dir)]) == 0
+        capture = run_dir / "capture"
+        assert not (capture / "state.json").exists()
+        summary = json.loads((capture / "capture.json").read_text())
+        assert [c["point"] for c in summary["captures"]] == ["lan-span"]
+        interfaces, packets = read(capture / "lan-span.pcapng")
+        assert [i.name for i in interfaces] == [state.bridges["lan"]]
+        ws = plan["addresses"]["lab/workstation[0]"]["lan"]
+        web = plan["addresses"]["lab/web_server[0]"]["lan"]
+        atk = plan["addresses"]["lab/attacker[0]"]["lan"]
+        tcp = _tcp(packets)
+        assert any(src == ws and dst == web and port == 80 for src, dst, port, _ in tcp)
+        syns = {
+            port
+            for src, dst, port, flags in tcp
+            if src == atk and dst == web and flags & 0x12 == 0x02
+        }
+        assert len(syns) > 100, "the SYN scan of ports 1-1024 is in the capture"
+        assert max(len(p.data) for p in packets) <= 1514
+        clocks = json.loads((capture / "offsets.json").read_text())
+        assert clocks == {
+            h.instance: {"offset_s": 0.0, "method": "shared-kernel"} for h in manifest.hosts
+        }
+        assert (
+            "dumpcap"
+            not in subprocess.run(
+                ["pgrep", "-af", "lan-span.pcapng"], capture_output=True, text=True
+            ).stdout
+        )
         # The agents' files belong to the remapped root and are readable by the user through
         # the ACL up set; the directories are the user's own.
         assert (out / "lab-web_server-0" / "http.nginx" / "access.log").stat().st_uid != os.getuid()
