@@ -9,6 +9,16 @@ no version numbers.
 
 ### Added
 
+- **runtime/capture**, **cli**, **backends/infra**: capture (M1 task 6). `tiergen capture
+  start` runs one dumpcap per active capture point on the host over the bridges of its
+  segments, interface i being segment i; `stop` closes the files, inserts 802.1Q tags for
+  tagged points with the tool's own pcapng reader and writer, and writes `capture.json`.
+  `InfraBackend.quiesce` turns segmentation offloads off before capture; on Docker that is
+  TSO and GSO off inside each container, which a probe showed is the knob that matters (65 KB
+  frames on the bridge before, 1514 after; host-side veths and the bridge change nothing).
+  `offsets.json` records each host's clock offset and method, zero and `shared-kernel` for
+  containers. The daemon test captures `linux_slice`: the browsing and the SYN scan are in
+  the file in wire-sized frames. CI's runners get dumpcap with its capabilities.
 - **backends/infra**: agent hosts under the daemon's user-namespace remap (decision 4.19).
   `up` refuses agent hosts on a daemon without `userns-remap`, lets the remapped root into
   the run directory with ACLs (`setfacl`), and grants nothing: `SYS_ADMIN` and
