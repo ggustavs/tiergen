@@ -3,15 +3,14 @@
 The behaviour process moves itself into ``/tiergen/<invocation>`` under the container's
 cgroup root before it calls the implementation and back out after, so every socket the
 invocation opens, and every child it spawns, carries that cgroup. That needs the cgroup
-filesystem writable, which a container gets from a private cgroup namespace plus the
-``SYS_ADMIN`` capability to remount it; both were tried against the daemon. Without them
-the key is the behaviour process's id, and ``agent.log`` says why.
+filesystem writable and the container's cgroup its own, which a container has under the
+daemon's user-namespace remap with a private cgroup namespace (design decision 4.19).
+Without that the key is the behaviour process's id, and ``agent.log`` says why.
 """
 
 import contextlib
 import logging
 import os
-import subprocess
 from collections.abc import Generator
 from pathlib import Path
 
@@ -60,20 +59,15 @@ def _writable(root: Path) -> bool:
 
 
 def choose(log: logging.Logger, root: Path = ROOT) -> CgroupAttribution | PidAttribution:
-    """Cgroups if the cgroup filesystem is, or can be remounted, writable; else process ids."""
+    """Cgroups if the cgroup filesystem is writable; else process ids."""
     if not (root / "cgroup.controllers").is_file():
         log.warning("%s is not a cgroup v2 hierarchy; attribution keys are process ids", root)
         return PidAttribution()
     if not _writable(root):
-        remount = subprocess.run(
-            ["mount", "-o", "remount,rw", str(root)], capture_output=True, text=True, check=False
+        log.warning(
+            "%s is not writable (no user-namespace remap?); attribution keys are process ids",
+            root,
         )
-        if remount.returncode != 0 or not _writable(root):
-            log.warning(
-                "%s is read-only and cannot be remounted (%s); attribution keys are process ids",
-                root,
-                remount.stderr.strip() or "needs SYS_ADMIN",
-            )
-            return PidAttribution()
+        return PidAttribution()
     log.info("attribution keys are cgroups under %s/%s", root, SUBTREE)
     return CgroupAttribution(root)

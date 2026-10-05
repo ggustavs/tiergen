@@ -58,4 +58,4 @@ def test_without_a_writable_hierarchy_the_key_is_the_process_id(
     finally:
         sealed.chmod(0o755)
     assert isinstance(attribution, PidAttribution)
-    assert "read-only and cannot be remounted" in caplog.text
+    assert "is not writable" in caplog.text
