@@ -29,9 +29,12 @@ pytestmark = pytest.mark.docker
 @pytest.fixture(scope="module")
 def daemon() -> DaemonClient:
     try:
-        return DaemonClient()
+        client = DaemonClient()
     except BackendError as err:
         pytest.skip(str(err))
+    if client.userns() is None:
+        pytest.skip("the daemon runs without a user-namespace remap (design decision 4.19)")
+    return client
 
 
 @pytest.fixture
@@ -65,8 +68,10 @@ def _wait(
         time.sleep(2)
 
 
-def _release(out: Path) -> None:
-    """The agents ran as root, so their files are root's; hand them back before cleanup."""
+def _release(out: Path, image: str) -> None:
+    """What the agents wrote belongs to the remapped root, which the user cannot delete
+    inside the agents' own directories; a container as that root removes it, leaving the
+    instance directories, which are the user's, empty."""
     subprocess.run(
         [
             "docker",
@@ -74,11 +79,12 @@ def _release(out: Path) -> None:
             "--rm",
             "-v",
             f"{out}:/o",
-            "alpine",
-            "chown",
-            "-R",
-            f"{os.getuid()}:{os.getgid()}",
+            image,
+            "find",
             "/o",
+            "-mindepth",
+            "2",
+            "-delete",
         ],
         check=True,
         capture_output=True,
@@ -125,14 +131,10 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         assert first.key.invocation == "lab/workstation[0]/browse#1"
         assert first.key.targets == ("lab/web_server[0]",)
         assert first.principal.platform == "linux"
-        # A cgroup per invocation, or the log says why the process id stands in for it.
         ws_log = (out / "lab-workstation-0" / "agent.log").read_text()
-        if "attribution keys are process ids" in ws_log:
-            assert first.principal.principal.startswith("pid:"), ws_log
-        else:
-            assert first.principal.principal.startswith(
-                "cgroup:/tiergen/lab-workstation[0]-browse#"
-            ), ws_log
+        assert first.principal.principal.startswith("cgroup:/tiergen/lab-workstation[0]-browse#"), (
+            ws_log
+        )
         scanned = _wait(
             out / "lab-attacker-0" / "invocations.jsonl",
             lambda rs: any(r.outcome == "succeeded" for r in rs),
@@ -146,9 +148,13 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         assert "GET /" in access
         web_log = (out / "lab-web_server-0" / "agent.log").read_text()
         assert "http.nginx serves http/80, https/443" in web_log
+        # The agents' files belong to the remapped root and are readable by the user through
+        # the ACL up set; the directories are the user's own.
+        assert (out / "lab-web_server-0" / "http.nginx" / "access.log").stat().st_uid != os.getuid()
+        assert (out / "lab-web_server-0").stat().st_uid == os.getuid()
     finally:
         backend.down(manifest)
-        _release(run_dir / "out")
+        _release(run_dir / "out", state.images["tiergen/base-linux"])
     assert daemon.containers(run) == []
     assert daemon.networks(run) == []
 
