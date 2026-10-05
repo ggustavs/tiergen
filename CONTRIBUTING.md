@@ -17,7 +17,19 @@ name check on push. The hooks run `uv run --frozen`, so they never rewrite `uv.l
 fail, so stage the pyproject and lock changes together with what needs them.
 
 Nothing here needs Docker except the tests marked `docker`, which skip when no daemon is
-reachable.
+reachable, or when the daemon runs without its user-namespace remap, which agent hosts need
+(design decision 4.19). To run them, and to run `tiergen infra up` on a scenario with default
+hosts:
+
+```
+echo '{"userns-remap": "default"}' | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+```
+
+The setting is daemon-wide: images are pulled again under a new data root, and containers from
+before the switch are not listed until it is switched back. CI's runners set it before the tests.
+`setfacl` (package `acl`) must be installed; `up` uses it to let the remapped root into the run
+directory.
 
 ## Before you push
 

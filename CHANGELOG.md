@@ -9,6 +9,13 @@ no version numbers.
 
 ### Added
 
+- **backends/infra**: agent hosts under the daemon's user-namespace remap (decision 4.19).
+  `up` refuses agent hosts on a daemon without `userns-remap`, lets the remapped root into
+  the run directory with ACLs (`setfacl`), and grants nothing: `SYS_ADMIN` and
+  `apparmor=unconfined` are gone from agent containers and `sys_admin` from what the backend
+  offers, and the agent no longer tries to remount the cgroup filesystem. The daemon tests
+  skip without the remap; CI's runners set it. The developer daemon needs the setting too
+  (`CONTRIBUTING.md`).
 - **design**: decision 4.19. The invocation's identity on Linux stays a cgroup, to be had
   without any capability under Docker's user-namespace remap, which a probe against a
   second daemon showed mounts the cgroup filesystem writable and hands the container its
