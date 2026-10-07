@@ -23,6 +23,7 @@ dependencies = [
     "tiergen-agent-linux",
     "tiergen-capture",
     "tiergen-attrib-base",
+    "tiergen-attrib-linux-ebpf",
 ]
 
 [dependency-groups]
@@ -74,6 +75,7 @@ tiergen-impl-smbclient-win = { workspace = true }
 tiergen-agent-linux = { workspace = true }
 tiergen-capture = { workspace = true }
 tiergen-attrib-base = { workspace = true }
+tiergen-attrib-linux-ebpf = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -100,6 +102,7 @@ src = [
     "backends/infra/docker",
     "backends/infra/libvirt",
     "backends/attrib/_base",
+    "backends/attrib/linux_ebpf",
     "runtime/agent_linux",
     "runtime/capture",
     "check",
@@ -134,6 +137,7 @@ testpaths = [
     "backends/infra/docker/tests",
     "backends/infra/libvirt/tests",
     "backends/attrib/_base/tests",
+    "backends/attrib/linux_ebpf/tests",
     "runtime/agent_linux/tests",
     "runtime/capture/tests",
     "check/tests",

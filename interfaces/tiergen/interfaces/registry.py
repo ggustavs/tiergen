@@ -8,12 +8,14 @@ without being able to run any of it.
 from importlib.metadata import entry_points
 from typing import Protocol
 
+from tiergen.interfaces.attribution import AttributionBackend
 from tiergen.interfaces.infra import InfraBackend, InfraDescriptor
 from tiergen.interfaces.sensor import SensorDescriptor
 
 GROUP = "tiergen.sensors"
 INFRA_GROUP = "tiergen.infra"
 INFRA_BACKEND_GROUP = "tiergen.infra.backends"
+ATTRIB_GROUP = "tiergen.attrib"
 
 
 class _HasId(Protocol):
@@ -70,4 +72,20 @@ def load_infra_backends(only: set[str] | None = None) -> dict[str, InfraBackend]
                 f"with id {backend.id!r}"
             )
         found[backend.id] = backend
+    return found
+
+
+def load_attrib_backends(only: set[str] | None = None) -> dict[str, AttributionBackend]:
+    """The installed attribution backends, by entry-point name, each constructed; ``only``
+    names the ones to load, as for the infrastructure backends."""
+    found: dict[str, AttributionBackend] = {}
+    for ep in entry_points(group=ATTRIB_GROUP):
+        if only is not None and ep.name not in only:
+            continue
+        backend = ep.load()()
+        if not isinstance(backend, AttributionBackend):
+            raise TypeError(
+                f"entry point {ep.name!r} in {ATTRIB_GROUP} is not an AttributionBackend"
+            )
+        found[ep.name] = backend
     return found

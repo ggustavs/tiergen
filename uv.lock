@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 members = [
     "tiergen-agent-linux",
     "tiergen-attrib-base",
+    "tiergen-attrib-linux-ebpf",
     "tiergen-capture",
     "tiergen-check",
     "tiergen-cli",
@@ -620,6 +621,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "tiergen-attrib-linux-ebpf"
+version = "0.0.1"
+source = { editable = "backends/attrib/linux_ebpf" }
+dependencies = [
+    { name = "tiergen-attrib-base" },
+    { name = "tiergen-infra-docker" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
+    { name = "tiergen-infra-docker", editable = "backends/infra/docker" },
+]
+
+[[package]]
 name = "tiergen-capture"
 version = "0.0.1"
 source = { editable = "runtime/capture" }
@@ -845,6 +861,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "tiergen-agent-linux" },
     { name = "tiergen-attrib-base" },
+    { name = "tiergen-attrib-linux-ebpf" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
@@ -880,6 +897,7 @@ dev = [
 requires-dist = [
     { name = "tiergen-agent-linux", editable = "runtime/agent_linux" },
     { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
+    { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },

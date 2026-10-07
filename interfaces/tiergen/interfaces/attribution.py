@@ -7,7 +7,7 @@ independent of any sensor. Each sensor's label step maps these records onto its 
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from tiergen.core.events import FiveTuple
 from tiergen.core.ir import Platform
@@ -37,6 +37,7 @@ class AttributionRecord:
     tgid: int = 0
 
 
+@runtime_checkable
 class AttributionBackend(Protocol):
     """Records connection ownership on the hosts of one platform, for a whole run.
 

@@ -171,6 +171,26 @@ class FakeClient:
         self.calls.append(("helper", image, tuple(command), network, tuple(cap_add)))
         return ""
 
+    def start_helper(
+        self,
+        name: str,
+        image: str,
+        command: Sequence[str],
+        labels: Mapping[str, str],
+        mounts: Sequence[tuple[Path, str, bool]],
+    ) -> str:
+        self.calls.append(("start-helper", name, image, tuple(command)))
+        return f"id-{name}"
+
+    def stop_helper(self, name: str, timeout: float = 10.0) -> None:
+        self.calls.append(("stop-helper", name))
+
+    def pid(self, container: str) -> int:
+        return 1
+
+    def logs(self, container: str) -> str:
+        return ""
+
 
 def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
     tmp_path: Path,

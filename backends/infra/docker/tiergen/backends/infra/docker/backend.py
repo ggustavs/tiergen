@@ -18,7 +18,6 @@ root is a host uid the run directory must let in, which ``up`` does with ACLs.
 """
 
 import subprocess
-import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -90,7 +89,7 @@ class DockerBackend:
             uid = ids[0]
             # The remapped root reads the programs and models; it writes only under out/.
             self._acl(["-R", "-m", f"u:{uid}:rX", str(run_dir.resolve())])
-            tags[image.NAME] = self._agent_image(client, state)
+            tags[image.NAME] = image.ensure(client, image.agent(), state)
         try:
             for name in sorted({h.image for h in manifest.hosts if h.image not in tags}):
                 client.ensure_image(name)
@@ -125,20 +124,10 @@ class DockerBackend:
         """TSO and GSO off on every interface of every host, through a helper from the agent
         image that joins the host's network namespace with ``NET_ADMIN``."""
         client = self._connect()
-        tag = self._agent_image(client, state)
+        tag = image.ensure(client, image.agent(), state)
         for host in manifest.hosts:
             name = container_name(manifest.run, host.instance)
             client.run_helper(tag, ["sh", "-c", QUIESCE], f"container:{name}", ["NET_ADMIN"])
-
-    @staticmethod
-    def _agent_image(client: Client, state: RunState) -> str:
-        """The agent image's tag for this workspace, built if the daemon lacks it."""
-        with tempfile.TemporaryDirectory(prefix="tiergen-image-") as tmp:
-            ctx = image.context(Path(tmp))
-            tag = image.tag(ctx)
-            found = client.image_id(tag)
-            state.images[image.NAME] = found if found is not None else client.build_image(tag, ctx)
-        return tag
 
     def _create(
         self, client: Client, run: str, host: HostSpec, img: str, run_dir: Path, uid: int | None
