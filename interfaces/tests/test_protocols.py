@@ -35,7 +35,12 @@ class FlowOnlySensor:
     """A sensor at the floor: connections, no capabilities."""
 
     id = "fake"
+    name = "fake"
+    capture_point = "span0"
     version = "0"
+
+    def run(self, pcap: Path, config: Path, out: Path) -> str:
+        return "sha256:fake"
 
     def capabilities(self) -> Mapping[Capability, CapabilityInfo]:
         return {}
@@ -80,6 +85,7 @@ class NoAttribution:
 
 def test_a_flow_only_sensor_meets_the_interface() -> None:
     sensor: Sensor = FlowOnlySensor()
+    assert sensor.run(Path("c.pcapng"), Path("conf"), Path("out")) == "sha256:fake"
     events = list(sensor.ingest(Path(".")))
     assert events == [CONN]
     assert sensor.flow_key(events[0]) == SensorFlowId("fake", "span0", "C1")

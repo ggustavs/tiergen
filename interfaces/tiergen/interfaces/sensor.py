@@ -2,6 +2,12 @@
 
 The descriptor is data and is all the checker needs. The Protocol is what ``fit``,
 ``fidelity`` and ``assemble`` call. No implementation lives in this package.
+
+A runtime is bound to one ``SensorSpec`` and one capture point, because a sensor's native
+connection ids are unique only within one run over one pcap, so every flow id it yields
+carries the spec's name and the point (``SensorFlowId``). Runtimes are registered under the
+entry-point group ``tiergen.sensors.runtimes`` by descriptor id, as a class constructed
+with ``(spec, capture_point)``.
 """
 
 from collections.abc import Iterator, Mapping
@@ -31,7 +37,8 @@ class SensorDescriptor:
 
 
 class Sensor(Protocol):
-    """A passive traffic sensor with a pinned version and configuration."""
+    """A passive traffic sensor with a pinned version and configuration, over one capture
+    point."""
 
     @property
     def id(self) -> str:
@@ -39,8 +46,24 @@ class Sensor(Protocol):
         ...
 
     @property
+    def name(self) -> str:
+        """The ``SensorSpec.name`` this runtime was made for; the first part of its flow ids."""
+        ...
+
+    @property
+    def capture_point(self) -> str:
+        """The capture point whose pcap this runtime reads; the second part of its flow ids."""
+        ...
+
+    @property
     def version(self) -> str:
         """The exact sensor version, as recorded in the run manifest."""
+        ...
+
+    def run(self, pcap: Path, config: Path, out: Path) -> str:
+        """Run the sensor offline over ``pcap`` with ``config``, its native logs under
+        ``out``. Returns what identifies the instrument that ran, an image digest for a
+        containerised sensor, for the run's manifest."""
         ...
 
     def capabilities(self) -> Mapping[Capability, CapabilityInfo]:
