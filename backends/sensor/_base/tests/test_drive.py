@@ -86,7 +86,7 @@ def test_every_offline_sensor_reads_every_point(tmp_path: Path) -> None:
         ("zeek", "lan-span", 1, 1),
         ("suricata", "lan-span", 1, 1),
     ]
-    assert readings.digests == {"zeek": "zeek@sha256:7.0", "suricata": "suricata@sha256:7.0.7"}
+    assert readings.digests == {"zeek": "zeek@sha256:7.0.11", "suricata": "suricata@sha256:7.0.7"}
     lines = (run_dir / "sensors" / "zeek" / "lan-span" / "events.jsonl").read_text().splitlines()
     # The alias is a ``type`` statement, which the codec does not unwrap; the union does.
     events: list[Event] = [decode(ConnEvent | AppEvent, json.loads(line)) for line in lines]

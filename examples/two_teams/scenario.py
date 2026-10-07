@@ -158,7 +158,12 @@ S = scenario(
     capture_points=["core-span"],
     sensors=[
         sensor(
-            "zeek", "7.0", resource("two_teams.zeek"), "offline", caps=["APP_EVENTS"], role="label"
+            "zeek",
+            "7.0.11",
+            resource("two_teams.zeek"),
+            "offline",
+            caps=["APP_EVENTS"],
+            role="label",
         )
     ],
     seed=3,

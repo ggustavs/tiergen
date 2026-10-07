@@ -107,7 +107,7 @@ S = scenario(
     sensors=[
         sensor(
             "zeek",
-            "7.0",
+            "7.0.11",
             resource("linux_slice.zeek"),
             "offline",
             caps=["APP_EVENTS"],
