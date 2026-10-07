@@ -3,6 +3,7 @@ name = "tiergen-impl-nginx"
 version = "0.0.1"
 description = "HTTP and HTTPS service through nginx."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-impls-base"]
 
 [project.entry-points."tiergen.impls"]

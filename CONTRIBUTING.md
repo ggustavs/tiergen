@@ -45,6 +45,11 @@ CI runs the same four on Linux and the tests on Windows, plus `uv lock --check` 
 If you add or change a dependency or a workspace member, run `uv lock` and commit `uv.lock`.
 The `integration` job runs the `docker` tests against a daemon on the runner.
 
+## Licence
+
+The project is GPL-3.0-or-later; a contribution is accepted under the same terms, which the
+pull request implies. There is no contributor agreement.
+
 ## Commits
 
 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):

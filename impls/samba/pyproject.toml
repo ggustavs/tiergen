@@ -3,6 +3,7 @@ name = "tiergen-impl-samba"
 version = "0.0.1"
 description = "SMB file service through Samba."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-impls-base"]
 
 [project.entry-points."tiergen.impls"]

@@ -3,6 +3,7 @@ name = "tiergen-interfaces"
 version = "0.0.1"
 description = "Backend Protocols: Sensor, InfraBackend, AttributionBackend."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core"]
 
 [build-system]

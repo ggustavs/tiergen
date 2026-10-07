@@ -3,6 +3,7 @@ name = "tiergen-impl-smbclient-win"
 version = "0.0.1"
 description = "SMB and Kerberos client primitives through the native Windows stack."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-impls-base"]
 
 [project.entry-points."tiergen.impls"]

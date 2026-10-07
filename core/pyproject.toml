@@ -3,6 +3,7 @@ name = "tiergen-core"
 version = "0.0.1"
 description = "IR, JSON round trip, embedded DSL builders, common event model."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = []
 
 [build-system]

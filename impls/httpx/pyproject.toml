@@ -3,6 +3,7 @@ name = "tiergen-impl-httpx"
 version = "0.0.1"
 description = "HTTP client primitives through the httpx library."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-impls-base", "httpx>=0.28,<1"]
 
 [project.entry-points."tiergen.impls"]

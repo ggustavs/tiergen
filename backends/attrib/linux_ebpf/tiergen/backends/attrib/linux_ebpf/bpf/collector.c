@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 /* tiergen-attrib-collector: load the programs, attach them, print events as JSON lines.
  *
  *   tiergen-attrib-collector --depth N --out FILE CGROUP_PATH...

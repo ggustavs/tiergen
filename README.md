@@ -63,3 +63,9 @@ Section 6 of the design document has the full layout and the data flow between t
 [`CONTRIBUTING.md`](CONTRIBUTING.md): setup, the checks to run before pushing, the commit
 and branch conventions and how pull requests land. Read the design document first; section
 18 lists the agreements the code follows.
+
+## Licence
+
+GPL-3.0-or-later, see [`LICENSE`](LICENSE). The eBPF programs are GPL-2.0-or-later, which
+is what the kernel requires to load them. A dataset a run produces is not a derivative of the
+tool; each release names its own licence, CC BY 4.0 unless there is a reason otherwise.

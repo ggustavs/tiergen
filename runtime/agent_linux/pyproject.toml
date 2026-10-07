@@ -3,6 +3,7 @@ name = "tiergen-agent-linux"
 version = "0.0.1"
 description = "The Linux agent: runs one instance's program inside its host."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core", "tiergen-impls-base"]
 
 [project.scripts]
