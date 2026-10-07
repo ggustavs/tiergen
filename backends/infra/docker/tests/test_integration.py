@@ -18,12 +18,15 @@ from pathlib import Path
 
 import pytest
 
+from tiergen.backends.attrib._base import read_events
+from tiergen.backends.attrib.linux_ebpf.backend import LinuxEbpf, helper_name, spec
+from tiergen.backends.infra.docker import image
 from tiergen.backends.infra.docker._client import DaemonClient
 from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
 from tiergen.cli.main import main
 from tiergen.core.codec import from_json, to_json
 from tiergen.core.records import InvocationRecord
-from tiergen.interfaces import BackendError, RunManifest
+from tiergen.interfaces import BackendError, RunManifest, RunState
 from tiergen.runtime.agent_linux.records import read_records
 from tiergen.runtime.capture.pcapng import Packet, read
 
@@ -118,16 +121,26 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
     if shutil.which("dumpcap") is None:
         pytest.skip("dumpcap is not installed")
     plan = json.loads((run_dir / "addresses.json").read_text())
+    # Both images first, so the collector and the capture start seconds after the hosts,
+    # before the attacker's scan at 30 s; building them here can take minutes.
+    image.ensure(daemon, image.agent(), RunState("prebuild", "docker"))
+    image.ensure(daemon, spec(), RunState("prebuild", "docker"))
     backend = DockerBackend()
     state = backend.up(manifest, run_dir)
     try:
         # What tiergen infra up would have written; capture start reads it.
         (run_dir / "state.docker.json").write_text(json.dumps(to_json(state)))
+        assert main(["attrib", "start", str(run_dir)]) == 0
         assert main(["capture", "start", str(run_dir)]) == 0
+        captured_from = time.time()
         assert state.images["tiergen/base-linux"].startswith("sha256:")
         run = {"tiergen.run": manifest.run}
+        # The hosts, plus the attribution collector, which carries the run's label too.
         assert sorted(daemon.containers(run)) == sorted(
-            container_name(manifest.run, h.instance) for h in manifest.hosts
+            [
+                *(container_name(manifest.run, h.instance) for h in manifest.hosts),
+                helper_name(manifest.run),
+            ]
         )
         for host in manifest.hosts:
             got = daemon.addresses(container_name(manifest.run, host.instance))
@@ -144,7 +157,7 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         out = run_dir / "out"
         browsed = _wait(
             out / "lab-workstation-0" / "invocations.jsonl",
-            lambda rs: any(r.outcome == "succeeded" for r in rs),
+            lambda rs: any(r.outcome == "succeeded" and r.start > captured_from for r in rs),
             120,
         )
         assert browsed, (out / "lab-workstation-0" / "agent.log").read_text()
@@ -207,6 +220,29 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         # the ACL up set; the directories are the user's own.
         assert (out / "lab-web_server-0" / "http.nginx" / "access.log").stat().st_uid != os.getuid()
         assert (out / "lab-web_server-0").stat().st_uid == os.getuid()
+        assert main(["attrib", "stop", str(run_dir)]) == 0
+        # The kernel saw the browsing from the workstation's invocation cgroups and the scan
+        # from the attacker's, and every invocation that succeeded has a record inside it.
+        events = list(read_events(run_dir / "attrib" / "events.jsonl"))
+        assert events[0].ev == "start"
+        ws_ids = {int(r.principal.principal.split(":")[1]) for r in browsed}
+        connects = [e for e in events if e.ev == "connect" and e.cg in ws_ids]
+        assert connects, [e for e in events if e.ev == "connect"][:5]
+        assert all((e.src, e.dst, e.dport) == (ws, web, 80) for e in connects), connects[:3]
+        atk_ids = {int(r.principal.principal.split(":")[1]) for r in scanned}
+        atk_packets = [e for e in events if e.ev == "packet" and e.cg in atk_ids]
+        probed = {e.dport for e in atk_packets if e.dst == web}
+        assert len(probed) > 100, "the scan is attributed to the attacker"
+        records = list(LinuxEbpf().records(run_dir))
+        assert {r.instance for r in records} >= {"lab/workstation[0]", "lab/attacker[0]"}
+        for invocation in [*browsed, *scanned]:
+            if invocation.outcome != "succeeded":
+                continue
+            assert any(
+                r.principal == invocation.principal
+                and invocation.start - 1 <= r.start <= invocation.end + 1
+                for r in records
+            ), invocation.key.invocation
     finally:
         backend.down(manifest)
         _release(run_dir / "out", state.images["tiergen/base-linux"])
