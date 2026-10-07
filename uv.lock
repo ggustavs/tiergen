@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "tiergen-agent-linux",
+    "tiergen-attrib-base",
     "tiergen-capture",
     "tiergen-check",
     "tiergen-cli",
@@ -604,6 +605,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "tiergen-attrib-base"
+version = "0.0.1"
+source = { editable = "backends/attrib/_base" }
+dependencies = [
+    { name = "tiergen-core" },
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-interfaces", editable = "interfaces" },
+]
+
+[[package]]
 name = "tiergen-capture"
 version = "0.0.1"
 source = { editable = "runtime/capture" }
@@ -828,6 +844,7 @@ version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "tiergen-agent-linux" },
+    { name = "tiergen-attrib-base" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
@@ -862,6 +879,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "tiergen-agent-linux", editable = "runtime/agent_linux" },
+    { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },

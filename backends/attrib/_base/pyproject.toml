@@ -1,0 +1,13 @@
+[project]
+name = "tiergen-attrib-base"
+version = "0.0.1"
+description = "Shared by attribution backends: the collector's event lines and the join to records."
+requires-python = ">=3.12"
+dependencies = ["tiergen-core", "tiergen-interfaces"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]
