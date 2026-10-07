@@ -26,12 +26,14 @@ network's own.
 ```
 uv run tiergen build examples/linux_slice/scenario.py --out run1
 uv run tiergen infra up run1      # builds the agent image the first time, then three hosts
+uv run tiergen attrib start run1  # the eBPF collector on the three containers' cgroups
 uv run tiergen capture start run1 # dumpcap on the LAN's bridge, offloads off in the hosts
 sleep 60
 cat run1/out/lab-workstation-0/invocations.jsonl    # the workstation's http.get records
 cat run1/out/lab-web_server-0/http.nginx/access.log # seen from the web server
 cat run1/out/lab-attacker-0/invocations.jsonl       # the attacker's SYN scan, from 30 s in
 uv run tiergen capture stop run1  # run1/capture/lan-span.pcapng, capture.json, offsets.json
+uv run tiergen attrib stop run1   # run1/attrib/events.jsonl: who caused each connection
 uv run tiergen infra down run1
 ```
 
@@ -41,7 +43,9 @@ most distributions).
 The daemon must run with its user-namespace remap on (`{"userns-remap": "default"}` in
 `/etc/docker/daemon.json`, then restart it); `infra up` says so otherwise. The agents run as
 the remapped root, so what they write under `run1/out/` belongs to that uid and is readable
-through the ACL `up` sets. Nothing reads the capture yet; attribution and the sensors are the next tasks.
+through the ACL `up` sets. The collector runs as a privileged container on the host; the first
+`attrib start` builds its image, which takes a few minutes. Nothing matches the records to the
+capture yet; the sensors and `assemble` are the next tasks.
 
 The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
 do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
