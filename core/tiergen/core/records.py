@@ -55,8 +55,10 @@ class LabelKey:
 class AttributionKey:
     """What the kernel-level observer on a platform sees an invocation as.
 
-    Linux: the invocation's cgroup, by path. Windows: the job object, by its root process
-    id. The platform tag keeps the two from being compared.
+    Linux: ``cgroup:<id>``, the invocation's cgroup by its kernel id (the directory's inode
+    number, which is what eBPF reports), or ``pid:<n>`` where no cgroup could be made.
+    Windows: the job object, by its root process id. The platform tag keeps the two from
+    being compared.
     """
 
     platform: Platform

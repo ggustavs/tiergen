@@ -21,7 +21,11 @@ SUBTREE = "tiergen"
 
 
 class CgroupAttribution:
-    """Each invocation in its own cgroup, named after it with ``/`` written as ``-``."""
+    """Each invocation in its own cgroup, named after it with ``/`` written as ``-`` and
+    keyed by the cgroup's kernel id, the directory's inode number, which is what the eBPF
+    programs report for every socket and packet. The name is the invocation id, so the key
+    needs no path; the agent removes the directory right after, so nothing could resolve
+    one later."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -32,9 +36,10 @@ class CgroupAttribution:
         path = self.root / SUBTREE / name
         path.mkdir()
         pid = str(os.getpid())
+        cgroup_id = path.stat().st_ino
         (path / "cgroup.procs").write_text(pid)
         try:
-            yield AttributionKey("linux", f"cgroup:/{SUBTREE}/{name}")
+            yield AttributionKey("linux", f"cgroup:{cgroup_id}")
         finally:
             (self.root / "cgroup.procs").write_text(pid)
             # A child the implementation left running keeps the cgroup busy; it stays.

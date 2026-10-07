@@ -6,6 +6,7 @@ image the first time, which takes a few minutes.
 
 import json
 import os
+import re
 import shutil
 import socket
 import struct
@@ -157,9 +158,7 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         assert first.key.targets == ("lab/web_server[0]",)
         assert first.principal.platform == "linux"
         ws_log = (out / "lab-workstation-0" / "agent.log").read_text()
-        assert first.principal.principal.startswith("cgroup:/tiergen/lab-workstation[0]-browse#"), (
-            ws_log
-        )
+        assert re.fullmatch(r"cgroup:\d+", first.principal.principal), ws_log
         scanned = _wait(
             out / "lab-attacker-0" / "invocations.jsonl",
             lambda rs: any(r.outcome == "succeeded" for r in rs),

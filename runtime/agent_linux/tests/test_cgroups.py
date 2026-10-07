@@ -29,8 +29,9 @@ def test_each_invocation_gets_its_own_cgroup_and_the_process_comes_back(
     assert isinstance(attribution, CgroupAttribution)
     assert "cgroups under" in caplog.text
     with attribution.enter("lab/ws[0]/browse#1") as key:
-        assert key.principal == "cgroup:/tiergen/lab-ws[0]-browse#1"
-        procs = root / "tiergen" / "lab-ws[0]-browse#1" / "cgroup.procs"
+        made = root / "tiergen" / "lab-ws[0]-browse#1"
+        assert key.principal == f"cgroup:{made.stat().st_ino}"
+        procs = made / "cgroup.procs"
         assert procs.read_text() == str(os.getpid())
         procs.unlink()  # a cgroup's virtual files vanish with it; a plain file would block rmdir
     assert not (root / "tiergen" / "lab-ws[0]-browse#1").exists()
