@@ -166,7 +166,13 @@ class FakeClient:
         return {}
 
     def run_helper(
-        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+        self,
+        image: str,
+        command: Sequence[str],
+        network: str,
+        cap_add: Sequence[str],
+        mounts: Sequence[tuple[Path, str, bool]] = (),
+        userns_host: bool = True,
     ) -> str:
         self.calls.append(("helper", image, tuple(command), network, tuple(cap_add)))
         return ""

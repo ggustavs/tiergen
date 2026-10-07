@@ -9,6 +9,7 @@ daemon-wide, so every name is prefixed with the run.
 """
 
 import contextlib
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal, Protocol
@@ -98,12 +99,19 @@ class Client(Protocol):
         ...
 
     def run_helper(
-        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+        self,
+        image: str,
+        command: Sequence[str],
+        network: str,
+        cap_add: Sequence[str],
+        mounts: Sequence[tuple[Path, str, bool]] = (),
+        userns_host: bool = True,
     ) -> str:
-        """Run ``command`` to completion in a throwaway container as the daemon's own root
-        (no user-namespace remap), on ``network`` ("host", or "container:<name>" to join a
-        container's network namespace), with ``cap_add``. Returns its output; a non-zero
-        exit is a ``BackendError``."""
+        """Run ``command`` to completion in a throwaway container, on ``network`` ("host",
+        "none", or "container:<name>" to join a container's network namespace), with
+        ``cap_add`` and bind ``mounts`` (host path, container path, read-only). As the
+        daemon's own root when ``userns_host``, else under the remap like any container.
+        Returns its output; a non-zero exit is a ``BackendError``."""
         ...
 
     def start_helper(
@@ -130,6 +138,20 @@ class Client(Protocol):
     def logs(self, container: str) -> str:
         """What the container wrote to its standard streams."""
         ...
+
+
+def setfacl(args: Sequence[str]) -> None:
+    """Run ``setfacl`` with ``args``: how a backend lets the remapped root into a directory of
+    the user's. The stdlib has no ACL calls."""
+    try:
+        subprocess.run(["setfacl", *args], check=True, capture_output=True, text=True)
+    except FileNotFoundError as err:
+        raise BackendError(
+            "setfacl is not installed (package acl); it is how the daemon's containers are let "
+            "into the run directory"
+        ) from err
+    except subprocess.CalledProcessError as err:
+        raise BackendError(f"setfacl {' '.join(args)} failed: {err.stderr.strip()}") from err
 
 
 def _selector(labels: Mapping[str, str]) -> dict[str, str | list[str] | bool]:
@@ -284,16 +306,27 @@ class DaemonClient:
             self._d.networks.get(name).remove()
 
     def run_helper(
-        self, image: str, command: Sequence[str], network: str, cap_add: Sequence[str]
+        self,
+        image: str,
+        command: Sequence[str],
+        network: str,
+        cap_add: Sequence[str],
+        mounts: Sequence[tuple[Path, str, bool]] = (),
+        userns_host: bool = True,
     ) -> str:
+        binds = [
+            docker.types.Mount(target, str(source), type="bind", read_only=read_only)
+            for source, target, read_only in mounts
+        ]
         try:
             output = self._d.containers.run(
                 image,
                 command=list(command),
                 remove=True,
                 network_mode=network,
-                userns_mode="host",
-                cap_add=list(cap_add),
+                userns_mode="host" if userns_host else None,
+                cap_add=list(cap_add) or None,
+                mounts=binds or None,
                 stderr=True,
             )
         except docker.errors.ContainerError as err:

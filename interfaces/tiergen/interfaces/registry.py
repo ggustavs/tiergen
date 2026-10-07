@@ -5,14 +5,17 @@ runtime of the sensor or implementation it describes, so a checker can know what
 without being able to run any of it.
 """
 
+from collections.abc import Callable
 from importlib.metadata import entry_points
-from typing import Protocol
+from typing import Protocol, cast
 
+from tiergen.core.ir import SensorSpec
 from tiergen.interfaces.attribution import AttributionBackend
 from tiergen.interfaces.infra import InfraBackend, InfraDescriptor
-from tiergen.interfaces.sensor import SensorDescriptor
+from tiergen.interfaces.sensor import Sensor, SensorDescriptor
 
 GROUP = "tiergen.sensors"
+SENSOR_RUNTIME_GROUP = "tiergen.sensors.runtimes"
 INFRA_GROUP = "tiergen.infra"
 INFRA_BACKEND_GROUP = "tiergen.infra.backends"
 ATTRIB_GROUP = "tiergen.attrib"
@@ -89,3 +92,15 @@ def load_attrib_backends(only: set[str] | None = None) -> dict[str, AttributionB
             )
         found[ep.name] = backend
     return found
+
+
+SensorFactory = Callable[[SensorSpec, str], Sensor]
+"""Makes a sensor runtime for one spec over one capture point."""
+
+
+def load_sensor_runtime(sensor_id: str) -> SensorFactory:
+    """The runtime class registered for a sensor descriptor id, not constructed; ``LookupError``
+    if the package registers none. Only ``assemble`` and ``fit`` load runtimes."""
+    for ep in entry_points(group=SENSOR_RUNTIME_GROUP, name=sensor_id):
+        return cast(SensorFactory, ep.load())
+    raise LookupError(f"no runtime is registered for sensor {sensor_id!r}")

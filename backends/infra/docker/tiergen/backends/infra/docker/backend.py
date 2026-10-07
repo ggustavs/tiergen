@@ -17,12 +17,11 @@ agent's cgroup per invocation costs no capability; without it ``up`` refuses. Th
 root is a host uid the run directory must let in, which ``up`` does with ACLs.
 """
 
-import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from tiergen.backends.infra.docker import image
-from tiergen.backends.infra.docker._client import CgroupNs, Client, DaemonClient
+from tiergen.backends.infra.docker._client import CgroupNs, Client, DaemonClient, setfacl
 from tiergen.core.program import flat_id
 from tiergen.interfaces import BackendError, HostSpec, HostState, RunManifest, RunState
 
@@ -40,19 +39,6 @@ NEEDS_REMAP = (
     "the daemon runs without a user-namespace remap, which agent hosts need (design "
     'decision 4.19): set "userns-remap" in daemon.json and restart the daemon'
 )
-
-
-def setfacl(args: Sequence[str]) -> None:
-    """Run ``setfacl`` with ``args``; the stdlib has no ACL calls."""
-    try:
-        subprocess.run(["setfacl", *args], check=True, capture_output=True, text=True)
-    except FileNotFoundError as err:
-        raise BackendError(
-            "setfacl is not installed (package acl); agent hosts need it to be let into the "
-            "run directory"
-        ) from err
-    except subprocess.CalledProcessError as err:
-        raise BackendError(f"setfacl {' '.join(args)} failed: {err.stderr.strip()}") from err
 
 
 def network_name(run: str, network: str) -> str:
