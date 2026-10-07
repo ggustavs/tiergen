@@ -1,0 +1,16 @@
+[project]
+name = "tiergen-attrib-linux-ebpf"
+version = "0.0.1"
+description = "Attribution for Linux containers: eBPF on the capture host, through the Docker daemon."
+requires-python = ">=3.12"
+dependencies = ["tiergen-attrib-base", "tiergen-infra-docker"]
+
+[project.entry-points."tiergen.attrib"]
+linux_ebpf = "tiergen.backends.attrib.linux_ebpf.backend:LinuxEbpf"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]

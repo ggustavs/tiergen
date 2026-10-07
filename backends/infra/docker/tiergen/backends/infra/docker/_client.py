@@ -106,6 +106,31 @@ class Client(Protocol):
         exit is a ``BackendError``."""
         ...
 
+    def start_helper(
+        self,
+        name: str,
+        image: str,
+        command: Sequence[str],
+        labels: Mapping[str, str],
+        mounts: Sequence[tuple[Path, str, bool]],
+    ) -> str:
+        """Start ``command`` detached in a privileged container as the daemon's own root, in
+        the host's network, pid and cgroup namespaces, with ``mounts`` (host path, container
+        path, read-only). For a collector that instruments the host. Returns the id."""
+        ...
+
+    def stop_helper(self, name: str, timeout: float = 10.0) -> None:
+        """Stop a helper started with ``start_helper``: SIGTERM, then SIGKILL after ``timeout``."""
+        ...
+
+    def pid(self, container: str) -> int:
+        """The host pid of a running container's init process."""
+        ...
+
+    def logs(self, container: str) -> str:
+        """What the container wrote to its standard streams."""
+        ...
+
 
 def _selector(labels: Mapping[str, str]) -> dict[str, str | list[str] | bool]:
     return {"label": [f"{k}={v}" for k, v in labels.items()]}
@@ -276,6 +301,59 @@ class DaemonClient:
         except docker.errors.APIError as err:
             raise BackendError(f"cannot run helper {' '.join(command)!r}: {err}") from err
         return output.decode(errors="replace") if isinstance(output, bytes) else str(output)
+
+    def start_helper(
+        self,
+        name: str,
+        image: str,
+        command: Sequence[str],
+        labels: Mapping[str, str],
+        mounts: Sequence[tuple[Path, str, bool]],
+    ) -> str:
+        binds = [
+            docker.types.Mount(target, str(source), type="bind", read_only=read_only)
+            for source, target, read_only in mounts
+        ]
+        try:
+            created = self._d.containers.run(
+                image,
+                command=list(command),
+                name=name,
+                labels=dict(labels),
+                detach=True,
+                privileged=True,
+                userns_mode="host",
+                pid_mode="host",
+                network_mode="host",
+                cgroupns="host",
+                mounts=binds,
+            )
+        except docker.errors.APIError as err:
+            raise BackendError(f"cannot start helper {name!r}: {err}") from err
+        return created.id or name
+
+    def stop_helper(self, name: str, timeout: float = 10.0) -> None:
+        try:
+            self._d.containers.get(name).stop(timeout=int(timeout))
+        except docker.errors.NotFound:
+            return
+        except docker.errors.APIError as err:
+            raise BackendError(f"cannot stop helper {name!r}: {err}") from err
+
+    def pid(self, container: str) -> int:
+        try:
+            pid = int(self._d.containers.get(container).attrs["State"]["Pid"])
+        except docker.errors.NotFound as err:
+            raise BackendError(f"container {container!r} does not exist") from err
+        if pid <= 0:
+            raise BackendError(f"container {container!r} is not running")
+        return pid
+
+    def logs(self, container: str) -> str:
+        try:
+            return self._d.containers.get(container).logs().decode(errors="replace")
+        except docker.errors.NotFound:
+            return ""
 
     def addresses(self, container: str) -> dict[str, str]:
         attrs = self._d.containers.get(container).attrs
