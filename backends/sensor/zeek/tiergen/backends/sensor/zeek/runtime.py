@@ -74,7 +74,10 @@ class Zeek(ContainerSensor):
     repository = "zeek/zeek"
 
     def command(self, pcap: str, config: str) -> list[str]:
-        return ["sh", "-c", f"cd /out && exec zeek -C -r /pcap/{pcap} /config/{config}"]
+        # -C: checksums are not validated, since a custom image may still offload them;
+        # -D: deterministic, so the uids are a function of the pcap and a second reading of
+        # the same capture keys the same labels.
+        return ["sh", "-c", f"cd /out && exec zeek -C -D -r /pcap/{pcap} /config/{config}"]
 
     def ingest(self, native_logs: Path) -> Iterator[Event]:
         conn = native_logs / "conn.log"
