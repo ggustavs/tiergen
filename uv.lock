@@ -674,6 +674,7 @@ name = "tiergen-cli"
 version = "0.0.1"
 source = { editable = "cli" }
 dependencies = [
+    { name = "tiergen-attrib-linux-ebpf" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
     { name = "tiergen-impls-base" },
@@ -682,6 +683,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
