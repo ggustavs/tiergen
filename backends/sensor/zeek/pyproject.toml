@@ -4,10 +4,13 @@ version = "0.0.1"
 description = "Zeek: conn.log as the required core, per-protocol logs as APP_EVENTS."
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
-dependencies = ["tiergen-interfaces"]
+dependencies = ["tiergen-interfaces", "tiergen-sensor-base"]
 
 [project.entry-points."tiergen.sensors"]
 zeek = "tiergen.backends.sensor.zeek:DESCRIPTOR"
+
+[project.entry-points."tiergen.sensors.runtimes"]
+zeek = "tiergen.backends.sensor.zeek.runtime:Zeek"
 
 [build-system]
 requires = ["hatchling"]

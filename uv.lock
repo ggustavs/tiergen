@@ -860,10 +860,14 @@ version = "0.0.1"
 source = { editable = "backends/sensor/suricata" }
 dependencies = [
     { name = "tiergen-interfaces" },
+    { name = "tiergen-sensor-base" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+requires-dist = [
+    { name = "tiergen-interfaces", editable = "interfaces" },
+    { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
+]
 
 [[package]]
 name = "tiergen-sensor-zeek"
@@ -871,10 +875,14 @@ version = "0.0.1"
 source = { editable = "backends/sensor/zeek" }
 dependencies = [
     { name = "tiergen-interfaces" },
+    { name = "tiergen-sensor-base" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+requires-dist = [
+    { name = "tiergen-interfaces", editable = "interfaces" },
+    { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
+]
 
 [[package]]
 name = "tiergen-workspace"
