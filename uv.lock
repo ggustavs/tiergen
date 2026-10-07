@@ -680,6 +680,9 @@ dependencies = [
     { name = "tiergen-check" },
     { name = "tiergen-impls-base" },
     { name = "tiergen-infra-base" },
+    { name = "tiergen-sensor-base" },
+    { name = "tiergen-sensor-suricata" },
+    { name = "tiergen-sensor-zeek" },
 ]
 
 [package.metadata]
@@ -689,6 +692,9 @@ requires-dist = [
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-infra-base", editable = "backends/infra/_base" },
+    { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
+    { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
+    { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
 ]
 
 [[package]]

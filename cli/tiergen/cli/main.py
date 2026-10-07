@@ -1,5 +1,5 @@
 """The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``attrib start``
-and ``stop``, ``capture start`` and ``stop``, ``impls list``."""
+and ``stop``, ``capture start`` and ``stop``, ``sensors run``, ``impls list``."""
 
 import argparse
 import json
@@ -9,6 +9,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from tiergen.backends.infra._base import build_manifests
+from tiergen.backends.sensor._base import SensorError
+from tiergen.backends.sensor._base.drive import run_sensors
 from tiergen.check import Diagnostic, run_checks
 from tiergen.check.context import Context
 from tiergen.core.addressing import plan_addresses
@@ -88,6 +90,16 @@ def _parser() -> argparse.ArgumentParser:
     ):
         sub = infra_commands.add_parser(verb, help=text)
         sub.add_argument("run_dir", type=Path, help="a directory written by tiergen build")
+
+    sensors = commands.add_parser("sensors", help="run the scenario's sensors over the capture")
+    sensor_commands = sensors.add_subparsers(
+        dest="sensors_command", required=True, metavar="subcommand"
+    )
+    sensors_run = sensor_commands.add_parser(
+        "run",
+        help="every offline sensor over every captured point, into sensors/<name>/<point>/",
+    )
+    sensors_run.add_argument("run_dir", type=Path, help="a directory whose capture was stopped")
 
     attrib = commands.add_parser("attrib", help="record who owns each connection on a running run")
     attrib_commands = attrib.add_subparsers(
@@ -231,6 +243,22 @@ def _infra(verb: str, run_dir: Path) -> int:
     return OK
 
 
+def _sensors(run_dir: Path) -> int:
+    try:
+        readings = run_sensors(run_dir)
+    except (OSError, CodecError, BackendError, SensorError, LookupError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    for r in readings.readings:
+        print(
+            f"{r.sensor} over {r.point}: {r.connections} connection(s), {r.app_events} "
+            f"application event(s) -> sensors/{r.sensor}/{r.point}/events.jsonl"
+        )
+    for name, digest in readings.digests.items():
+        print(f"{name}: {digest}")
+    return OK
+
+
 def _attrib(verb: str, run_dir: Path) -> int:
     try:
         run = points.load_run(run_dir)
@@ -336,6 +364,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _capture(args.capture_command, args.run_dir)
     if args.command == "attrib":
         return _attrib(args.attrib_command, args.run_dir)
+    if args.command == "sensors":
+        return _sensors(args.run_dir)
     return _impls_list(args.protocol, args.platform, args.kind)
 
 

@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "The tiergen command line."
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
-dependencies = ["tiergen-check", "tiergen-impls-base", "tiergen-infra-base", "tiergen-capture", "tiergen-attrib-linux-ebpf"]
+dependencies = ["tiergen-check", "tiergen-impls-base", "tiergen-infra-base", "tiergen-capture", "tiergen-attrib-linux-ebpf", "tiergen-sensor-base", "tiergen-sensor-zeek", "tiergen-sensor-suricata"]
 
 [project.scripts]
 tiergen = "tiergen.cli.main:main"
