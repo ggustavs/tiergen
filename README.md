@@ -31,13 +31,15 @@ uv run tiergen capture start run1  # dumpcap at the scenario's capture points
 sleep 60
 uv run tiergen capture stop run1
 uv run tiergen attrib stop run1
+uv run tiergen sensors run run1  # zeek and suricata over the capture, pinned images
 uv run tiergen infra down run1
 ```
 
 Afterwards `run1/` holds `capture/lan-span.pcapng`, `out/<instance>/invocations.jsonl` per
-host (what each invocation meant to do, keyed by its cgroup) and `attrib/events.jsonl`
-(what the kernel saw, keyed the same way). Matching the three into per-sensor labels is the
-next task, with Zeek and Suricata reading the capture.
+host (what each invocation meant to do, keyed by its cgroup), `attrib/events.jsonl` (what the
+kernel saw, keyed the same way) and `sensors/<name>/<point>/events.jsonl` (what each sensor
+saw, keyed by its own connection ids). Matching the three into per-sensor labels is the next
+task.
 
 Requirements for the run: a Linux host, Docker with its user-namespace remap on, `setfacl`,
 and dumpcap with the capability to capture. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the two
@@ -51,7 +53,7 @@ needs none of that and runs anywhere Python 3.12 does.
 - `protocols/` the signatures: what a primitive is, independent of the tool that runs it.
 - `check/` the sixteen static checks a scenario passes before anything is built.
 - `impls/` one package per tool, discovered by entry points: httpx, nginx and nmap run today.
-- `backends/` infrastructure (Docker), attribution (eBPF on Linux) and sensors (descriptors).
+- `backends/` infrastructure (Docker), attribution (eBPF on Linux) and sensors (Zeek, Suricata).
 - `runtime/` the Linux agent and capture.
 - `cli/` the `tiergen` command.
 - `examples/` five scenarios, described in [`examples/README.md`](examples/README.md).

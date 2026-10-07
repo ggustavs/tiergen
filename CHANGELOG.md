@@ -9,6 +9,17 @@ no version numbers.
 
 ### Added
 
+- **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
+  Suricata run as pinned images through the daemon over each capture point's pcap, with the
+  scenario's configuration mounted and the image digest recorded; `tiergen sensors run`
+  writes their native logs and their reading in the common event model. The `Sensor`
+  Protocol is bound to a spec and a capture point and gains `run`; the capability schemas
+  are defined once in `interfaces/capability.py`; `SensorSpec.version` is the image tag
+  verbatim, so Zeek is pinned to `7.0.11` and the examples' placeholder configurations
+  became real ones. Zeek reads with `-D`, so its `uid`s are a function of the pcap. Found on
+  the way: with checksum offload on, frames left the containers with checksums never
+  computed and Zeek dropped the browsing silently; `quiesce` now turns it off. The Docker
+  facade is the project's one access to the daemon (section 18).
 - **workspace**: the licence, GPL-3.0-or-later, in `LICENSE`, every member's metadata, the
   README and the contributing guide; the eBPF sources carry GPL-2.0-or-later. Section 18 has
   the reasoning and what datasets carry instead.
