@@ -30,11 +30,14 @@ INSTANCE_LABEL = "tiergen.instance"
 NETWORK_LABEL = "tiergen.network"
 RUN_MOUNT = "/tiergen/run"
 OUT_MOUNT = "/tiergen/out"
-QUIESCE = "for d in /sys/class/net/eth*; do ethtool -K $(basename $d) tso off gso off; done"
-"""What makes a container put wire-sized frames on its bridge. Measured 2026-10-05: a 20 MB
-HTTP transfer captured on the bridge showed 65 KB frames until TSO and GSO were off on the
-sending container's own interface (1514 bytes after); the host-side veths and the bridge
-made no difference, so they are left alone."""
+QUIESCE = "for d in /sys/class/net/eth*; do ethtool -K $(basename $d) tso off gso off tx off; done"
+"""What makes a container put wire-sized, correctly checksummed frames on its bridge.
+Measured 2026-10-05: a 20 MB HTTP transfer captured on the bridge showed 65 KB frames until
+TSO and GSO were off on the sending container's own interface (1514 bytes after); the
+host-side veths and the bridge made no difference, so they are left alone. Measured
+2026-10-07: with checksum offload still on, frames leave the veth with checksums never
+computed, and Zeek silently drops them (its own warning says so); ``tx off`` has the kernel
+compute them before the frame leaves."""
 NEEDS_REMAP = (
     "the daemon runs without a user-namespace remap, which agent hosts need (design "
     'decision 4.19): set "userns-remap" in daemon.json and restart the daemon'
