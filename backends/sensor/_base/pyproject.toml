@@ -1,0 +1,14 @@
+[project]
+name = "tiergen-sensor-base"
+version = "0.0.1"
+description = "Shared by sensor backends: running a sensor image over a capture, Zeek's log formats, the driver."
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["tiergen-core", "tiergen-interfaces", "tiergen-infra-docker", "tiergen-capture"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]

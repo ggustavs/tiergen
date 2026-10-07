@@ -22,6 +22,7 @@ members = [
     "tiergen-infra-libvirt",
     "tiergen-interfaces",
     "tiergen-protocols",
+    "tiergen-sensor-base",
     "tiergen-sensor-suricata",
     "tiergen-sensor-zeek",
     "tiergen-workspace",
@@ -835,6 +836,25 @@ dependencies = [
 requires-dist = [{ name = "tiergen-core", editable = "core" }]
 
 [[package]]
+name = "tiergen-sensor-base"
+version = "0.0.1"
+source = { editable = "backends/sensor/_base" }
+dependencies = [
+    { name = "tiergen-capture" },
+    { name = "tiergen-core" },
+    { name = "tiergen-infra-docker" },
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-capture", editable = "runtime/capture" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-infra-docker", editable = "backends/infra/docker" },
+    { name = "tiergen-interfaces", editable = "interfaces" },
+]
+
+[[package]]
 name = "tiergen-sensor-suricata"
 version = "0.0.1"
 source = { editable = "backends/sensor/suricata" }
@@ -879,6 +899,7 @@ dependencies = [
     { name = "tiergen-infra-libvirt" },
     { name = "tiergen-interfaces" },
     { name = "tiergen-protocols" },
+    { name = "tiergen-sensor-base" },
     { name = "tiergen-sensor-suricata" },
     { name = "tiergen-sensor-zeek" },
 ]
@@ -915,6 +936,7 @@ requires-dist = [
     { name = "tiergen-infra-libvirt", editable = "backends/infra/libvirt" },
     { name = "tiergen-interfaces", editable = "interfaces" },
     { name = "tiergen-protocols", editable = "protocols" },
+    { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
     { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
 ]
