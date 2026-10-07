@@ -168,3 +168,10 @@ def test_attrib_needs_a_run_that_is_up(tmp_path: Path, capsys: pytest.CaptureFix
     )
     assert main(["attrib", "start", str(tmp_path / "r")]) == 2
     assert "is the run up" in capsys.readouterr().err
+
+
+def test_sensors_need_a_stopped_capture(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    scenario = EXAMPLES / "linux_slice" / "scenario.py"
+    assert main(["build", str(scenario), "--out", str(tmp_path / "r")]) == 0
+    assert main(["sensors", "run", str(tmp_path / "r")]) == 2
+    assert "has the capture been stopped" in capsys.readouterr().err
