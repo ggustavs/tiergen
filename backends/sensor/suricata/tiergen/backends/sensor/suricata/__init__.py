@@ -1,6 +1,7 @@
 """Suricata: eve.json flow records as the required core, app-layer events as APP_EVENTS.
 
-Descriptor only. The ingest and label runtime lands in this package in M1.
+The descriptor; the runtime is ``tiergen.backends.sensor.suricata.runtime``, registered
+under ``tiergen.sensors.runtimes`` and loaded only by what runs sensors.
 """
 
 from tiergen.interfaces import Capability, SensorDescriptor

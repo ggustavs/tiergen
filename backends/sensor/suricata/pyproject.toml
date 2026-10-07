@@ -4,10 +4,13 @@ version = "0.0.1"
 description = "Suricata: eve.json flow records as the required core, app-layer events as APP_EVENTS."
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
-dependencies = ["tiergen-interfaces"]
+dependencies = ["tiergen-interfaces", "tiergen-sensor-base"]
 
 [project.entry-points."tiergen.sensors"]
 suricata = "tiergen.backends.sensor.suricata:DESCRIPTOR"
+
+[project.entry-points."tiergen.sensors.runtimes"]
+suricata = "tiergen.backends.sensor.suricata.runtime:Suricata"
 
 [build-system]
 requires = ["hatchling"]
