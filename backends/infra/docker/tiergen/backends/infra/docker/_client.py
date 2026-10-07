@@ -38,6 +38,11 @@ class Client(Protocol):
         """The id of the local image tagged ``tag``, or None if there is none."""
         ...
 
+    def image_digest(self, tag: str) -> str:
+        """What identifies the image tagged ``tag`` beyond the tag: its registry digest if it
+        was pulled, else its id. The tag must be local."""
+        ...
+
     def build_image(self, tag: str, context: Path) -> str:
         """Build ``context/Dockerfile`` as ``tag``. Returns the image id."""
         ...
@@ -198,6 +203,14 @@ class DaemonClient:
             return self._d.images.get(tag).id
         except docker.errors.ImageNotFound:
             return None
+
+    def image_digest(self, tag: str) -> str:
+        try:
+            found = self._d.images.get(tag)
+        except docker.errors.ImageNotFound as err:
+            raise BackendError(f"image {tag!r} is not local") from err
+        digests: list[str] = found.attrs.get("RepoDigests") or []
+        return digests[0] if digests else (found.id or tag)
 
     def build_image(self, tag: str, context: Path) -> str:
         try:

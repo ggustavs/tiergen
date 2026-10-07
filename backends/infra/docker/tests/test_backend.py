@@ -91,6 +91,9 @@ class FakeClient:
         self.calls.append(("build", tag, sorted(p.name for p in context.iterdir())))
         return "sha256:built"
 
+    def image_digest(self, tag: str) -> str:
+        return f"{tag.split(':')[0]}@sha256:fake"
+
     def create_network(
         self,
         name: str,

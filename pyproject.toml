@@ -10,6 +10,7 @@ dependencies = [
     "tiergen-impls-base",
     "tiergen-check",
     "tiergen-cli",
+    "tiergen-sensor-base",
     "tiergen-sensor-zeek",
     "tiergen-sensor-suricata",
     "tiergen-infra-base",
@@ -62,6 +63,7 @@ tiergen-interfaces = { workspace = true }
 tiergen-impls-base = { workspace = true }
 tiergen-check = { workspace = true }
 tiergen-cli = { workspace = true }
+tiergen-sensor-base = { workspace = true }
 tiergen-sensor-zeek = { workspace = true }
 tiergen-sensor-suricata = { workspace = true }
 tiergen-infra-base = { workspace = true }
@@ -96,6 +98,7 @@ src = [
     "impls/nginx",
     "impls/samba",
     "impls/smbclient_win",
+    "backends/sensor/_base",
     "backends/sensor/zeek",
     "backends/sensor/suricata",
     "backends/infra/_base",
@@ -131,6 +134,7 @@ testpaths = [
     "impls/nginx/tests",
     "impls/samba/tests",
     "impls/smbclient_win/tests",
+    "backends/sensor/_base/tests",
     "backends/sensor/zeek/tests",
     "backends/sensor/suricata/tests",
     "backends/infra/_base/tests",
