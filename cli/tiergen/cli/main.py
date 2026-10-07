@@ -1,5 +1,5 @@
-"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``capture start``
-and ``stop``, ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``attrib start``
+and ``stop``, ``capture start`` and ``stop``, ``impls list``."""
 
 import argparse
 import json
@@ -21,13 +21,21 @@ from tiergen.core.resources import DirResources
 from tiergen.core.routing import plan_routes
 from tiergen.impls._base import load_impls
 from tiergen.interfaces import BackendError, RunManifest
-from tiergen.interfaces.registry import load_infra, load_infra_backends, load_sensors
+from tiergen.interfaces.registry import (
+    load_attrib_backends,
+    load_infra,
+    load_infra_backends,
+    load_sensors,
+)
 from tiergen.protocols import SIGNATURES
 from tiergen.runtime.capture import dumpcap, offsets, points
 
 SERVERS = frozenset(s.id for s in SIGNATURES.values() if s.role == "server")
 
 OK, FAILED, UNUSABLE = 0, 1, 2
+ATTRIBUTION = {"docker": "linux_ebpf"}
+"""Which attribution backend instruments the hosts of which infrastructure backend. A
+container's kernel is the capture host's, so eBPF there; a VM backend brings its own."""
 HEADINGS = (("error", "errors"), ("warning", "warnings"), ("not_computed", "not computed"))
 
 
@@ -80,6 +88,17 @@ def _parser() -> argparse.ArgumentParser:
     ):
         sub = infra_commands.add_parser(verb, help=text)
         sub.add_argument("run_dir", type=Path, help="a directory written by tiergen build")
+
+    attrib = commands.add_parser("attrib", help="record who owns each connection on a running run")
+    attrib_commands = attrib.add_subparsers(
+        dest="attrib_command", required=True, metavar="subcommand"
+    )
+    for verb, text in (
+        ("start", "start the kernel-level collectors for the run's hosts"),
+        ("stop", "stop them; attrib/ then holds their events"),
+    ):
+        sub = attrib_commands.add_parser(verb, help=text)
+        sub.add_argument("run_dir", type=Path, help="a directory tiergen infra up brought up")
 
     capture = commands.add_parser("capture", help="capture at a running run's capture points")
     capture_commands = capture.add_subparsers(
@@ -212,6 +231,40 @@ def _infra(verb: str, run_dir: Path) -> int:
     return OK
 
 
+def _attrib(verb: str, run_dir: Path) -> int:
+    try:
+        run = points.load_run(run_dir)
+        wanted = {ATTRIBUTION[b] for b in run.states if b in ATTRIBUTION}
+        backends = load_attrib_backends(only=wanted)
+        missing = sorted(wanted - set(backends))
+        if missing:
+            print(
+                f"tiergen: no attribution backend installed: {', '.join(missing)}", file=sys.stderr
+            )
+            return UNUSABLE
+        for infra, state in run.states.items():
+            if infra not in ATTRIBUTION:
+                print(
+                    f"{infra}: no attribution backend for its hosts; their traffic is unattributed"
+                )
+                continue
+            backend = backends[ATTRIBUTION[infra]]
+            if verb == "start":
+                manifest = from_json(
+                    RunManifest, json.loads((run_dir / f"manifest.{infra}.json").read_text("utf-8"))
+                )
+                backend.start(manifest, state, run_dir)
+                print(f"{ATTRIBUTION[infra]}: recording {len(state.hosts)} host(s) of {infra}")
+            else:
+                backend.stop(run_dir)
+                count = sum(1 for _ in backend.records(run_dir))
+                print(f"{ATTRIBUTION[infra]}: stopped, {count} record(s)")
+    except (OSError, CodecError, BackendError, points.CaptureError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    return OK
+
+
 def _capture(verb: str, run_dir: Path) -> int:
     out = run_dir / "capture"
     try:
@@ -281,6 +334,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _infra(args.infra_command, args.run_dir)
     if args.command == "capture":
         return _capture(args.capture_command, args.run_dir)
+    if args.command == "attrib":
+        return _attrib(args.attrib_command, args.run_dir)
     return _impls_list(args.protocol, args.platform, args.kind)
 
 
