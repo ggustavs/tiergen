@@ -950,6 +950,7 @@ Detectors for the evaluation harness
 - No live malware; attacks only through emulation adapters and documented primitives.
 - Reproducibility: every dataset ships `manifest.json` with image digests, implementation and sensor versions, seeds and the IR.
 - Commits follow Conventional Commits 1.0.0 with a fixed scope list; branches follow Conventional Branch 1.1.0. `commit-check` enforces both from `cchk.toml`, in local hooks and in CI. `main` is linear and takes pull requests by rebase-merge only, behind the `lint`, `types`, `test`, `lock` and `conventions` checks. Signed commits are not required on `main` and required approvals are 0 while there is one maintainer; `CHANGELOG.md` says why. `CONTRIBUTING.md` has the details.
+- The code is GPL-3.0-or-later (2026-10-07: chosen over Apache-2.0 so that a product built on the tool stays open; loosening later costs nothing while the copyright is in one hand, tightening later cannot recall released copies). The eBPF programs carry GPL-2.0-or-later for the kernel's sake. Datasets a run produces are not derivatives and carry their own licence per release.
 - Documentation and commit bodies in plain prose. Engineer-facing docs describe the workflow in section 3, not the internals.
 - When this file is wrong, fix it in the same commit. This file says how things are; `CHANGELOG.md` says what changed and why, in the same commit. A decision in section 4 still takes a dated note in place.
 

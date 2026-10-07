@@ -3,6 +3,7 @@ name = "tiergen-capture"
 version = "0.0.1"
 description = "Capture at the scenario's capture points: dumpcap on the host, pcapng, tags, clock offsets."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core", "tiergen-interfaces"]
 
 [build-system]

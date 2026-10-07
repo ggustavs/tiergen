@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /* Who caused which connection, from the kernel's side.
  *
  * Every event carries the cgroup of the task or socket that caused it and the cgroup of

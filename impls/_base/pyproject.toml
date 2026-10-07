@@ -3,6 +3,7 @@ name = "tiergen-impls-base"
 version = "0.0.1"
 description = "Implementation interfaces, manifest schema, entry-point registry."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core", "tiergen-interfaces"]
 
 [build-system]

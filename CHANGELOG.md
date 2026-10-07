@@ -9,6 +9,9 @@ no version numbers.
 
 ### Added
 
+- **workspace**: the licence, GPL-3.0-or-later, in `LICENSE`, every member's metadata, the
+  README and the contributing guide; the eBPF sources carry GPL-2.0-or-later. Section 18 has
+  the reasoning and what datasets carry instead.
 - **backends/attrib**, **cli**, **interfaces**, **runtime**: attribution on Linux (M1 task 7).
   `tiergen attrib start` runs an eBPF collector through the daemon as a privileged helper,
   attached to the run's containers' cgroups: libbpf with CO-RE, built once in its own image

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /* The kernel types the programs touch, no more. Every struct is marked for CO-RE, so
  * field offsets are relocated against the running kernel's BTF at load time; the layout
  * written here only has to name the fields, not place them. Wire formats (IP, TCP, UDP

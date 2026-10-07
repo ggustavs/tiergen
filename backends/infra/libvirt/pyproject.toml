@@ -3,6 +3,7 @@ name = "tiergen-infra-libvirt"
 version = "0.0.1"
 description = "libvirt: Linux and Windows virtual machines under KVM."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-interfaces"]
 
 [project.entry-points."tiergen.infra"]

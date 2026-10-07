@@ -3,6 +3,7 @@ name = "tiergen-attrib-base"
 version = "0.0.1"
 description = "Shared by attribution backends: the collector's event lines and the join to records."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core", "tiergen-interfaces"]
 
 [build-system]

@@ -3,6 +3,7 @@ name = "tiergen-protocols"
 version = "0.0.1"
 description = "Protocol signatures with expected traffic shapes."
 requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
 dependencies = ["tiergen-core"]
 
 [build-system]
