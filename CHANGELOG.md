@@ -9,6 +9,17 @@ no version numbers.
 
 ### Added
 
+- **backends/attrib**, **cli**, **interfaces**, **runtime**: attribution on Linux (M1 task 7).
+  `tiergen attrib start` runs an eBPF collector through the daemon as a privileged helper,
+  attached to the run's containers' cgroups: libbpf with CO-RE, built once in its own image
+  against BTF over a minimal relocatable header, chosen over bcc because bcc needs the host's
+  kernel headers at load time; the probe showed the id the kernel reports is the cgroup
+  directory's inode. Hooks on connect, accept, close, UDP send and receive, and a cgroup
+  egress program that reports the first packet of each flow, raw sockets included. The
+  collector prints one JSON line per event; `backends/attrib/_base` joins them into
+  `AttributionRecord`s. The agent's key is now `cgroup:<id>`, the kernel's id, not a path;
+  `AttributionBackend` works per run and records carry the process. The daemon test holds that
+  `linux_slice`'s browsing and SYN scan are attributed to their invocations' cgroups.
 - **runtime/capture**, **cli**, **backends/infra**: capture (M1 task 6). `tiergen capture
   start` runs one dumpcap per active capture point on the host over the bridges of its
   segments, interface i being segment i; `stop` closes the files, inserts 802.1Q tags for
