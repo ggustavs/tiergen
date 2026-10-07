@@ -109,5 +109,5 @@ def test_run_reads_the_pcap_with_the_configuration_in_the_pinned_image(tmp_path:
     assert fake.calls[1][2] == (
         "sh",
         "-c",
-        "cd /out && exec zeek -C -r /pcap/lan-span.pcapng /config/linux_slice.zeek",
+        "cd /out && exec zeek -C -D -r /pcap/lan-span.pcapng /config/linux_slice.zeek",
     )
