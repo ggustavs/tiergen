@@ -68,13 +68,13 @@ class NoInfra:
 class NoAttribution:
     platform: Platform = "linux"
 
-    def start(self, instance: str) -> None: ...
+    def start(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None: ...
 
-    def stop(self, instance: str) -> None: ...
+    def stop(self, run_dir: Path) -> None: ...
 
-    def collect(self, instance: str) -> Iterator[AttributionRecord]:
+    def records(self, run_dir: Path) -> Iterator[AttributionRecord]:
         yield AttributionRecord(
-            instance, AttributionKey("linux", "cgroup:/x"), CONN.five_tuple, 0.0, 1.0
+            "h1", AttributionKey("linux", "cgroup:4242"), CONN.five_tuple, 0.0, 1.0
         )
 
 
@@ -91,7 +91,8 @@ def test_infra_and_attribution_fakes_meet_their_interfaces() -> None:
     attribution: AttributionBackend = NoAttribution()
     infra.up(RunManifest("r", "none", (), ()), Path("run"))
     assert isinstance(infra, InfraBackend)
-    assert [r.instance for r in attribution.collect("h1")] == ["h1"]
+    attribution.start(RunManifest("r", "none", (), ()), RunState("r", "none"), Path("run"))
+    assert [r.instance for r in attribution.records(Path("run"))] == ["h1"]
 
 
 def test_capability_names_are_what_the_ir_stores() -> None:

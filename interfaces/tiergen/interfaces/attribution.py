@@ -6,11 +6,13 @@ independent of any sensor. Each sensor's label step maps these records onto its 
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from tiergen.core.events import FiveTuple
 from tiergen.core.ir import Platform
 from tiergen.core.records import AttributionKey
+from tiergen.interfaces.manifest import RunManifest, RunState
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,21 +34,26 @@ class AttributionRecord:
 
 
 class AttributionBackend(Protocol):
-    """Records connection ownership on hosts of one platform."""
+    """Records connection ownership on the hosts of one platform, for a whole run.
+
+    One backend instruments every host of its platform that a run has: for containers, one
+    collector on the capture host sees them all; for guests, one agent per guest behind the
+    same three calls. What it writes lives under ``run_dir/attrib/``.
+    """
 
     @property
     def platform(self) -> Platform:
         """The guest platform this backend instruments."""
         ...
 
-    def start(self, instance: str) -> None:
-        """Begin recording on the host of ``instance``. Called before capture starts."""
+    def start(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+        """Begin recording on the run's hosts. Called before capture starts."""
         ...
 
-    def stop(self, instance: str) -> None:
-        """Stop recording on the host of ``instance``."""
+    def stop(self, run_dir: Path) -> None:
+        """Stop recording and finish what was written."""
         ...
 
-    def collect(self, instance: str) -> Iterator[AttributionRecord]:
-        """Yield what was recorded there. Traffic with no record stays unattributed."""
+    def records(self, run_dir: Path) -> Iterator[AttributionRecord]:
+        """What was recorded, as records. Traffic with no record stays unattributed."""
         ...
