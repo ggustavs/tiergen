@@ -22,8 +22,11 @@ class AttributionRecord:
     ``instance`` is the id of the host it was seen on, ``path/kind[i]``, never a substrate
     name; the backend that observes it maps from its own names. ``principal`` is the
     execution context the observer saw, which the join matches to an
-    ``InvocationRecord.principal``. ``start`` and ``end`` are seconds since the epoch on
-    that host's clock; the record's ``ClockStamp`` moves them onto the capture host's.
+    ``InvocationRecord.principal``; ``tgid`` is the thread group the kernel saw, which is
+    what a ``pid:<n>`` key matches, 0 where the observer has no process (a raw packet seen
+    by a cgroup hook). ``start`` and ``end`` are seconds since the epoch on that host's
+    clock; the record's ``ClockStamp`` moves them onto the capture host's. ``end`` equal to
+    ``start`` means the observer saw the beginning and not the end.
     """
 
     instance: str
@@ -31,6 +34,7 @@ class AttributionRecord:
     five_tuple: FiveTuple
     start: float
     end: float
+    tgid: int = 0
 
 
 class AttributionBackend(Protocol):
