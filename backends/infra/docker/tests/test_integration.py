@@ -24,7 +24,8 @@ from tiergen.backends.infra.docker import image
 from tiergen.backends.infra.docker._client import DaemonClient
 from tiergen.backends.infra.docker.backend import DockerBackend, container_name, network_name
 from tiergen.cli.main import main
-from tiergen.core.codec import from_json, to_json
+from tiergen.core.codec import decode, from_json, to_json
+from tiergen.core.events import AppEvent, ConnEvent
 from tiergen.core.records import InvocationRecord
 from tiergen.interfaces import BackendError, RunManifest, RunState
 from tiergen.runtime.agent_linux.records import read_records
@@ -76,7 +77,7 @@ def _wait(
         time.sleep(2)
 
 
-def _release(out: Path, image: str) -> None:
+def _release(out: Path, image: str, depth: int = 2) -> None:
     """What the agents wrote belongs to the remapped root, which the user cannot delete
     inside the agents' own directories; a container as that root removes it, leaving the
     instance directories, which are the user's, empty."""
@@ -91,7 +92,7 @@ def _release(out: Path, image: str) -> None:
             "find",
             "/o",
             "-mindepth",
-            "2",
+            str(depth),
             "-delete",
         ],
         check=True,
@@ -221,6 +222,31 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
         assert (out / "lab-web_server-0" / "http.nginx" / "access.log").stat().st_uid != os.getuid()
         assert (out / "lab-web_server-0").stat().st_uid == os.getuid()
         assert main(["attrib", "stop", str(run_dir)]) == 0
+        # Both sensors read the capture at their pinned versions and agree on what they saw.
+        assert main(["sensors", "run", str(run_dir)]) == 0
+        for name in ("zeek", "suricata"):
+            lines = (
+                (run_dir / "sensors" / name / "lan-span" / "events.jsonl").read_text().splitlines()
+            )
+            seen = [decode(ConnEvent | AppEvent, json.loads(line)) for line in lines]
+            conns = [e for e in seen if isinstance(e, ConnEvent)]
+            apps = [e for e in seen if isinstance(e, AppEvent)]
+            assert conns, name
+            assert all(c.flow.sensor == name and c.flow.capture_point == "lan-span" for c in conns)
+            browsing = [
+                c for c in conns if (c.five_tuple.orig_addr, c.five_tuple.resp_addr) == (ws, web)
+            ]
+            assert browsing, name
+            assert all(c.five_tuple.resp_port == 80 for c in browsing), name
+            assert {c.state for c in browsing} <= {"closed", "established"}, name
+            refused = [c for c in conns if c.five_tuple.orig_addr == atk and c.state == "rejected"]
+            assert len(refused) > 100, name
+            http = [a for a in apps if a.protocol == "http"]
+            assert http, name
+            assert all(str(a.fields.get("user_agent", "")).startswith("python-httpx") for a in http)
+            assert all(a.flow in {c.flow for c in browsing} for a in http), name
+            digest = json.loads((run_dir / "sensors" / name / "image.json").read_text())["digest"]
+            assert "@sha256:" in digest, name
         # The kernel saw the browsing from the workstation's invocation cgroups and the scan
         # from the attacker's, and every invocation that succeeded has a record inside it.
         events = list(read_events(run_dir / "attrib" / "events.jsonl"))
@@ -246,6 +272,8 @@ def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
     finally:
         backend.down(manifest)
         _release(run_dir / "out", state.images["tiergen/base-linux"])
+        if (run_dir / "sensors").is_dir():
+            _release(run_dir / "sensors", state.images["tiergen/base-linux"], depth=3)
     assert daemon.containers(run) == []
     assert daemon.networks(run) == []
 
