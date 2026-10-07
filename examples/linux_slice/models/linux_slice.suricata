@@ -1,1 +1,46 @@
-# Placeholder. The suricata.yaml the generated traffic will be read with.
+%YAML 1.1
+---
+# The suricata.yaml the generated traffic is read with. In a real scenario this is the target
+# network's own, captured at collect time and reused unchanged. This one enables the EVE log
+# for the protocols the examples speak and loads no rules.
+vars:
+  address-groups:
+    HOME_NET: "[10.0.0.0/8,192.168.0.0/16,172.16.0.0/12]"
+    EXTERNAL_NET: "!$HOME_NET"
+default-log-dir: /out
+stats:
+  enabled: no
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - flow
+        - http
+        - tls
+        - dns
+        - ssh
+        - smb
+        - krb5
+        - alert
+default-rule-path: /etc/suricata/rules
+rule-files: []
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+    tls:
+      enabled: yes
+      ja3-fingerprints: yes
+    dns:
+      tcp:
+        enabled: yes
+      udp:
+        enabled: yes
+    ssh:
+      enabled: yes
+    smb:
+      enabled: yes
+    krb5:
+      enabled: yes

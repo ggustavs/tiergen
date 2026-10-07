@@ -139,7 +139,7 @@ S = scenario(
     sensors=[
         sensor(
             "zeek",
-            "7.0",
+            "7.0.11",
             resource("hq_lan.zeek"),
             "offline",
             caps=["APP_EVENTS", "TLS_JA4", "HTTP_USER_AGENT", "SSH_STRINGS", "SMB_DIALECT", "X509"],

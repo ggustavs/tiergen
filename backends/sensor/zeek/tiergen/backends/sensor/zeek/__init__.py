@@ -8,7 +8,7 @@ from tiergen.interfaces import Capability, SensorDescriptor
 
 DESCRIPTOR = SensorDescriptor(
     id="zeek",
-    versions=("7.0", "7.0.11"),
+    versions=("7.0.11",),
     modes=("offline", "live"),
     capabilities=frozenset(
         {
