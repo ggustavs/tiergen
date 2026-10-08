@@ -7,6 +7,17 @@ no version numbers.
 
 ## M2: processes and prediction (in progress)
 
+### Added
+
+- **sim**: the simulator. `simulate(scenario, resources)` builds the programs as `build`
+  does, runs every behaviour through the shared loop under a clock that jumps and an
+  implementation that records, and turns each invocation into the `ConnEvent`s its
+  signature's shape promises (a scan into one rejected connection per port) with an
+  `AppEvent` carrying the request path for HTTP; `write` leaves a run directory the fit
+  reads like a real one, under the sensor name `sim`. Records and events are a function of
+  the scenario and the seed, and the loop test's program gives the same records through
+  the simulator as through the loop.
+
 ### Changed
 
 - **runtime**: the behaviour loop and its sampling moved from `agent_linux` into their own

@@ -28,6 +28,7 @@ members = [
     "tiergen-sensor-base",
     "tiergen-sensor-suricata",
     "tiergen-sensor-zeek",
+    "tiergen-sim",
     "tiergen-workspace",
 ]
 
@@ -955,6 +956,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "tiergen-sim"
+version = "0.0.1"
+source = { editable = "sim" }
+dependencies = [
+    { name = "tiergen-behaviour" },
+    { name = "tiergen-core" },
+    { name = "tiergen-protocols" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-behaviour", editable = "runtime/behaviour" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-protocols", editable = "protocols" },
+]
+
+[[package]]
 name = "tiergen-workspace"
 version = "0.0.0"
 source = { virtual = "." }
@@ -983,6 +1001,7 @@ dependencies = [
     { name = "tiergen-sensor-base" },
     { name = "tiergen-sensor-suricata" },
     { name = "tiergen-sensor-zeek" },
+    { name = "tiergen-sim" },
 ]
 
 [package.dev-dependencies]
@@ -1023,6 +1042,7 @@ requires-dist = [
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
     { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
+    { name = "tiergen-sim", editable = "sim" },
 ]
 
 [package.metadata.requires-dev]
