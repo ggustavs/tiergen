@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "tiergen-agent-linux",
+    "tiergen-assemble",
     "tiergen-attrib-base",
     "tiergen-attrib-linux-ebpf",
     "tiergen-capture",
@@ -607,6 +608,27 @@ requires-dist = [
 ]
 
 [[package]]
+name = "tiergen-assemble"
+version = "0.0.1"
+source = { editable = "backends/assemble" }
+dependencies = [
+    { name = "tiergen-attrib-base" },
+    { name = "tiergen-capture" },
+    { name = "tiergen-core" },
+    { name = "tiergen-interfaces" },
+    { name = "tiergen-sensor-base" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
+    { name = "tiergen-capture", editable = "runtime/capture" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-interfaces", editable = "interfaces" },
+    { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
+]
+
+[[package]]
 name = "tiergen-attrib-base"
 version = "0.0.1"
 source = { editable = "backends/attrib/_base" }
@@ -896,6 +918,7 @@ version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "tiergen-agent-linux" },
+    { name = "tiergen-assemble" },
     { name = "tiergen-attrib-base" },
     { name = "tiergen-attrib-linux-ebpf" },
     { name = "tiergen-capture" },
@@ -933,6 +956,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "tiergen-agent-linux", editable = "runtime/agent_linux" },
+    { name = "tiergen-assemble", editable = "backends/assemble" },
     { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
     { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
     { name = "tiergen-capture", editable = "runtime/capture" },

@@ -100,3 +100,17 @@ class RunState:
     hosts: dict[str, HostState] = field(default_factory=dict[str, HostState])
     bridges: dict[str, str] = field(default_factory=dict[str, str])
     images: dict[str, str] = field(default_factory=dict[str, str])
+
+
+@dataclass(frozen=True, slots=True)
+class RunRecord:
+    """What ``tiergen run`` leaves of a run once its hosts are gone: the run id, the
+    scenario, when the agents were started on the capture host's clock, how long they ran,
+    and every backend's state while the run was up. ``assemble`` reads it; the state files
+    themselves go with ``down``."""
+
+    run: str
+    scenario: str
+    started: float
+    duration_s: float
+    states: dict[str, RunState] = field(default_factory=dict[str, RunState])
