@@ -263,9 +263,10 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   protocols/            ✔ signatures with expected traffic shapes, one module per protocol; no tool deps
   interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
   check/                ✔ static checker: checks 1-16, diagnostics, runner
-  cli/                  ✔ the `tiergen` command: `check`, `build`, `infra up`, `infra down`, `impls list`
+  cli/                  ✔ the `tiergen` command: `check`, `build`, `run`, `assemble`, the pieces by hand, `impls list`
   examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
-  semantics/              process interface, semi-Markov default, product-process analysis, prediction, Storm export
+  sim/                  ✔ the scenario simulated: the behaviour loop under a fake clock, invocations into the events a sensor would report
+  stats/                  estimators with intervals, two-sample tests on event streams, their calibration on the simulator
   fit/                    ingestion via Sensor, host inventory, role clustering, behaviour and impl-mix fitting, proposal
   backends/
     sensor/
@@ -740,7 +741,7 @@ Runtime checks before capture: clock sync within tolerance on every host; attrib
 
 ## 9. Prediction, fidelity, conformance
 
-**Denotation.** A scenario denotes the product of its actors' processes under the schedule's time-inhomogeneous control. Semi-Markov default: embedded-chain stationary distribution per behaviour, mean dwell per state, long-run occupancy, expected invocations per unit time per `(role, action)` modulated by the weekly rate curve. Exponential dwell gives a CTMC exportable to Storm or PRISM; general dwell is simulated from the same process objects.
+**Denotation.** A scenario denotes the product of its actors' processes under the schedule's time-inhomogeneous control. Semi-Markov default: embedded-chain stationary distribution per behaviour, mean dwell per state, long-run occupancy, expected invocations per unit time per `(role, action)` modulated by the weekly rate curve. Exponential dwell gives a CTMC exportable to Storm or PRISM; general dwell is simulated from the same process objects, which `tiergen.sim` does (2026-10-08): the agents' own behaviour loop under a clock that jumps, every invocation turned into the connections its signature's shape promises, so the denotation is sampled exactly and in seconds, with no runtime between the model and the events.
 
 **Prediction.** Invocation rates combined with signature traffic shapes and the per-implementation connection profiles measured by conformance tests yield predicted statistics at the common-event level: connections per service per hour per role, duration and byte distributions per service, HTTP request rate and size mix, DNS query rate, TLS SNI and JA4 mix, SMB operation mix, Kerberos request mix, per-role peer counts.
 

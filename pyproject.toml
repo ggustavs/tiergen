@@ -28,6 +28,7 @@ dependencies = [
     "tiergen-attrib-linux-ebpf",
     "tiergen-assemble",
     "tiergen-scheduler",
+    "tiergen-sim",
 ]
 
 [dependency-groups]
@@ -56,6 +57,7 @@ members = [
     "backends/attrib/*",
     "backends/assemble",
     "runtime/*",
+    "sim",
     "check",
     "cli",
 ]
@@ -85,12 +87,13 @@ tiergen-attrib-base = { workspace = true }
 tiergen-attrib-linux-ebpf = { workspace = true }
 tiergen-assemble = { workspace = true }
 tiergen-scheduler = { workspace = true }
+tiergen-sim = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 extraPaths = ["check/tests", "runtime/behaviour/tests", "runtime/agent_linux/tests"]
-include = ["core", "protocols", "interfaces", "impls", "backends", "runtime", "check", "cli", "examples", "scripts"]
+include = ["core", "protocols", "interfaces", "impls", "backends", "runtime", "sim", "check", "cli", "examples", "scripts"]
 
 [tool.ruff]
 line-length = 100
@@ -118,6 +121,7 @@ src = [
     "runtime/agent_linux",
     "runtime/capture",
     "runtime/scheduler",
+    "sim",
     "check",
     "cli",
 ]
@@ -158,6 +162,7 @@ testpaths = [
     "runtime/agent_linux/tests",
     "runtime/capture/tests",
     "runtime/scheduler/tests",
+    "sim/tests",
     "check/tests",
     "cli/tests",
     "examples/tests",
