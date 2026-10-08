@@ -175,3 +175,15 @@ def test_sensors_need_a_stopped_capture(tmp_path: Path, capsys: pytest.CaptureFi
     assert main(["build", str(scenario), "--out", str(tmp_path / "r")]) == 0
     assert main(["sensors", "run", str(tmp_path / "r")]) == 2
     assert "has the capture been stopped" in capsys.readouterr().err
+
+
+def test_run_needs_a_built_directory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["run", str(tmp_path), "--for", "1"]) == 2
+    assert "holds no manifest" in capsys.readouterr().err
+
+
+def test_assemble_needs_a_run_that_completed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["assemble", str(tmp_path)]) == 2
+    assert "scenario.json" in capsys.readouterr().err

@@ -1,5 +1,6 @@
-"""The ``tiergen`` command: ``check``, ``build``, ``infra up`` and ``down``, ``attrib start``
-and ``stop``, ``capture start`` and ``stop``, ``sensors run``, ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build``, ``run``, ``assemble``; the pieces of a run
+by hand, ``infra up`` and ``down``, ``attrib start`` and ``stop``, ``capture start`` and
+``stop``, ``sensors run``; and ``impls list``."""
 
 import argparse
 import json
@@ -8,6 +9,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from tiergen.backends.assemble import AssembleError, assemble
+from tiergen.backends.attrib._base import BY_INFRA
 from tiergen.backends.infra._base import build_manifests
 from tiergen.backends.sensor._base import SensorError
 from tiergen.backends.sensor._base.drive import run_sensors
@@ -31,13 +34,11 @@ from tiergen.interfaces.registry import (
 )
 from tiergen.protocols import SIGNATURES
 from tiergen.runtime.capture import dumpcap, offsets, points
+from tiergen.runtime.scheduler import SchedulerError, run_scenario
 
 SERVERS = frozenset(s.id for s in SIGNATURES.values() if s.role == "server")
 
 OK, FAILED, UNUSABLE = 0, 1, 2
-ATTRIBUTION = {"docker": "linux_ebpf"}
-"""Which attribution backend instruments the hosts of which infrastructure backend. A
-container's kernel is the capture host's, so eBPF there; a VM backend brings its own."""
 HEADINGS = (("error", "errors"), ("warning", "warnings"), ("not_computed", "not computed"))
 
 
@@ -81,6 +82,33 @@ def _parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="resource directory (default: models/ beside the scenario)",
     )
+
+    run = commands.add_parser(
+        "run",
+        help="run a built scenario: hosts up, collector and capture on, agents started, down",
+        description="Run a built scenario once. The hosts are created, the attribution "
+        "collector and the capture started, then every agent started together; after the "
+        "scenario's duration everything comes down in reverse and run.json records the "
+        "run. Exit status: 0 the run completed, 2 it could not start.",
+    )
+    run.add_argument("run_dir", type=Path, help="a directory written by tiergen build")
+    run.add_argument(
+        "--for",
+        dest="for_s",
+        type=float,
+        metavar="SECONDS",
+        help="run this long instead of the scenario's duration",
+    )
+
+    assemble_cmd = commands.add_parser(
+        "assemble",
+        help="sensors over the capture, then labels, flags and the manifest",
+        description="Assemble a run that completed: every configured sensor over every "
+        "captured point, then the join of the agents' records, the attribution records and "
+        "each sensor's connections into labels.<sensor>.jsonl, flagged.jsonl and "
+        "manifest.json. Exit status: 0 assembled, 2 the run directory lacks something.",
+    )
+    assemble_cmd.add_argument("run_dir", type=Path, help="a directory tiergen run completed")
 
     infra = commands.add_parser("infra", help="bring a built run's hosts up or down")
     infra_commands = infra.add_subparsers(dest="infra_command", required=True, metavar="subcommand")
@@ -262,7 +290,7 @@ def _sensors(run_dir: Path) -> int:
 def _attrib(verb: str, run_dir: Path) -> int:
     try:
         run = points.load_run(run_dir)
-        wanted = {ATTRIBUTION[b] for b in run.states if b in ATTRIBUTION}
+        wanted = {BY_INFRA[b] for b in run.states if b in BY_INFRA}
         backends = load_attrib_backends(only=wanted)
         missing = sorted(wanted - set(backends))
         if missing:
@@ -271,22 +299,24 @@ def _attrib(verb: str, run_dir: Path) -> int:
             )
             return UNUSABLE
         for infra, state in run.states.items():
-            if infra not in ATTRIBUTION:
+            if infra not in BY_INFRA:
                 print(
                     f"{infra}: no attribution backend for its hosts; their traffic is unattributed"
                 )
                 continue
-            backend = backends[ATTRIBUTION[infra]]
+            backend = backends[BY_INFRA[infra]]
             if verb == "start":
                 manifest = from_json(
                     RunManifest, json.loads((run_dir / f"manifest.{infra}.json").read_text("utf-8"))
                 )
                 backend.start(manifest, state, run_dir)
-                print(f"{ATTRIBUTION[infra]}: recording {len(state.hosts)} host(s) of {infra}")
+                # The collector's image went into the state; keep the file current.
+                _dump(state, run_dir / f"state.{infra}.json")
+                print(f"{BY_INFRA[infra]}: recording {len(state.hosts)} host(s) of {infra}")
             else:
                 backend.stop(run_dir)
                 count = sum(1 for _ in backend.records(run_dir))
-                print(f"{ATTRIBUTION[infra]}: stopped, {count} record(s)")
+                print(f"{BY_INFRA[infra]}: stopped, {count} record(s)")
     except (OSError, CodecError, BackendError, points.CaptureError) as err:
         print(f"tiergen: {err}", file=sys.stderr)
         return UNUSABLE
@@ -318,6 +348,35 @@ def _capture(verb: str, run_dir: Path) -> int:
     except (OSError, CodecError, BackendError, points.CaptureError) as err:
         print(f"tiergen: {err}", file=sys.stderr)
         return UNUSABLE
+    return OK
+
+
+def _run(run_dir: Path, for_s: float | None) -> int:
+    try:
+        record = run_scenario(run_dir, for_s, log=print)
+    except (OSError, CodecError, BackendError, SchedulerError, points.CaptureError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    print(f"{record.run}: ran {record.duration_s:.0f} s; next: tiergen assemble {run_dir}")
+    return OK
+
+
+def _assemble(run_dir: Path) -> int:
+    try:
+        summary = assemble(run_dir)
+    except (OSError, CodecError, BackendError, SensorError, AssembleError, LookupError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    for r in summary.readings.readings:
+        print(
+            f"{r.sensor} over {r.point}: {r.connections} connection(s), {r.app_events} "
+            f"application event(s)"
+        )
+    for name, count in summary.labels.items():
+        print(f"{name}: {count} label(s) -> labels.{name}.jsonl")
+    flags = ", ".join(f"{n} {kind}" for kind, n in sorted(summary.flags.items())) or "none"
+    print(f"flagged: {flags} -> flagged.jsonl")
+    print(f"{summary.manifest.run}: manifest.json")
     return OK
 
 
@@ -358,6 +417,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _check(args.scenario, args.models, args.emit_json)
     if args.command == "build":
         return _build(args.scenario, args.models, args.out)
+    if args.command == "run":
+        return _run(args.run_dir, args.for_s)
+    if args.command == "assemble":
+        return _assemble(args.run_dir)
     if args.command == "infra":
         return _infra(args.infra_command, args.run_dir)
     if args.command == "capture":
