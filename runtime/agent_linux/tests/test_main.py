@@ -5,6 +5,8 @@ Linux only, like the agent: it forks.
 
 import logging
 import sys
+import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -56,6 +58,49 @@ def test_run_starts_services_forks_behaviours_and_writes_records(tmp_path: Path)
     assert "http.fakesrv serves http/80" in text
     assert "behaviour 'browse' runs as" in text
     assert "done, 0 failure(s)" in text
+    logging.getLogger("tiergen.agent").handlers.clear()
+
+
+def test_the_agent_holds_at_its_gate_after_the_services_are_up(tmp_path: Path) -> None:
+    p = replace(
+        program(duration=0.5, idle=0.05, active=0.02),
+        services=("http.serve",),
+        impls={"http.get": {"http.fake": 1.0}, "http.serve": {"http.fakesrv": 1.0}},
+    )
+    service = FakeService()
+    out = tmp_path / "out"
+    out.mkdir()
+    log = setup_logging(out)
+    gate = tmp_path / "go"
+    released_at = 0.0
+
+    def release() -> None:
+        nonlocal released_at
+        released_at = time.monotonic()
+        gate.touch()
+
+    threading.Timer(0.5, release).start()
+    status = run(
+        p,
+        out,
+        primitive=lambda _: FakeImpl(),
+        service=lambda _: service,
+        attribution=FakeAttribution(),
+        log=log,
+        go=gate,
+    )
+    for handler in list(log.handlers):
+        log.removeHandler(handler)
+        handler.close()
+    assert status == 0
+    records = read_records(out / "invocations.jsonl")
+    assert records
+    assert all(r.start >= time.time() - 2 for r in records)
+    assert min(r.clock.monotonic for r in records) >= released_at
+    text = (out / "agent.log").read_text()
+    assert (
+        text.index("holding at") < text.index("released") < text.index("behaviour 'browse' runs as")
+    )
     logging.getLogger("tiergen.agent").handlers.clear()
 
 

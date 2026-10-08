@@ -1,8 +1,10 @@
 """``tiergen-agent <program.json>``: the process a Linux host runs for the whole scenario.
 
 It loads the program, chooses how invocations are keyed, starts the services the instance
-binds and waits for them to answer, then forks one process per behaviour and waits for the
-duration. Scenario time starts once the services are up. Services write under
+binds and waits for them to answer, holds at the gate if it was given one (``--go PATH``:
+the scheduler creates the path once attribution and capture are in place, so every host's
+scenario time starts at once), then forks one process per behaviour and waits for the
+duration. Scenario time starts once the services are up and the gate is open. Services write under
 ``out/<impl id>``; the behaviours write ``out/invocations.jsonl``; everything logs to
 ``out/agent.log``.
 """
@@ -120,10 +122,11 @@ def run(
     attribution: Attribution,
     log: logging.Logger,
     clock: Clock | None = None,
+    go: Path | None = None,
 ) -> int:
-    """Services, then one process per behaviour, until the duration or SIGTERM."""
+    """Services, the gate if any, then one process per behaviour, until the duration or
+    SIGTERM."""
     services, failed = start_services(program, out, service, log)
-    clock = clock or MonotonicClock()
     recorder = Recorder(out)
     children: list[int] = []
     stopped = False
@@ -136,7 +139,15 @@ def run(
 
     signal.signal(signal.SIGTERM, terminate)
     try:
+        if go is not None:
+            log.info("services up; holding at %s", go)
+            while not stopped and not go.exists():
+                time.sleep(0.2)
+            log.info("released")
+        clock = clock or MonotonicClock()
         for behaviour in program.behaviours:
+            if stopped:
+                break
             pid = os.fork()
             if pid == 0:
                 signal.signal(signal.SIGTERM, signal.SIG_DFL)
@@ -179,6 +190,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("program", type=Path, help="program.<instance>.json from tiergen build")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="where to write records")
+    parser.add_argument(
+        "--go",
+        type=Path,
+        metavar="PATH",
+        help="hold after the services are up until this path exists",
+    )
     args = parser.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
     log = setup_logging(args.out)
@@ -203,6 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             service=load_service,
             attribution=choose(log),
             log=log,
+            go=args.go,
         )
     except Exception:
         log.exception("agent failed")

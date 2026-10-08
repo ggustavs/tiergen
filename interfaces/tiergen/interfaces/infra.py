@@ -58,15 +58,24 @@ class InfraBackend(Protocol):
         """The descriptor id this backend implements: "docker", "libvirt"."""
         ...
 
-    def up(self, manifest: RunManifest, run_dir: Path) -> RunState:
-        """Create the manifest's networks and hosts, start the hosts, install their routes.
+    def up(self, manifest: RunManifest, run_dir: Path, start: bool = True) -> RunState:
+        """Create the manifest's networks and hosts, run the hosts, install their routes,
+        and, unless told not to, start their agents.
 
         ``run_dir`` is the directory ``tiergen build`` wrote: an agent host reads its program
         from it and writes its records under ``run_dir/out/<instance>``. Returns what was
         created under which substrate names. Every resource also carries the run's label, so
         ``down`` can find it without state. On failure, undo what was created and re-raise;
-        a half-up run is never left behind.
+        a half-up run is never left behind. With ``start`` false every host runs, its
+        services up, and each agent holds at its gate (``HostSpec.gate``), so attribution
+        and capture can be in place before the first invocation; ``start`` then releases
+        them together.
         """
+        ...
+
+    def start(self, manifest: RunManifest, state: RunState) -> None:
+        """Release the agents of the hosts ``up`` brought up: scenario time begins. Nothing
+        is undone on failure; the caller brings the run down."""
         ...
 
     def down(self, manifest: RunManifest) -> None:
