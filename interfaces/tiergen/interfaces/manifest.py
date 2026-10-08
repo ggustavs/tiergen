@@ -52,7 +52,10 @@ class HostSpec:
     starts, and need the substrate's route-adding capability, which the backend adds.
     ``agent`` says the host runs the platform's agent, which the backend gives the run
     directory and whatever the agent needs of the host: the mounts, the cgroup namespace
-    and the capability to write it."""
+    and the capability to write it. ``gate`` is the path inside such a host whose creation
+    releases its agent: the host runs from ``up``, services and all, and its behaviours
+    start when the backend's ``start`` creates the gate, so attribution and capture can be
+    in place before the first invocation."""
 
     instance: str
     kind: str
@@ -65,6 +68,7 @@ class HostSpec:
     routes: tuple[RouteSpec, ...] = ()
     forwards: bool = False
     agent: bool = False
+    gate: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

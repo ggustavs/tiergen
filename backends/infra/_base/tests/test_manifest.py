@@ -45,8 +45,13 @@ def test_linux_slice_is_one_docker_manifest() -> None:
     ]
     web = m.hosts[1]
     assert (web.image, web.command) == (AGENT_IMAGE["linux"], agent_command("lab/web_server[0]"))
-    assert web.command == ("tiergen-agent", "/tiergen/run/program.lab-web_server-0.json")
-    assert web.agent is True
+    assert web.command == (
+        "tiergen-agent",
+        "/tiergen/run/program.lab-web_server-0.json",
+        "--go",
+        "/tiergen/go",
+    )
+    assert (web.agent, web.gate) == (True, "/tiergen/go")
     assert [(a.network, a.address) for a in web.attachments] == [
         ("lan", "10.20.0.80"),
         ("mgmt", "10.98.0.3"),

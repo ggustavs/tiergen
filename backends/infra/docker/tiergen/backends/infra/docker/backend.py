@@ -10,7 +10,9 @@ installed with ``ip route add`` once the container runs, and a forwarder gets
 
 An agent host runs the agent image, built here from the workspace when the daemon lacks
 it, with the run directory mounted read-only at ``/tiergen/run``, its own
-``run/out/<instance>`` read-write at ``/tiergen/out``, and a private cgroup namespace. It
+``run/out/<instance>`` read-write at ``/tiergen/out``, and a private cgroup namespace. Its
+agent holds at the manifest's gate until ``start`` creates it with an ``exec``, since the
+collector attaches to the container's cgroup, which exists only once the container runs. It
 needs the daemon's user-namespace remap (design decision 4.19): under it the daemon mounts
 the container's cgroup filesystem writable and owned by the container's root, so the
 agent's cgroup per invocation costs no capability; without it ``up`` refuses. The remapped
@@ -65,7 +67,7 @@ class DockerBackend:
         self._connect = client
         self._acl = acl
 
-    def up(self, manifest: RunManifest, run_dir: Path) -> RunState:
+    def up(self, manifest: RunManifest, run_dir: Path, start: bool = True) -> RunState:
         client = self._connect()
         run = {RUN_LABEL: manifest.run}
         state = RunState(manifest.run, self.id)
@@ -101,10 +103,15 @@ class DockerBackend:
                 client.start(name)
                 for route in host.routes:
                     client.exec(name, ["ip", "route", "add", route.cidr, "via", route.via])
+            if start:
+                self._start(client, manifest, state)
         except Exception:
             self._remove(client, manifest.run)
             raise
         return state
+
+    def start(self, manifest: RunManifest, state: RunState) -> None:
+        self._start(self._connect(), manifest, state)
 
     def down(self, manifest: RunManifest) -> None:
         self._remove(self._connect(), manifest.run)
@@ -154,6 +161,13 @@ class DockerBackend:
                 name, network_name(run, attachment.network), attachment.address, attachment.mac
             )
         return HostState(name, container_id)
+
+    @staticmethod
+    def _start(client: Client, manifest: RunManifest, state: RunState) -> None:
+        """Create each agent's gate inside its container; the agent is waiting on it."""
+        for host in manifest.hosts:
+            if host.gate is not None:
+                client.exec(state.hosts[host.instance].name, ["touch", host.gate])
 
     @staticmethod
     def _remove(client: Client, run: str) -> None:

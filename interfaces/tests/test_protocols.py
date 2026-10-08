@@ -59,9 +59,12 @@ class NoInfra:
     def __init__(self) -> None:
         self.seen = []
 
-    def up(self, manifest: RunManifest, run_dir: Path) -> RunState:
+    def up(self, manifest: RunManifest, run_dir: Path, start: bool = True) -> RunState:
         self.seen.append(f"up {manifest.run}")
         return RunState(manifest.run, self.id)
+
+    def start(self, manifest: RunManifest, state: RunState) -> None:
+        self.seen.append(f"start {manifest.run}")
 
     def down(self, manifest: RunManifest) -> None:
         self.seen.append(f"down {manifest.run}")

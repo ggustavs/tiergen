@@ -60,10 +60,11 @@ AGENT = HostSpec(
     "linux",
     "lab-atk-0",
     "tiergen/base-linux",
-    ("tiergen-agent", "/tiergen/run/program.lab-atk-0.json"),
+    ("tiergen-agent", "/tiergen/run/program.lab-atk-0.json", "--go", "/tiergen/go"),
     ("NET_RAW",),
     (Attachment("lan", "10.0.0.9"),),
     agent=True,
+    gate="/tiergen/go",
 )
 
 
@@ -256,6 +257,22 @@ def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
     assert fake.live_networks["tiergen-r-lan"] == {"tiergen.run": "r", "tiergen.network": "lan"}
 
 
+def test_up_runs_the_hosts_and_start_releases_the_agents_at_their_gates(tmp_path: Path) -> None:
+    fake = FakeClient()
+    backend = DockerBackend(lambda: fake, acl=lambda a: None)
+    manifest = RunManifest("r", "docker", MANIFEST.networks[:1], (AGENT,))
+    state = backend.up(manifest, tmp_path, start=False)
+    assert ("start", "tiergen-r-lab-atk-0") in fake.calls
+    assert not [c for c in fake.calls if c[0] == "exec"]
+    fake.calls.clear()
+    backend.start(manifest, state)
+    assert fake.calls == [("exec", "tiergen-r-lab-atk-0", ("touch", "/tiergen/go"))]
+    # Without start=False, up releases the agents itself; a host without a gate is left alone.
+    fake.calls.clear()
+    backend.up(MANIFEST, tmp_path)
+    assert not [c for c in fake.calls if c[0] == "exec" and c[2] == ("touch", "/tiergen/go")]
+
+
 def test_an_agent_host_gets_the_image_the_mounts_and_its_cgroups(tmp_path: Path) -> None:
     fake = FakeClient()
     acls: list[list[str]] = []
@@ -278,7 +295,13 @@ def test_an_agent_host_gets_the_image_the_mounts_and_its_cgroups(tmp_path: Path)
     assert state.images == {"tiergen/base-linux": "sha256:built"}
     create = next(c for c in fake.calls if c[0] == "create")
     assert create[2] == tag
-    assert create[3] == ("tiergen-agent", "/tiergen/run/program.lab-atk-0.json")
+    assert create[3] == (
+        "tiergen-agent",
+        "/tiergen/run/program.lab-atk-0.json",
+        "--go",
+        "/tiergen/go",
+    )
+    assert fake.calls[-1] == ("exec", "tiergen-r-lab-atk-0", ("touch", "/tiergen/go"))
     assert create[4] == ("NET_RAW",)  # nothing added: the remap makes the cgroups writable
     run_dir = (tmp_path / "run").resolve()
     assert create[10] == (

@@ -25,10 +25,12 @@ AGENT_IMAGE = {
 }
 RUN_MOUNT = "/tiergen/run"
 """Where an agent host sees the run directory."""
+GATE = "/tiergen/go"
+"""The path inside an agent host whose creation starts its behaviours (``HostSpec.gate``)."""
 
 
 def agent_command(instance: str) -> tuple[str, ...]:
-    return ("tiergen-agent", f"{RUN_MOUNT}/program.{flat_id(instance)}.json")
+    return ("tiergen-agent", f"{RUN_MOUNT}/program.{flat_id(instance)}.json", "--go", GATE)
 
 
 def bridge_name(run: str, segment: str) -> str:
@@ -99,6 +101,7 @@ def build_manifests(
                 routes=tuple(RouteSpec(r.cidr, r.via) for r in routes.routes.get(instance, ())),
                 forwards=kinds[kind].forwards,
                 agent=agent,
+                gate=GATE if agent else None,
             )
         )
     manifests: dict[str, RunManifest] = {}
