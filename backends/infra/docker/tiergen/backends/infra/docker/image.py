@@ -27,6 +27,7 @@ PACKAGES = (
     ("impls/httpx", "tiergen.impls.httpx"),
     ("impls/nginx", "tiergen.impls.nginx"),
     ("impls/nmap", "tiergen.impls.nmap"),
+    ("runtime/behaviour", "tiergen.runtime.behaviour"),
     ("runtime/agent_linux", "tiergen.runtime.agent_linux"),
 )
 """Where each package sits in the agent image's context, and the module that finds its source."""

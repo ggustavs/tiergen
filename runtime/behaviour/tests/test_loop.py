@@ -1,12 +1,12 @@
 from collections import Counter
 
-from agent_support import EPOCH, FakeAttribution, FakeClock, FakeImpl, program
+from loop_support import EPOCH, FakeAttribution, FakeClock, FakeImpl, program
 
 from tiergen.core.ir import ScheduleEvent
 from tiergen.core.program import Program
 from tiergen.core.records import InvocationRecord
 from tiergen.impls._base import PrimitiveImpl
-from tiergen.runtime.agent_linux.loop import BehaviourLoop
+from tiergen.runtime.behaviour.loop import BehaviourLoop
 
 
 def run(p: Program, impl: FakeImpl | None = None) -> tuple[list[InvocationRecord], FakeImpl]:

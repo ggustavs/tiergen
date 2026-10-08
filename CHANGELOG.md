@@ -5,6 +5,15 @@ document describes the project as it stands; this file keeps the history, so the
 not have to. Entries are per milestone, newest first. Nothing is released yet, so there are
 no version numbers.
 
+## M2: processes and prediction (in progress)
+
+### Changed
+
+- **runtime**: the behaviour loop and its sampling moved from `agent_linux` into their own
+  member, `runtime/behaviour`, with their tests and fakes. Nothing in the loop was Linux's;
+  the simulator (M2) runs it under a fake clock and the Windows agent will run it too. The
+  agent image installs the new member.
+
 ## M1: vertical slice, mixed platform (in progress)
 
 ### Added

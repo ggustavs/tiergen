@@ -21,6 +21,7 @@ dependencies = [
     "tiergen-impl-nginx",
     "tiergen-impl-samba",
     "tiergen-impl-smbclient-win",
+    "tiergen-behaviour",
     "tiergen-agent-linux",
     "tiergen-capture",
     "tiergen-attrib-base",
@@ -77,6 +78,7 @@ tiergen-impl-nmap = { workspace = true }
 tiergen-impl-nginx = { workspace = true }
 tiergen-impl-samba = { workspace = true }
 tiergen-impl-smbclient-win = { workspace = true }
+tiergen-behaviour = { workspace = true }
 tiergen-agent-linux = { workspace = true }
 tiergen-capture = { workspace = true }
 tiergen-attrib-base = { workspace = true }
@@ -87,7 +89,7 @@ tiergen-scheduler = { workspace = true }
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-extraPaths = ["check/tests", "runtime/agent_linux/tests"]
+extraPaths = ["check/tests", "runtime/behaviour/tests", "runtime/agent_linux/tests"]
 include = ["core", "protocols", "interfaces", "impls", "backends", "runtime", "check", "cli", "examples", "scripts"]
 
 [tool.ruff]
@@ -112,6 +114,7 @@ src = [
     "backends/attrib/_base",
     "backends/attrib/linux_ebpf",
     "backends/assemble",
+    "runtime/behaviour",
     "runtime/agent_linux",
     "runtime/capture",
     "runtime/scheduler",
@@ -129,8 +132,9 @@ exclude = ["*.md"]
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 markers = ["docker: needs a reachable Docker daemon; skipped otherwise"]
-# check/tests/support.py and runtime/agent_linux/tests/agent_support.py are shared by their test modules.
-pythonpath = ["check/tests", "runtime/agent_linux/tests"]
+# check/tests/support.py, runtime/behaviour/tests/loop_support.py and
+# runtime/agent_linux/tests/agent_support.py are shared by their test modules.
+pythonpath = ["check/tests", "runtime/behaviour/tests", "runtime/agent_linux/tests"]
 testpaths = [
     "core/tests",
     "protocols/tests",
@@ -150,6 +154,7 @@ testpaths = [
     "backends/attrib/_base/tests",
     "backends/attrib/linux_ebpf/tests",
     "backends/assemble/tests",
+    "runtime/behaviour/tests",
     "runtime/agent_linux/tests",
     "runtime/capture/tests",
     "runtime/scheduler/tests",

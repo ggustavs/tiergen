@@ -26,9 +26,9 @@ from tiergen.core.records import ClockStamp
 from tiergen.core.sampling import rng, weighted
 from tiergen.impls._base import ImplRef, PrimitiveImpl, ServiceImpl, load_runtime
 from tiergen.runtime.agent_linux.cgroups import choose
-from tiergen.runtime.agent_linux.loop import Attribution, BehaviourLoop, Clock
 from tiergen.runtime.agent_linux.program import ProgramError, load_program
 from tiergen.runtime.agent_linux.records import Recorder, setup_logging
+from tiergen.runtime.behaviour import Attribution, BehaviourLoop, Clock
 
 DEFAULT_OUT = Path("/tiergen/out")
 HEALTH_TIMEOUT = 30.0

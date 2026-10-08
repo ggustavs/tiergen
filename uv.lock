@@ -8,6 +8,7 @@ members = [
     "tiergen-assemble",
     "tiergen-attrib-base",
     "tiergen-attrib-linux-ebpf",
+    "tiergen-behaviour",
     "tiergen-capture",
     "tiergen-check",
     "tiergen-cli",
@@ -598,12 +599,14 @@ name = "tiergen-agent-linux"
 version = "0.0.1"
 source = { editable = "runtime/agent_linux" }
 dependencies = [
+    { name = "tiergen-behaviour" },
     { name = "tiergen-core" },
     { name = "tiergen-impls-base" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "tiergen-behaviour", editable = "runtime/behaviour" },
     { name = "tiergen-core", editable = "core" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
 ]
@@ -657,6 +660,21 @@ dependencies = [
 requires-dist = [
     { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
     { name = "tiergen-infra-docker", editable = "backends/infra/docker" },
+]
+
+[[package]]
+name = "tiergen-behaviour"
+version = "0.0.1"
+source = { editable = "runtime/behaviour" }
+dependencies = [
+    { name = "tiergen-core" },
+    { name = "tiergen-impls-base" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-impls-base", editable = "impls/_base" },
 ]
 
 [[package]]
@@ -945,6 +963,7 @@ dependencies = [
     { name = "tiergen-assemble" },
     { name = "tiergen-attrib-base" },
     { name = "tiergen-attrib-linux-ebpf" },
+    { name = "tiergen-behaviour" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
@@ -984,6 +1003,7 @@ requires-dist = [
     { name = "tiergen-assemble", editable = "backends/assemble" },
     { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
     { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
+    { name = "tiergen-behaviour", editable = "runtime/behaviour" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },

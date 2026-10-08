@@ -34,7 +34,7 @@ from tiergen.core.records import (
 )
 from tiergen.core.sampling import rng, weighted
 from tiergen.impls._base import ImplRef, PrimitiveImpl
-from tiergen.runtime.agent_linux.sampling import advance, dwell
+from tiergen.runtime.behaviour.sampling import advance, dwell
 
 
 class Clock(Protocol):
