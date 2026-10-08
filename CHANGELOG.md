@@ -9,6 +9,22 @@ no version numbers.
 
 ### Added
 
+- **runtime/scheduler**, **backends/assemble**, **core**, **interfaces**, **cli**: `tiergen run`
+  and `tiergen assemble` (M1 task 9, phase A's exit criterion). `run` brings the hosts up
+  with their agents held at a gate once their services are up, attaches the collector and
+  starts the capture, then releases every agent in one pass, waits the duration or `--for`
+  seconds, and takes everything down in reverse, leaving `run.json`; `InfraBackend.up`
+  takes `start`, `start` creates the gates, and the agent takes `--go`. The split was first
+  tried as created-but-stopped containers, which the collector cannot attach to: a
+  container's cgroup exists only once it runs.
+  `assemble` runs the sensors and joins each sensor's connections, the attribution records
+  and the invocation records into `labels.<sensor>.jsonl`, `flagged.jsonl` and
+  `manifest.json`; `Label` and `Flag` are core types. Decided on the way: the label carries
+  the signature looked up from the IR rather than a new field in the record, since a state
+  maps to one signature; the two flags of 4.11 stay and carry a reason instead of becoming
+  four; the join tolerance is 1 s for hosts on the capture host's clock; the run id is the
+  scenario name and the UTC start second; the manifest replaces the `lock.json` once
+  planned. The attribution collector's image digest is now kept in the run state.
 - **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
   Suricata run as pinned images through the daemon over each capture point's pcap, with the
   scenario's configuration mounted and the image digest recorded; `tiergen sensors run`

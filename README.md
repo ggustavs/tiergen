@@ -17,29 +17,25 @@ way in.
 
 ## What works today
 
-A three-host Linux scenario (`examples/linux_slice`) goes from a Python file to a run
-directory holding pcaps, invocation records and attribution events, on a Linux host with
-Docker:
+A three-host Linux scenario (`examples/linux_slice`) goes from a Python file to labelled
+pcaps and Zeek and Suricata logs, on a Linux host with Docker:
 
 ```
 uv sync
 uv run tiergen check examples/linux_slice/scenario.py
 uv run tiergen build examples/linux_slice/scenario.py --out run1
-uv run tiergen infra up run1       # the hosts, each running its agent on its program
-uv run tiergen attrib start run1   # the eBPF collector on the hosts' cgroups
-uv run tiergen capture start run1  # dumpcap at the scenario's capture points
-sleep 60
-uv run tiergen capture stop run1
-uv run tiergen attrib stop run1
-uv run tiergen sensors run run1  # zeek and suricata over the capture, pinned images
-uv run tiergen infra down run1
+uv run tiergen run run1 --for 60   # hosts, collector, capture; agents for a minute; down
+uv run tiergen assemble run1       # zeek and suricata over the capture, then the labels
 ```
 
 Afterwards `run1/` holds `capture/lan-span.pcapng`, `out/<instance>/invocations.jsonl` per
 host (what each invocation meant to do, keyed by its cgroup), `attrib/events.jsonl` (what the
-kernel saw, keyed the same way) and `sensors/<name>/<point>/events.jsonl` (what each sensor
-saw, keyed by its own connection ids). Matching the three into per-sensor labels is the next
-task.
+kernel saw, keyed the same way), `sensors/<name>/<point>/` (each sensor's own logs and its
+reading in the common event model), `labels.<sensor>.jsonl` (each sensor's connections that
+an invocation made, by the sensor's own ids), `flagged.jsonl` (what the join could not
+explain, with the reason) and `manifest.json` (every image, version, digest and count the
+run depends on). The pieces of a run are commands of their own: `infra up` and `down`,
+`attrib start` and `stop`, `capture start` and `stop`, `sensors run`.
 
 Requirements for the run: a Linux host, Docker with its user-namespace remap on, `setfacl`,
 and dumpcap with the capability to capture. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the two
