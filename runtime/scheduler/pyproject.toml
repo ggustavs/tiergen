@@ -1,0 +1,14 @@
+[project]
+name = "tiergen-scheduler"
+version = "0.0.1"
+description = "The scheduler: one run of a built scenario, hosts up, collector and capture on, agents started together, everything down."
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["tiergen-core", "tiergen-interfaces", "tiergen-capture", "tiergen-attrib-base"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]

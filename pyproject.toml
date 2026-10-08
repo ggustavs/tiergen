@@ -26,6 +26,7 @@ dependencies = [
     "tiergen-attrib-base",
     "tiergen-attrib-linux-ebpf",
     "tiergen-assemble",
+    "tiergen-scheduler",
 ]
 
 [dependency-groups]
@@ -81,6 +82,7 @@ tiergen-capture = { workspace = true }
 tiergen-attrib-base = { workspace = true }
 tiergen-attrib-linux-ebpf = { workspace = true }
 tiergen-assemble = { workspace = true }
+tiergen-scheduler = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -112,6 +114,7 @@ src = [
     "backends/assemble",
     "runtime/agent_linux",
     "runtime/capture",
+    "runtime/scheduler",
     "check",
     "cli",
 ]
@@ -149,6 +152,7 @@ testpaths = [
     "backends/assemble/tests",
     "runtime/agent_linux/tests",
     "runtime/capture/tests",
+    "runtime/scheduler/tests",
     "check/tests",
     "cli/tests",
     "examples/tests",

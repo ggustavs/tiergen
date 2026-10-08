@@ -23,6 +23,7 @@ members = [
     "tiergen-infra-libvirt",
     "tiergen-interfaces",
     "tiergen-protocols",
+    "tiergen-scheduler",
     "tiergen-sensor-base",
     "tiergen-sensor-suricata",
     "tiergen-sensor-zeek",
@@ -697,11 +698,13 @@ name = "tiergen-cli"
 version = "0.0.1"
 source = { editable = "cli" }
 dependencies = [
+    { name = "tiergen-assemble" },
     { name = "tiergen-attrib-linux-ebpf" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
     { name = "tiergen-impls-base" },
     { name = "tiergen-infra-base" },
+    { name = "tiergen-scheduler" },
     { name = "tiergen-sensor-base" },
     { name = "tiergen-sensor-suricata" },
     { name = "tiergen-sensor-zeek" },
@@ -709,11 +712,13 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "tiergen-assemble", editable = "backends/assemble" },
     { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-infra-base", editable = "backends/infra/_base" },
+    { name = "tiergen-scheduler", editable = "runtime/scheduler" },
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
     { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
@@ -864,6 +869,25 @@ dependencies = [
 requires-dist = [{ name = "tiergen-core", editable = "core" }]
 
 [[package]]
+name = "tiergen-scheduler"
+version = "0.0.1"
+source = { editable = "runtime/scheduler" }
+dependencies = [
+    { name = "tiergen-attrib-base" },
+    { name = "tiergen-capture" },
+    { name = "tiergen-core" },
+    { name = "tiergen-interfaces" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tiergen-attrib-base", editable = "backends/attrib/_base" },
+    { name = "tiergen-capture", editable = "runtime/capture" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-interfaces", editable = "interfaces" },
+]
+
+[[package]]
 name = "tiergen-sensor-base"
 version = "0.0.1"
 source = { editable = "backends/sensor/_base" }
@@ -936,6 +960,7 @@ dependencies = [
     { name = "tiergen-infra-libvirt" },
     { name = "tiergen-interfaces" },
     { name = "tiergen-protocols" },
+    { name = "tiergen-scheduler" },
     { name = "tiergen-sensor-base" },
     { name = "tiergen-sensor-suricata" },
     { name = "tiergen-sensor-zeek" },
@@ -974,6 +999,7 @@ requires-dist = [
     { name = "tiergen-infra-libvirt", editable = "backends/infra/libvirt" },
     { name = "tiergen-interfaces", editable = "interfaces" },
     { name = "tiergen-protocols", editable = "protocols" },
+    { name = "tiergen-scheduler", editable = "runtime/scheduler" },
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
     { name = "tiergen-sensor-zeek", editable = "backends/sensor/zeek" },
