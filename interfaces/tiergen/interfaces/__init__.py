@@ -17,6 +17,7 @@ from tiergen.interfaces.manifest import (
     NetworkSpec,
     RouteSpec,
     RunManifest,
+    RunRecord,
     RunState,
 )
 from tiergen.interfaces.sensor import Sensor, SensorDescriptor
@@ -39,6 +40,7 @@ __all__ = [
     "NetworkSpec",
     "RouteSpec",
     "RunManifest",
+    "RunRecord",
     "RunState",
     "Schema",
     "Sensor",

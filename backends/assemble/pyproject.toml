@@ -1,0 +1,14 @@
+[project]
+name = "tiergen-assemble"
+version = "0.0.1"
+description = "The assembly: sensors over the capture, the join of records, attribution and events into labels, the flags and the manifest."
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["tiergen-core", "tiergen-interfaces", "tiergen-sensor-base", "tiergen-capture", "tiergen-attrib-base"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]

@@ -25,6 +25,7 @@ dependencies = [
     "tiergen-capture",
     "tiergen-attrib-base",
     "tiergen-attrib-linux-ebpf",
+    "tiergen-assemble",
 ]
 
 [dependency-groups]
@@ -51,6 +52,7 @@ members = [
     "backends/sensor/*",
     "backends/infra/*",
     "backends/attrib/*",
+    "backends/assemble",
     "runtime/*",
     "check",
     "cli",
@@ -78,6 +80,7 @@ tiergen-agent-linux = { workspace = true }
 tiergen-capture = { workspace = true }
 tiergen-attrib-base = { workspace = true }
 tiergen-attrib-linux-ebpf = { workspace = true }
+tiergen-assemble = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -106,6 +109,7 @@ src = [
     "backends/infra/libvirt",
     "backends/attrib/_base",
     "backends/attrib/linux_ebpf",
+    "backends/assemble",
     "runtime/agent_linux",
     "runtime/capture",
     "check",
@@ -142,6 +146,7 @@ testpaths = [
     "backends/infra/libvirt/tests",
     "backends/attrib/_base/tests",
     "backends/attrib/linux_ebpf/tests",
+    "backends/assemble/tests",
     "runtime/agent_linux/tests",
     "runtime/capture/tests",
     "check/tests",
