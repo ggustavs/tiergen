@@ -25,18 +25,19 @@ network's own.
 
 ```
 uv run tiergen build examples/linux_slice/scenario.py --out run1
-uv run tiergen infra up run1      # builds the agent image the first time, then three hosts
-uv run tiergen attrib start run1  # the eBPF collector on the three containers' cgroups
-uv run tiergen capture start run1 # dumpcap on the LAN's bridge, offloads off in the hosts
-sleep 60
+uv run tiergen run run1 --for 60  # the images the first time; then three hosts, the eBPF
+                                  # collector on their cgroups, dumpcap on the LAN's bridge,
+                                  # the agents for a minute (the scan from 30 s in), down
 cat run1/out/lab-workstation-0/invocations.jsonl    # the workstation's http.get records
 cat run1/out/lab-web_server-0/http.nginx/access.log # seen from the web server
-cat run1/out/lab-attacker-0/invocations.jsonl       # the attacker's SYN scan, from 30 s in
-uv run tiergen capture stop run1  # run1/capture/lan-span.pcapng, capture.json, offsets.json
-uv run tiergen attrib stop run1   # run1/attrib/events.jsonl: who caused each connection
-uv run tiergen sensors run run1   # zeek and suricata over the capture: run1/sensors/<name>/
-uv run tiergen infra down run1
+cat run1/attrib/events.jsonl                        # who caused each connection
+uv run tiergen assemble run1      # zeek and suricata over run1/capture/lan-span.pcapng,
+                                  # then run1/labels.zeek.jsonl, labels.suricata.jsonl,
+                                  # flagged.jsonl and manifest.json
 ```
+
+The pieces are commands of their own, in the order `run` uses them: `infra up`, `attrib
+start`, `capture start`, then `capture stop`, `attrib stop`, `sensors run`, `infra down`.
 
 `capture` needs dumpcap on the host with the capabilities to capture (the `wireshark` group on
 most distributions).
@@ -45,9 +46,8 @@ The daemon must run with its user-namespace remap on (`{"userns-remap": "default
 `/etc/docker/daemon.json`, then restart it); `infra up` says so otherwise. The agents run as
 the remapped root, so what they write under `run1/out/` belongs to that uid and is readable
 through the ACL `up` sets. The collector runs as a privileged container on the host; the first
-`attrib start` builds its image, which takes a few minutes, and the first `sensors run` pulls
-the two sensor images. Nothing matches the sensors' events to the records yet; that is
-`assemble`, the next task.
+`run` builds its image and the agent's, which takes a few minutes, and the first `assemble`
+pulls the two sensor images.
 
 The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
 do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
