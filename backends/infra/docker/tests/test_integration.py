@@ -1,4 +1,4 @@
-"""Against a real daemon: linux_slice up, browsing and scanning, and down without a trace.
+"""Against a real daemon: linux_slice from one command to labels, and its pieces by hand.
 
 Skipped when no daemon is reachable. Runs the whole example, so it also builds the agent
 image the first time, which takes a few minutes.
@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from tiergen.backends.attrib._base import read_events
+from tiergen.backends.attrib.linux_ebpf import backend as collector
 from tiergen.backends.attrib.linux_ebpf.backend import LinuxEbpf, helper_name, spec
 from tiergen.backends.infra.docker import image
 from tiergen.backends.infra.docker._client import DaemonClient
@@ -26,8 +27,9 @@ from tiergen.backends.infra.docker.backend import DockerBackend, container_name,
 from tiergen.cli.main import main
 from tiergen.core.codec import decode, from_json, to_json
 from tiergen.core.events import AppEvent, ConnEvent
+from tiergen.core.labels import Flag, Label
 from tiergen.core.records import InvocationRecord
-from tiergen.interfaces import BackendError, RunManifest, RunState
+from tiergen.interfaces import BackendError, RunManifest, RunRecord, RunState
 from tiergen.runtime.agent_linux.records import read_records
 from tiergen.runtime.capture.pcapng import Packet, read
 
@@ -114,6 +116,76 @@ def _tcp(packets: list[Packet]) -> list[tuple[str, str, int, int]]:
         dport = struct.unpack_from(">H", d, tcp + 2)[0]
         found.append((socket.inet_ntoa(d[26:30]), socket.inet_ntoa(d[30:34]), dport, d[tcp + 13]))
     return found
+
+
+def test_linux_slice_from_one_command_to_labels(
+    run_dir: Path, manifest: RunManifest, daemon: DaemonClient
+) -> None:
+    """``tiergen run`` then ``tiergen assemble``: phase A's exit criterion."""
+    if shutil.which("dumpcap") is None:
+        pytest.skip("dumpcap is not installed")
+    plan = json.loads((run_dir / "addresses.json").read_text())
+    ws, web, atk = (
+        plan["addresses"][f"lab/{k}[0]"]["lan"] for k in ("workstation", "web_server", "attacker")
+    )
+    image.ensure(daemon, image.agent(), RunState("prebuild", "docker"))
+    image.ensure(daemon, spec(), RunState("prebuild", "docker"))
+    run = {"tiergen.run": manifest.run}
+    agent: str | None = None
+    try:
+        # Recon starts at 30 s; a minute holds the browsing and at least one scan.
+        assert main(["run", str(run_dir), "--for", "60"]) == 0
+        assert daemon.containers(run) == []
+        assert daemon.networks(run) == []
+        assert not (run_dir / "state.docker.json").exists()
+        record = from_json(RunRecord, json.loads((run_dir / "run.json").read_text()))
+        agent = record.states["docker"].images[image.NAME]
+        assert record.run.startswith("linux_slice-")
+        assert record.duration_s >= 60
+        assert main(["assemble", str(run_dir)]) == 0
+
+        summary = json.loads((run_dir / "manifest.json").read_text())
+        assert summary["run"] == record.run
+        assert summary["images"][image.NAME].startswith("sha256:")
+        assert summary["images"][collector.NAME].startswith("sha256:")
+        assert "@sha256:" in summary["images"]["zeek:7.0.11"]
+        assert "@sha256:" in summary["images"]["suricata:7.0.7"]
+        assert summary["counts"]["invocations"] > 0
+        assert summary["absent"] == ["conformance.md", "fidelity.md"]
+        for name in ("zeek", "suricata"):
+            lines = (run_dir / f"labels.{name}.jsonl").read_text().splitlines()
+            labels = [from_json(Label, json.loads(line)) for line in lines]
+            assert summary["counts"]["labels"][name] == len(labels)
+            assert all(
+                lb.flow.sensor == name and lb.flow.capture_point == "lan-span" for lb in labels
+            )
+            browsing = [lb for lb in labels if lb.signature == "http.get"]
+            assert browsing, name
+            assert {
+                (lb.key.behaviour, lb.key.action, lb.key.impl, lb.key.targets) for lb in browsing
+            } == {("browse", "web_get", "http.httpx", ("lab/web_server[0]",))}
+            assert all(re.fullmatch(r"cgroup:\d+", lb.principal.principal) for lb in browsing)
+            scanning = [lb for lb in labels if lb.signature == "scan.tcp_syn"]
+            assert len(scanning) > 100, name
+            assert {(lb.key.action, lb.key.impl) for lb in scanning} == {("syn_scan", "scan.nmap")}
+        flags = [
+            from_json(Flag, json.loads(line))
+            for line in (run_dir / "flagged.jsonl").read_text().splitlines()
+        ]
+        # Every invocation was seen by the kernel and by the sensors, and nothing from a host
+        # of the run happened outside an invocation; what is flagged is the substrate's own.
+        assert {(f.kind, f.reason) for f in flags} <= {("unattributed", "no_attribution")}, flags[
+            :5
+        ]
+        assert all(
+            f.five_tuple is not None and f.five_tuple.orig_addr not in (ws, web, atk) for f in flags
+        ), flags[:5]
+    finally:
+        DockerBackend().down(manifest)
+        if agent is not None:
+            _release(run_dir / "out", agent)
+            if (run_dir / "sensors").is_dir():
+                _release(run_dir / "sensors", agent, depth=3)
 
 
 def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
