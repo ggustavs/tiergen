@@ -14,6 +14,7 @@ def test_the_context_holds_the_members_without_their_tests_and_the_tag_follows_i
     for where, _ in image.PACKAGES:
         assert (ctx / where / "pyproject.toml").is_file(), where
     assert (ctx / "runtime/agent_linux/tiergen/runtime/agent_linux/main.py").is_file()
+    assert (ctx / "runtime/behaviour/tiergen/runtime/behaviour/loop.py").is_file()
     assert not (ctx / "core/tests").exists()
     assert not list(ctx.rglob("__pycache__"))
     tag = image.tag(ctx, spec)

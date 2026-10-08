@@ -1,10 +1,10 @@
 from datetime import datetime
 from random import Random
 
-from agent_support import START
+from loop_support import START
 
 from tiergen.core.ir import Distribution
-from tiergen.runtime.agent_linux.sampling import advance, dwell, multiplier
+from tiergen.runtime.behaviour.sampling import advance, dwell, multiplier
 
 
 def test_every_family_draws_a_non_negative_time_deterministically() -> None:

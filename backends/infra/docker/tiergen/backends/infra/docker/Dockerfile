@@ -5,5 +5,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends nginx nmap ipro
     && rm -rf /var/lib/apt/lists/*
 COPY . /src
 RUN pip install --no-cache-dir /src/core /src/protocols /src/interfaces /src/impls/_base \
-    /src/impls/httpx /src/impls/nginx /src/impls/nmap /src/runtime/agent_linux \
+    /src/impls/httpx /src/impls/nginx /src/impls/nmap /src/runtime/behaviour /src/runtime/agent_linux \
     && rm -rf /src
