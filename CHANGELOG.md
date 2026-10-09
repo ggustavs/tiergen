@@ -9,6 +9,13 @@ no version numbers.
 
 ### Added
 
+- **examples**: `office_slice`, the fit's round trip on a real run. Five workstations with
+  one behaviour over three request paths, every dwell family once, a silent idle state and
+  a daily rate curve, two web servers, an attacker; enough hosts for the conformance
+  report's verdicts to be verdicts. A test fits it back from its own simulation through
+  the projection; the daemon test runs it for ninety seconds, assembles, and fits from
+  Zeek; the two-hour run and its comparison are the engineer's, as `examples/README.md`
+  describes.
 - **backends/predict**, **backends/assemble**, **cli**: `tiergen predict` and the conformance
   report. `predict` simulates a checked scenario N times and prints connections per
   host-hour per kind and service with an interval over the replicates, and the gap

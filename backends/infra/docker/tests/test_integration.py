@@ -207,6 +207,47 @@ def test_linux_slice_from_one_command_to_labels(
                 _release(run_dir / "sensors", agent, depth=3)
 
 
+def test_office_slice_round_trips_in_a_minute(tmp_path: Path, daemon: DaemonClient) -> None:
+    """Five workstations: enough hosts for the conformance verdicts to be verdicts, and the
+    fit sees three acting states told apart by path."""
+    if shutil.which("dumpcap") is None:
+        pytest.skip("dumpcap is not installed")
+    run_dir = tmp_path / "office"
+    assert (
+        main(["build", str(EXAMPLES / "office_slice" / "scenario.py"), "--out", str(run_dir)]) == 0
+    )
+    manifest = from_json(RunManifest, json.loads((run_dir / "manifest.docker.json").read_text()))
+    image.ensure(daemon, image.agent(), RunState("prebuild", "docker"))
+    image.ensure(daemon, spec(), RunState("prebuild", "docker"))
+    agent: str | None = None
+    try:
+        assert main(["run", str(run_dir), "--for", "90"]) == 0
+        record = from_json(RunRecord, json.loads((run_dir / "run.json").read_text()))
+        agent = record.states["docker"].images[image.NAME]
+        assert main(["assemble", str(run_dir)]) == 0
+        labels = [
+            from_json(Label, json.loads(line))
+            for line in (run_dir / "labels.zeek.jsonl").read_text().splitlines()
+        ]
+        assert len({lb.key.instance for lb in labels}) >= 4
+        assert {lb.key.action for lb in labels} >= {"web_get", "news"}
+        conformance = (run_dir / "conformance.md").read_text()
+        assert "too few hosts" not in conformance
+        assert conformance.count("| not rejected |") + conformance.count("| rejected |") >= 5
+        assert main(["fit", str(run_dir), "--sensor", "zeek", "--out", str(run_dir / "fit")]) == 0
+        states = json.loads((run_dir / "fit" / "workstation.office.states.json").read_text())
+        assert states == ["web_get", "news", "files"]
+        report_text = (run_dir / "fit" / "fit-report.md").read_text()
+        assert "ambiguous" not in report_text
+    finally:
+        DockerBackend().down(manifest)
+        if agent is not None:
+            _release(run_dir / "out", agent)
+            if (run_dir / "sensors").is_dir():
+                _release(run_dir / "sensors", agent, depth=3)
+    assert daemon.containers({"tiergen.run": manifest.run}) == []
+
+
 def test_linux_slice_runs_its_behaviours_and_goes_down_without_a_trace(
     run_dir: Path, manifest: RunManifest, daemon: DaemonClient
 ) -> None:

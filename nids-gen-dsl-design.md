@@ -264,7 +264,7 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   interfaces/           ✔ backend Protocols (Sensor, InfraBackend, AttributionBackend), Capability, Sensor and Infra descriptors, entry-point discovery; no impls
   check/                ✔ static checker: checks 1-16, diagnostics, runner
   cli/                  ✔ the `tiergen` command: `check`, `build`, `run`, `assemble`, the pieces by hand, `impls list`
-  examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
+  examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice, office_slice, two_teams; each a scenario.py plus models/
   sim/                  ✔ the scenario simulated: the behaviour loop under a fake clock, invocations into the events a sensor would report
   stats/                ✔ estimators with intervals, two-sample tests on event streams, their calibration on the simulator, the report
   fit/                ◐ the vocabulary from the scenario, the observable chain, dwells and rate curve as resources, the report; inventory, clustering and proposal are M4
