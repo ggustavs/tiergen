@@ -150,7 +150,7 @@ Actor kinds, ties, interfaces, behaviours, bindings, schedules, topology and sen
 
 ### 4.7 Behaviours are stochastic processes fitted from the target's logs
 
-Default family: semi-Markov over an action vocabulary derived from the common event model, with time-of-day rate multipliers. The vocabulary's resolution is set by the fit sensor's capabilities (section 11): with `APP_EVENTS`, the fine per-protocol vocabulary; without it, connection-level classes by service, port, size and direction. Fits from aggregate per-role statistics are acceptable; the goal is a usable dataset for this network, not a per-individual replica, and the fidelity report says whether a fit is good enough. The process family is behind an interface (`next_action`, `dwell`, `rate(t)`), so HMMs or session-structured models can replace the default.
+Default family: semi-Markov over an action vocabulary derived from the common event model, with time-of-day rate multipliers. What `fit` estimates is the observable chain, over the acting states with observed gaps as dwells (section 11, 2026-10-09); a silent state in a written scenario is a modelling convenience the sensor cannot see, compared through its projection. The vocabulary's resolution is set by the fit sensor's capabilities (section 11): with `APP_EVENTS`, the fine per-protocol vocabulary; without it, connection-level classes by service, port, size and direction. Fits from aggregate per-role statistics are acceptable; the goal is a usable dataset for this network, not a per-individual replica, and the fidelity report says whether a fit is good enough. The process family is behind an interface (`next_action`, `dwell`, `rate(t)`), so HMMs or session-structured models can replace the default.
 
 ### 4.8 Hosts are heterogeneous and first class
 
@@ -267,7 +267,7 @@ tiergen/                  uv workspace; one distribution per directory, all shar
   examples/             ✔ hq_lan, hq_lan_capgap, hq_lan_broken, linux_slice; each a scenario.py plus models/
   sim/                  ✔ the scenario simulated: the behaviour loop under a fake clock, invocations into the events a sensor would report
   stats/                ✔ estimators with intervals, two-sample tests on event streams, their calibration on the simulator, the report
-  fit/                    ingestion via Sensor, host inventory, role clustering, behaviour and impl-mix fitting, proposal
+  fit/                ◐ the vocabulary from the scenario, the observable chain, dwells and rate curve as resources, the report; inventory, clustering and proposal are M4
   backends/
     sensor/
       _base/              common event model helpers shared by ingest adapters
@@ -793,6 +793,8 @@ Input: the target network's logs for the collection period, read through the sen
 9. **Privacy.** Fitted resources can carry hostnames, SNI and user agents. `fit --anonymise` replaces them with consistent pseudonyms; the report says what was replaced.
 
 Identifiability caveat, recorded so nobody rediscovers it: aggregate fits describe the role, not any individual. That is fine for the purpose in section 1; the fidelity report, not the fit, decides whether it is good enough.
+
+**Implemented 2026-10-09, the M2 part (`fit/`, `tiergen fit RUN_DIR --sensor NAME --out DIR`).** Step 4 as the observable chain, not as sessionisation: a sensor sees actions at times and never a silent state, so the fitted process is a semi-Markov process over the acting states of each behaviour, a state's dwell being the gap to the instance's next action, moved onto the operational clock by the fitted rate curve (peak 1; hours the run never covered are filled with the covered hours' mean and listed in the report). It is exactly identifiable and needs no threshold; a scenario written with a silent state is compared through its projection, the embedded chain with the silent states marginalised (`fit.compare.projection`), which the recovery tests do. The threshold method of step 4 was not implemented, since nothing needed it. Step 3's vocabulary comes from the scenario in M2: an acting state is a candidate reaching the peers of its tie on the signature's ports, a scan any port of its peers, and where two actions share a tie and a signature the request path decides through `APP_EVENTS`; the connections of a many-connection action within a second are one action. What matches nothing or several things is counted by reason in `fit-report.md`. Transition rows and the initial distribution carry Wilson intervals, dwell families are chosen by AIC among the IR's three with the empirical family under five samples, and the estimators were validated by recovery on the simulator (`fit/tests`): with ten hosts over eight hours the chain is recovered within 0.05 per cell with its intervals covering the truth, the dwell families and parameters within 10 to 15 percent, the projection of a scenario with idle likewise, and a day of five hosts recovers a 24-hour curve within 0.15 per hour. The output is the resources in the examples' formats, `scenario_fitted.json` with the fitted processes referencing them and the sensor given the fit role, `fit_provenance.json`, and the report. Steps 1, 2, 5 to 9 are M4's.
 
 ---
 
