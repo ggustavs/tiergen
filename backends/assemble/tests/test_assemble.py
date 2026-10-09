@@ -238,7 +238,14 @@ def test_the_assembly_writes_labels_per_sensor_the_flags_and_the_manifest(run_di
         "labels": {"zeek": 2, "suricata": 2},
         "flags": {"unattributed/no_attribution": 2, "failed/no_attribution": 1},
     }
-    assert manifest["absent"] == ["conformance.md", "fidelity.md"]
+    assert manifest["absent"] == ["fidelity.md"]
+    text = (run_dir / "conformance.md").read_text()
+    assert text.startswith("# Conformance of linux_slice\n")
+    assert "# zeek against the model" in text
+    assert "# suricata against the model" in text
+    assert "| gap_ks |" in text
+    assert "Exactness: 1 of 1 labelled invocation(s)" in text
+    assert "2 agent host(s)" in text
 
 
 def test_a_run_record_names_the_run_and_carries_the_states(run_dir: Path) -> None:

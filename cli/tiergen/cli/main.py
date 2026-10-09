@@ -1,6 +1,6 @@
-"""The ``tiergen`` command: ``check``, ``build``, ``run``, ``assemble``, ``fit``; the pieces
-of a run by hand, ``infra up`` and ``down``, ``attrib start`` and ``stop``, ``capture start``
-and ``stop``, ``sensors run``; and ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``predict``, ``build``, ``run``, ``assemble``, ``fit``;
+the pieces of a run by hand, ``infra up`` and ``down``, ``attrib start`` and ``stop``,
+``capture start`` and ``stop``, ``sensors run``; and ``impls list``."""
 
 import argparse
 import json
@@ -12,6 +12,7 @@ from pathlib import Path
 from tiergen.backends.assemble import AssembleError, assemble
 from tiergen.backends.attrib._base import BY_INFRA
 from tiergen.backends.infra._base import build_manifests
+from tiergen.backends.predict import predict, render
 from tiergen.backends.sensor._base import SensorError
 from tiergen.backends.sensor._base.drive import run_sensors
 from tiergen.check import Diagnostic, run_checks
@@ -64,6 +65,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     check.add_argument(
         "--emit-json", type=Path, metavar="PATH", help="also write the scenario's IR as JSON"
+    )
+
+    predict_cmd = commands.add_parser(
+        "predict",
+        help="predict a scenario's sensor-level statistics by simulation",
+        description="Simulate a checked scenario several times and print the connections "
+        "per host-hour per kind and service with an interval over the replicates, and the "
+        "gaps between a host's connections. Exit status as for check.",
+    )
+    predict_cmd.add_argument("scenario", type=Path, help="scenario.py, or a scenario as IR JSON")
+    predict_cmd.add_argument("--models", type=Path, metavar="DIR", help="resource directory")
+    predict_cmd.add_argument("--replicates", type=int, default=5, metavar="N")
+    predict_cmd.add_argument(
+        "--hours", type=float, metavar="H", help="simulate this long instead of the duration"
     )
 
     build = commands.add_parser(
@@ -202,6 +217,19 @@ def _check(scenario_path: Path, models: Path | None, emit_json: Path | None) -> 
     found = run_checks(scenario, resources, load_impls(), load_sensors(), load_infra())
     _report(scenario.name, found)
     return FAILED if any(d.severity == "error" for d in found) else OK
+
+
+def _predict(scenario_path: Path, models: Path | None, replicates: int, hours: float | None) -> int:
+    scenario = _load(scenario_path)
+    if scenario is None:
+        return UNUSABLE
+    resources = DirResources(_models(scenario_path, models))
+    found = run_checks(scenario, resources, load_impls(), load_sensors(), load_infra())
+    if any(d.severity == "error" for d in found):
+        _report(scenario.name, found)
+        return FAILED
+    print(render(predict(scenario, resources, replicates=replicates, hours=hours)), end="")
+    return OK
 
 
 def _build(scenario_path: Path, models: Path | None, out: Path) -> int:
@@ -411,7 +439,7 @@ def _assemble(run_dir: Path) -> int:
         print(f"{name}: {count} label(s) -> labels.{name}.jsonl")
     flags = ", ".join(f"{n} {kind}" for kind, n in sorted(summary.flags.items())) or "none"
     print(f"flagged: {flags} -> flagged.jsonl")
-    print(f"{summary.manifest.run}: manifest.json")
+    print(f"{summary.manifest.run}: manifest.json, conformance.md")
     return OK
 
 
@@ -450,6 +478,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "check":
         return _check(args.scenario, args.models, args.emit_json)
+    if args.command == "predict":
+        return _predict(args.scenario, args.models, args.replicates, args.hours)
     if args.command == "build":
         return _build(args.scenario, args.models, args.out)
     if args.command == "run":

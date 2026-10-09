@@ -31,6 +31,7 @@ dependencies = [
     "tiergen-sim",
     "tiergen-stats",
     "tiergen-fit",
+    "tiergen-predict",
 ]
 
 [dependency-groups]
@@ -58,6 +59,7 @@ members = [
     "backends/infra/*",
     "backends/attrib/*",
     "backends/assemble",
+    "backends/predict",
     "runtime/*",
     "sim",
     "stats",
@@ -94,6 +96,7 @@ tiergen-scheduler = { workspace = true }
 tiergen-sim = { workspace = true }
 tiergen-stats = { workspace = true }
 tiergen-fit = { workspace = true }
+tiergen-predict = { workspace = true }
 
 [tool.pyright]
 pythonVersion = "3.12"
@@ -123,6 +126,7 @@ src = [
     "backends/attrib/_base",
     "backends/attrib/linux_ebpf",
     "backends/assemble",
+    "backends/predict",
     "runtime/behaviour",
     "runtime/agent_linux",
     "runtime/capture",
@@ -166,6 +170,7 @@ testpaths = [
     "backends/attrib/_base/tests",
     "backends/attrib/linux_ebpf/tests",
     "backends/assemble/tests",
+    "backends/predict/tests",
     "runtime/behaviour/tests",
     "runtime/agent_linux/tests",
     "runtime/capture/tests",

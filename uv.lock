@@ -24,6 +24,7 @@ members = [
     "tiergen-infra-docker",
     "tiergen-infra-libvirt",
     "tiergen-interfaces",
+    "tiergen-predict",
     "tiergen-protocols",
     "tiergen-scheduler",
     "tiergen-sensor-base",
@@ -696,7 +697,10 @@ dependencies = [
     { name = "tiergen-capture" },
     { name = "tiergen-core" },
     { name = "tiergen-interfaces" },
+    { name = "tiergen-protocols" },
     { name = "tiergen-sensor-base" },
+    { name = "tiergen-sim" },
+    { name = "tiergen-stats" },
 ]
 
 [package.metadata]
@@ -705,7 +709,10 @@ requires-dist = [
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-core", editable = "core" },
     { name = "tiergen-interfaces", editable = "interfaces" },
+    { name = "tiergen-protocols", editable = "protocols" },
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
+    { name = "tiergen-sim", editable = "sim" },
+    { name = "tiergen-stats", editable = "stats" },
 ]
 
 [[package]]
@@ -799,6 +806,7 @@ dependencies = [
     { name = "tiergen-fit" },
     { name = "tiergen-impls-base" },
     { name = "tiergen-infra-base" },
+    { name = "tiergen-predict" },
     { name = "tiergen-scheduler" },
     { name = "tiergen-sensor-base" },
     { name = "tiergen-sensor-suricata" },
@@ -814,6 +822,7 @@ requires-dist = [
     { name = "tiergen-fit", editable = "fit" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-infra-base", editable = "backends/infra/_base" },
+    { name = "tiergen-predict", editable = "backends/predict" },
     { name = "tiergen-scheduler", editable = "runtime/scheduler" },
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
     { name = "tiergen-sensor-suricata", editable = "backends/sensor/suricata" },
@@ -973,6 +982,25 @@ dependencies = [
 requires-dist = [{ name = "tiergen-core", editable = "core" }]
 
 [[package]]
+name = "tiergen-predict"
+version = "0.0.1"
+source = { editable = "backends/predict" }
+dependencies = [
+    { name = "numpy" },
+    { name = "tiergen-core" },
+    { name = "tiergen-sim" },
+    { name = "tiergen-stats" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=2.1" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-sim", editable = "sim" },
+    { name = "tiergen-stats", editable = "stats" },
+]
+
+[[package]]
 name = "tiergen-protocols"
 version = "0.0.1"
 source = { editable = "protocols" }
@@ -1110,6 +1138,7 @@ dependencies = [
     { name = "tiergen-infra-docker" },
     { name = "tiergen-infra-libvirt" },
     { name = "tiergen-interfaces" },
+    { name = "tiergen-predict" },
     { name = "tiergen-protocols" },
     { name = "tiergen-scheduler" },
     { name = "tiergen-sensor-base" },
@@ -1153,6 +1182,7 @@ requires-dist = [
     { name = "tiergen-infra-docker", editable = "backends/infra/docker" },
     { name = "tiergen-infra-libvirt", editable = "backends/infra/libvirt" },
     { name = "tiergen-interfaces", editable = "interfaces" },
+    { name = "tiergen-predict", editable = "backends/predict" },
     { name = "tiergen-protocols", editable = "protocols" },
     { name = "tiergen-scheduler", editable = "runtime/scheduler" },
     { name = "tiergen-sensor-base", editable = "backends/sensor/_base" },
