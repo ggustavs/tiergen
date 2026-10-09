@@ -1,0 +1,14 @@
+[project]
+name = "tiergen-predict"
+version = "0.0.1"
+description = "tiergen predict: a scenario's sensor-level statistics before it runs, from replicated simulations."
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["tiergen-core", "tiergen-sim", "tiergen-stats", "numpy>=2.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tiergen"]

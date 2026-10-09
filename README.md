@@ -23,6 +23,7 @@ pcaps and Zeek and Suricata logs, on a Linux host with Docker:
 ```
 uv sync
 uv run tiergen check examples/linux_slice/scenario.py
+uv run tiergen predict examples/linux_slice/scenario.py --hours 1  # what a sensor should see, before running
 uv run tiergen build examples/linux_slice/scenario.py --out run1
 uv run tiergen run run1 --for 60   # hosts, collector, capture; agents for a minute; down
 uv run tiergen assemble run1       # zeek and suricata over the capture, then the labels
@@ -34,8 +35,9 @@ host (what each invocation meant to do, keyed by its cgroup), `attrib/events.jso
 kernel saw, keyed the same way), `sensors/<name>/<point>/` (each sensor's own logs and its
 reading in the common event model), `labels.<sensor>.jsonl` (each sensor's connections that
 an invocation made, by the sensor's own ids), `flagged.jsonl` (what the join could not
-explain, with the reason) and `manifest.json` (every image, version, digest and count the
-run depends on). The pieces of a run are commands of their own: `infra up` and `down`,
+explain, with the reason), `conformance.md` (the run against a simulation of its own
+model, every verdict beside the test's measured power) and `manifest.json` (every image,
+version, digest and count the run depends on). The pieces of a run are commands of their own: `infra up` and `down`,
 `attrib start` and `stop`, `capture start` and `stop`, `sensors run`.
 
 Requirements for the run: a Linux host, Docker with its user-namespace remap on, `setfacl`,

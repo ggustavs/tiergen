@@ -9,6 +9,16 @@ no version numbers.
 
 ### Added
 
+- **backends/predict**, **backends/assemble**, **cli**: `tiergen predict` and the conformance
+  report. `predict` simulates a checked scenario N times and prints connections per
+  host-hour per kind and service with an interval over the replicates, and the gap
+  quantiles between a host's connections. `assemble` now writes `conformance.md`: the run,
+  per sensor, against one simulation of its own IR over the same length through the
+  calibrated tests, the run's timestamps moved onto the scenario's clock, with the measured
+  power beside each verdict or the note that too few hosts can be relabelled to reject,
+  plus the exactness count of labelled invocations against their signatures' connection
+  counts. `linux_slice`'s two agent hosts give six relabellings, so its report can only say
+  so; `office_slice` is the example with enough hosts to tell.
 - **fit**, **cli**: `tiergen fit`, the M2 part of section 11. The scenario's own actions are
   the vocabulary (peer, port, and the request path where two actions share a tie and a
   signature; a scan matches any port of its peers; many-connection actions fold within a

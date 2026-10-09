@@ -7,8 +7,8 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 ABSENT = ("conformance.md", "fidelity.md")
-"""Reports the design lists under ``assemble`` that need measured implementation profiles
-and a fitted model (M2, M3); named here so their absence is stated, not implied."""
+"""Reports the design lists under ``assemble``; what a run lacks is named so its absence
+is stated, not implied. The fidelity report needs real logs to compare with."""
 
 
 @dataclass(frozen=True, slots=True)

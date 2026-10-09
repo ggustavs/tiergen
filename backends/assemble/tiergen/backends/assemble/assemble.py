@@ -13,6 +13,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from tiergen.backends.assemble.conformance import conformance
 from tiergen.backends.assemble.join import join, signatures
 from tiergen.backends.assemble.manifest import (
     Counts,
@@ -30,6 +31,7 @@ from tiergen.core.events import AppEvent, ConnEvent
 from tiergen.core.ir import Scenario
 from tiergen.core.program import Program
 from tiergen.core.records import InvocationRecord
+from tiergen.core.resources import DirResources
 from tiergen.interfaces import AttributionBackend, AttributionRecord, RunRecord, RunState
 from tiergen.interfaces.registry import SensorFactory, load_attrib_backends, load_sensor_runtime
 from tiergen.runtime.capture.dumpcap import SUMMARY, CaptureState
@@ -39,6 +41,7 @@ RUN = "run.json"
 RECORDS = "invocations.jsonl"
 FLAGGED = "flagged.jsonl"
 MANIFEST = "manifest.json"
+CONFORMANCE = "conformance.md"
 SHARED_TOLERANCE_S = 1.0
 """How far apart the agent's stamp, the kernel's and the sensor's may be for one connection
 when every host shares the capture host's clock: scheduling and the sensor's own
@@ -125,9 +128,11 @@ def tolerance(run_dir: Path) -> float:
     return SHARED_TOLERANCE_S
 
 
-def connections(run_dir: Path, scenario: Scenario, capture: CaptureState) -> Iterator[ConnEvent]:
+def connections(
+    run_dir: Path, scenario: Scenario, capture: CaptureState, only: str | None = None
+) -> Iterator[ConnEvent]:
     for spec in scenario.sensors:
-        if spec.mode != "offline":
+        if spec.mode != "offline" or (only is not None and spec.name != only):
             continue
         for captured in capture.captures:
             path = run_dir / "sensors" / spec.name / captured.point / EVENTS
@@ -155,11 +160,12 @@ def assemble(
     ran = invocations(run_dir)
     records = attribution(run_dir, record.states, attribution_loader)
     tolerance_s = tolerance(run_dir)
+    known = signatures(programs)
     joined = join(
         connections(run_dir, scenario, capture),
         records,
         ran,
-        signatures(programs),
+        known,
         instance_of,
         tolerance_s,
     )
@@ -191,6 +197,18 @@ def assemble(
     seen: dict[str, int] = {}
     for r in readings.readings:
         seen[r.sensor] = seen.get(r.sensor, 0) + r.connections
+    text = conformance(
+        scenario,
+        DirResources(run_dir / "models"),
+        {p.instance: p for p in programs},
+        plan,
+        record.started,
+        record.duration_s,
+        {s.name: list(connections(run_dir, scenario, capture, s.name)) for s in offline},
+        joined.labels,
+        known,
+    )
+    (run_dir / CONFORMANCE).write_text(text, encoding="utf-8")
     manifest = Manifest(
         record.run,
         scenario.name,
@@ -206,6 +224,7 @@ def assemble(
         sensors,
         tolerance_s,
         Counts(len(ran), len(records), seen, labels, flags),
+        absent=("fidelity.md",),
     )
     _dump(manifest, run_dir / MANIFEST)
     return Summary(readings, labels, flags, manifest)

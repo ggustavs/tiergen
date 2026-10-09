@@ -151,7 +151,6 @@ def test_linux_slice_from_one_command_to_labels(
         assert "@sha256:" in summary["images"]["zeek:7.0.11"]
         assert "@sha256:" in summary["images"]["suricata:7.0.7"]
         assert summary["counts"]["invocations"] > 0
-        assert summary["absent"] == ["conformance.md", "fidelity.md"]
         for name in ("zeek", "suricata"):
             lines = (run_dir / f"labels.{name}.jsonl").read_text().splitlines()
             labels = [from_json(Label, json.loads(line)) for line in lines]
@@ -180,6 +179,13 @@ def test_linux_slice_from_one_command_to_labels(
         assert all(
             f.five_tuple is not None and f.five_tuple.orig_addr not in (ws, web, atk) for f in flags
         ), flags[:5]
+        # The conformance report exists; with two agent hosts against two simulated ones
+        # there are six relabellings, so every verdict says the sample cannot reject.
+        conformance = (run_dir / "conformance.md").read_text()
+        assert "# zeek against the model" in conformance
+        assert conformance.count("too few hosts (6 splits)") >= 5
+        assert "Exactness:" in conformance
+        assert summary["absent"] == ["fidelity.md"]
         # The fit reads the same run back through Zeek: the workstation's one acting state
         # with its dwell fitted, the attacker's scans folded into actions, the host's own
         # traffic as the only unmapped originator.
