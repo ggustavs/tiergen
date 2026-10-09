@@ -1,6 +1,6 @@
-"""The ``tiergen`` command: ``check``, ``build``, ``run``, ``assemble``; the pieces of a run
-by hand, ``infra up`` and ``down``, ``attrib start`` and ``stop``, ``capture start`` and
-``stop``, ``sensors run``; and ``impls list``."""
+"""The ``tiergen`` command: ``check``, ``build``, ``run``, ``assemble``, ``fit``; the pieces
+of a run by hand, ``infra up`` and ``down``, ``attrib start`` and ``stop``, ``capture start``
+and ``stop``, ``sensors run``; and ``impls list``."""
 
 import argparse
 import json
@@ -24,6 +24,7 @@ from tiergen.core.program import build_programs, programs_by_file
 from tiergen.core.resolve import Resolver
 from tiergen.core.resources import DirResources
 from tiergen.core.routing import plan_routes
+from tiergen.fit import FitError, fit_run
 from tiergen.impls._base import load_impls
 from tiergen.interfaces import BackendError, RunManifest
 from tiergen.interfaces.registry import (
@@ -109,6 +110,19 @@ def _parser() -> argparse.ArgumentParser:
         "manifest.json. Exit status: 0 assembled, 2 the run directory lacks something.",
     )
     assemble_cmd.add_argument("run_dir", type=Path, help="a directory tiergen run completed")
+
+    fit = commands.add_parser(
+        "fit",
+        help="fit each behaviour's process from a run's sensor events",
+        description="Fit the observable chain, dwells and rate curve of every behaviour from "
+        "one sensor's events over an assembled run (or a simulated one), using the "
+        "scenario's own actions as the vocabulary. Writes the resources, "
+        "scenario_fitted.json, fit_provenance.json and fit-report.md under --out. Exit "
+        "status: 0 fitted, 2 the run directory lacks something.",
+    )
+    fit.add_argument("run_dir", type=Path, help="a directory tiergen assemble completed")
+    fit.add_argument("--sensor", required=True, help="the sensor whose events to fit from")
+    fit.add_argument("--out", type=Path, required=True, metavar="DIR", help="where to write")
 
     infra = commands.add_parser("infra", help="bring a built run's hosts up or down")
     infra_commands = infra.add_subparsers(dest="infra_command", required=True, metavar="subcommand")
@@ -361,6 +375,27 @@ def _run(run_dir: Path, for_s: float | None) -> int:
     return OK
 
 
+def _fit(run_dir: Path, sensor: str, out: Path) -> int:
+    try:
+        summary = fit_run(run_dir, sensor, out)
+    except (OSError, CodecError, FitError, ValueError) as err:
+        print(f"tiergen: {err}", file=sys.stderr)
+        return UNUSABLE
+    for f in summary.fits:
+        print(
+            f"{f.kind}/{f.behaviour}: {f.instances} instance(s), {f.events} action(s), "
+            f"{len(f.states)} state(s), dwell "
+            + ", ".join(f"{s} {d.family}" for s, d in zip(f.states, f.dwell, strict=True))
+        )
+    unmapped = summary.labelled.unmapped.by_reason
+    print(
+        f"{summary.labelled.connections} connection(s), "
+        + (", ".join(f"{n} {r}" for r, n in unmapped.items()) if unmapped else "all mapped")
+    )
+    print(f"wrote {out}: resources, scenario_fitted.json, fit_provenance.json, fit-report.md")
+    return OK
+
+
 def _assemble(run_dir: Path) -> int:
     try:
         summary = assemble(run_dir)
@@ -421,6 +456,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run(args.run_dir, args.for_s)
     if args.command == "assemble":
         return _assemble(args.run_dir)
+    if args.command == "fit":
+        return _fit(args.run_dir, args.sensor, args.out)
     if args.command == "infra":
         return _infra(args.infra_command, args.run_dir)
     if args.command == "capture":

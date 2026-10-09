@@ -180,6 +180,19 @@ def test_linux_slice_from_one_command_to_labels(
         assert all(
             f.five_tuple is not None and f.five_tuple.orig_addr not in (ws, web, atk) for f in flags
         ), flags[:5]
+        # The fit reads the same run back through Zeek: the workstation's one acting state
+        # with its dwell fitted, the attacker's scans folded into actions, the host's own
+        # traffic as the only unmapped originator.
+        assert main(["fit", str(run_dir), "--sensor", "zeek", "--out", str(run_dir / "fit")]) == 0
+        fit_dir = run_dir / "fit"
+        assert json.loads((fit_dir / "workstation.browse.states.json").read_text()) == ["web_get"]
+        assert json.loads((fit_dir / "attacker.recon.states.json").read_text()) == ["syn_scan"]
+        report_text = (fit_dir / "fit-report.md").read_text()
+        assert "## workstation / browse" in report_text
+        assert "ambiguous" not in report_text
+        fitted = json.loads((fit_dir / "scenario_fitted.json").read_text())
+        assert fitted["fit_provenance"] == "fit_provenance"
+        assert [s["role"] for s in fitted["sensors"]] == ["both", "label"]
     finally:
         DockerBackend().down(manifest)
         if agent is not None:

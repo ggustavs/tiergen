@@ -13,6 +13,7 @@ members = [
     "tiergen-check",
     "tiergen-cli",
     "tiergen-core",
+    "tiergen-fit",
     "tiergen-impl-httpx",
     "tiergen-impl-nginx",
     "tiergen-impl-nmap",
@@ -795,6 +796,7 @@ dependencies = [
     { name = "tiergen-attrib-linux-ebpf" },
     { name = "tiergen-capture" },
     { name = "tiergen-check" },
+    { name = "tiergen-fit" },
     { name = "tiergen-impls-base" },
     { name = "tiergen-infra-base" },
     { name = "tiergen-scheduler" },
@@ -809,6 +811,7 @@ requires-dist = [
     { name = "tiergen-attrib-linux-ebpf", editable = "backends/attrib/linux_ebpf" },
     { name = "tiergen-capture", editable = "runtime/capture" },
     { name = "tiergen-check", editable = "check" },
+    { name = "tiergen-fit", editable = "fit" },
     { name = "tiergen-impls-base", editable = "impls/_base" },
     { name = "tiergen-infra-base", editable = "backends/infra/_base" },
     { name = "tiergen-scheduler", editable = "runtime/scheduler" },
@@ -821,6 +824,25 @@ requires-dist = [
 name = "tiergen-core"
 version = "0.0.1"
 source = { editable = "core" }
+
+[[package]]
+name = "tiergen-fit"
+version = "0.0.1"
+source = { editable = "fit" }
+dependencies = [
+    { name = "numpy" },
+    { name = "tiergen-core" },
+    { name = "tiergen-protocols" },
+    { name = "tiergen-stats" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=2.1" },
+    { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-protocols", editable = "protocols" },
+    { name = "tiergen-stats", editable = "stats" },
+]
 
 [[package]]
 name = "tiergen-impl-httpx"
@@ -1077,6 +1099,7 @@ dependencies = [
     { name = "tiergen-check" },
     { name = "tiergen-cli" },
     { name = "tiergen-core" },
+    { name = "tiergen-fit" },
     { name = "tiergen-impl-httpx" },
     { name = "tiergen-impl-nginx" },
     { name = "tiergen-impl-nmap" },
@@ -1119,6 +1142,7 @@ requires-dist = [
     { name = "tiergen-check", editable = "check" },
     { name = "tiergen-cli", editable = "cli" },
     { name = "tiergen-core", editable = "core" },
+    { name = "tiergen-fit", editable = "fit" },
     { name = "tiergen-impl-httpx", editable = "impls/httpx" },
     { name = "tiergen-impl-nginx", editable = "impls/nginx" },
     { name = "tiergen-impl-nmap", editable = "impls/nmap" },

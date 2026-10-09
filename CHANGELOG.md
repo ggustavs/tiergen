@@ -9,6 +9,15 @@ no version numbers.
 
 ### Added
 
+- **fit**, **cli**: `tiergen fit`, the M2 part of section 11. The scenario's own actions are
+  the vocabulary (peer, port, and the request path where two actions share a tie and a
+  signature; a scan matches any port of its peers; many-connection actions fold within a
+  second); each behaviour's observable chain, dwell families and rate curve are fitted from
+  one sensor's events, pooled over the kind's instances, with Wilson intervals and the
+  dwells on the operational clock of the fitted curve; the output is resources, a fitted
+  scenario that passes the checks, a provenance and a report of the unmapped. Recovery tests
+  on the simulator hold the estimates against the generating scenario, through its
+  projection where it has a silent state. The daemon test fits `linux_slice` back from Zeek.
 - **stats**: estimators and two-sample tests with their calibration. Streams per host from
   connections; transition rows with Wilson intervals, dwell families (exponential,
   lognormal, Weibull) by maximum likelihood chosen by AIC, hourly rates; Wasserstein and

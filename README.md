@@ -26,6 +26,7 @@ uv run tiergen check examples/linux_slice/scenario.py
 uv run tiergen build examples/linux_slice/scenario.py --out run1
 uv run tiergen run run1 --for 60   # hosts, collector, capture; agents for a minute; down
 uv run tiergen assemble run1       # zeek and suricata over the capture, then the labels
+uv run tiergen fit run1 --sensor zeek --out run1/fit  # each behaviour's process, back from the logs
 ```
 
 Afterwards `run1/` holds `capture/lan-span.pcapng`, `out/<instance>/invocations.jsonl` per
