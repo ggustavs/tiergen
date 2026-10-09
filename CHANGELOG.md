@@ -9,6 +9,15 @@ no version numbers.
 
 ### Added
 
+- **stats**: estimators and two-sample tests with their calibration. Streams per host from
+  connections; transition rows with Wilson intervals, dwell families (exponential,
+  lognormal, Weibull) by maximum likelihood chosen by AIC, hourly rates; Wasserstein and
+  KS on gaps, Jensen-Shannon on the mix, a G statistic on transitions and the hourly rate
+  error, each with a host-level permutation p-value; `calibrate` measures type-I rate and
+  power on the harness scenario (`stats.harness.office`) against stated perturbations, and
+  `report` prints a verdict beside the measured power. `scripts/calibrate.py` writes
+  `docs/calibration.md` and the table the package ships. Inference is by permutation and
+  bootstrap over hosts; `numpy` is the one numeric dependency, `scipy` was not needed.
 - **sim**: the simulator. `simulate(scenario, resources)` builds the programs as `build`
   does, runs every behaviour through the shared loop under a clock that jumps and an
   implementation that records, and turns each invocation into the `ConnEvent`s its
