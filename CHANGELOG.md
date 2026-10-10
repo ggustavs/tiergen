@@ -35,6 +35,10 @@ no version numbers.
   scenario that passes the checks, a provenance and a report of the unmapped. Recovery tests
   on the simulator hold the estimates against the generating scenario, through its
   projection where it has a silent state. The daemon test fits `linux_slice` back from Zeek.
+- **stats**: the calibration table regenerated at the shipped 200 permutation rounds, with
+  the reading of its numbers and of its type-I rates recorded in section 9: the small
+  excess over the level survived six controls without a mechanism and is stated as a
+  property of the table, not hidden.
 - **stats**: estimators and two-sample tests with their calibration. Streams per host from
   connections; transition rows with Wilson intervals, dwell families (exponential,
   lognormal, Weibull) by maximum likelihood chosen by AIC, hourly rates; Wasserstein and
