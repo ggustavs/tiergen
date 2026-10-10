@@ -11,24 +11,6 @@
       "low": 1.734723475976807e-18,
       "high": 0.018845326377266575
     },
-    "power": 0.005,
-    "power_interval": {
-      "low": 0.0008831687156009814,
-      "high": 0.02777370439789293
-    }
-  },
-  {
-    "test": "gap_wasserstein",
-    "perturbation": "dwell x1.25",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
     "power": 0.0,
     "power_interval": {
       "low": 1.734723475976807e-18,
@@ -37,96 +19,6 @@
   },
   {
     "test": "gap_wasserstein",
-    "perturbation": "rate x1.25 at 10h",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
-    "power": 0.005,
-    "power_interval": {
-      "low": 0.0008831687156009814,
-      "high": 0.02777370439789293
-    }
-  },
-  {
-    "test": "gap_ks",
-    "perturbation": "transition +0.1",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
-    "power": 0.005,
-    "power_interval": {
-      "low": 0.0008831687156009814,
-      "high": 0.02777370439789293
-    }
-  },
-  {
-    "test": "gap_ks",
-    "perturbation": "dwell x1.25",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
-    "power": 0.005,
-    "power_interval": {
-      "low": 0.0008831687156009814,
-      "high": 0.02777370439789293
-    }
-  },
-  {
-    "test": "gap_ks",
-    "perturbation": "rate x1.25 at 10h",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
-    "power": 0.015,
-    "power_interval": {
-      "low": 0.00511423779325831,
-      "high": 0.04316572879269026
-    }
-  },
-  {
-    "test": "mix_js",
-    "perturbation": "transition +0.1",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.0,
-    "type_i_interval": {
-      "low": 1.734723475976807e-18,
-      "high": 0.018845326377266575
-    },
-    "power": 0.005,
-    "power_interval": {
-      "low": 0.0008831687156009814,
-      "high": 0.02777370439789293
-    }
-  },
-  {
-    "test": "mix_js",
     "perturbation": "dwell x1.25",
     "hosts": 3,
     "hours": 2.0,
@@ -144,7 +36,7 @@
     }
   },
   {
-    "test": "mix_js",
+    "test": "gap_wasserstein",
     "perturbation": "rate x1.25 at 10h",
     "hosts": 3,
     "hours": 2.0,
@@ -162,44 +54,8 @@
     }
   },
   {
-    "test": "transition_g",
+    "test": "gap_ks",
     "perturbation": "transition +0.1",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.025,
-    "type_i_interval": {
-      "low": 0.010724719651761264,
-      "high": 0.05717834040664198
-    },
-    "power": 0.065,
-    "power_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
-    }
-  },
-  {
-    "test": "transition_g",
-    "perturbation": "dwell x1.25",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.025,
-    "type_i_interval": {
-      "low": 0.010724719651761264,
-      "high": 0.05717834040664198
-    },
-    "power": 0.015,
-    "power_interval": {
-      "low": 0.00511423779325831,
-      "high": 0.04316572879269026
-    }
-  },
-  {
-    "test": "transition_g",
-    "perturbation": "rate x1.25 at 10h",
     "hosts": 3,
     "hours": 2.0,
     "seeds": 200,
@@ -209,51 +65,123 @@
       "low": 0.0008831687156009814,
       "high": 0.02777370439789293
     },
-    "power": 0.025,
+    "power": 0.0,
     "power_interval": {
-      "low": 0.010724719651761264,
-      "high": 0.05717834040664198
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
     }
   },
   {
-    "test": "rate_error",
-    "perturbation": "transition +0.1",
-    "hosts": 3,
-    "hours": 2.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.03,
-    "type_i_interval": {
-      "low": 0.013820314340111346,
-      "high": 0.06389429245451925
-    },
-    "power": 0.015,
-    "power_interval": {
-      "low": 0.00511423779325831,
-      "high": 0.04316572879269026
-    }
-  },
-  {
-    "test": "rate_error",
+    "test": "gap_ks",
     "perturbation": "dwell x1.25",
     "hosts": 3,
     "hours": 2.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.03,
+    "type_i": 0.0,
     "type_i_interval": {
-      "low": 0.013820314340111346,
-      "high": 0.06389429245451925
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
     },
-    "power": 0.01,
+    "power": 0.0,
     "power_interval": {
-      "low": 0.0027466581335444384,
-      "high": 0.0357217617161768
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
     }
   },
   {
-    "test": "rate_error",
+    "test": "gap_ks",
     "perturbation": "rate x1.25 at 10h",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.0,
+    "type_i_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    },
+    "power": 0.0,
+    "power_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    }
+  },
+  {
+    "test": "mix_js",
+    "perturbation": "transition +0.1",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.0,
+    "type_i_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    },
+    "power": 0.0,
+    "power_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    }
+  },
+  {
+    "test": "mix_js",
+    "perturbation": "dwell x1.25",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.0,
+    "type_i_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    },
+    "power": 0.0,
+    "power_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    }
+  },
+  {
+    "test": "mix_js",
+    "perturbation": "rate x1.25 at 10h",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.0,
+    "type_i_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    },
+    "power": 0.0,
+    "power_interval": {
+      "low": 1.734723475976807e-18,
+      "high": 0.018845326377266575
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "transition +0.1",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.015,
+    "type_i_interval": {
+      "low": 0.00511423779325831,
+      "high": 0.04316572879269026
+    },
+    "power": 0.035,
+    "power_interval": {
+      "low": 0.017055542008567192,
+      "high": 0.07047061152229073
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "dwell x1.25",
     "hosts": 3,
     "hours": 2.0,
     "seeds": 200,
@@ -263,10 +191,82 @@
       "low": 0.0027466581335444384,
       "high": 0.0357217617161768
     },
+    "power": 0.01,
+    "power_interval": {
+      "low": 0.0027466581335444384,
+      "high": 0.0357217617161768
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "rate x1.25 at 10h",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.015,
+    "type_i_interval": {
+      "low": 0.00511423779325831,
+      "high": 0.04316572879269026
+    },
+    "power": 0.015,
+    "power_interval": {
+      "low": 0.00511423779325831,
+      "high": 0.04316572879269026
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "transition +0.1",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.025,
+    "type_i_interval": {
+      "low": 0.010724719651761264,
+      "high": 0.05717834040664198
+    },
+    "power": 0.01,
+    "power_interval": {
+      "low": 0.0027466581335444384,
+      "high": 0.0357217617161768
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "dwell x1.25",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.03,
+    "type_i_interval": {
+      "low": 0.013820314340111346,
+      "high": 0.06389429245451925
+    },
     "power": 0.025,
     "power_interval": {
       "low": 0.010724719651761264,
       "high": 0.05717834040664198
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "rate x1.25 at 10h",
+    "hosts": 3,
+    "hours": 2.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.015,
+    "type_i_interval": {
+      "low": 0.00511423779325831,
+      "high": 0.04316572879269026
+    },
+    "power": 0.035,
+    "power_interval": {
+      "low": 0.017055542008567192,
+      "high": 0.07047061152229073
     }
   },
   {
@@ -276,15 +276,15 @@
     "hours": 8.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.08,
+    "type_i": 0.09,
     "type_i_interval": {
-      "low": 0.049840585889759974,
-      "high": 0.12598948826714396
+      "low": 0.05768744886219316,
+      "high": 0.13776571876716542
     },
-    "power": 0.61,
+    "power": 0.62,
     "power_interval": {
-      "low": 0.5409374595716976,
-      "high": 0.6749165686253038
+      "low": 0.5510671801561923,
+      "high": 0.6844099415132637
     }
   },
   {
@@ -294,10 +294,10 @@
     "hours": 8.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.075,
+    "type_i": 0.09,
     "type_i_interval": {
-      "low": 0.04597491718438201,
-      "high": 0.12004361023629456
+      "low": 0.05768744886219316,
+      "high": 0.13776571876716542
     },
     "power": 0.315,
     "power_interval": {
@@ -330,15 +330,15 @@
     "hours": 8.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.065,
+    "type_i": 0.06,
     "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
     },
-    "power": 0.75,
+    "power": 0.73,
     "power_interval": {
-      "low": 0.6856590168795417,
-      "high": 0.8049183199318249
+      "low": 0.6645656480133157,
+      "high": 0.7867655018531416
     }
   },
   {
@@ -348,10 +348,10 @@
     "hours": 8.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.065,
+    "type_i": 0.06,
     "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
     },
     "power": 0.805,
     "power_interval": {
@@ -366,38 +366,20 @@
     "hours": 8.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.055,
+    "type_i": 0.06,
     "type_i_interval": {
-      "low": 0.03098534170345884,
-      "high": 0.0957869987723084
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
     },
-    "power": 0.2,
+    "power": 0.195,
     "power_interval": {
-      "low": 0.15045200926098115,
-      "high": 0.2608551865653788
+      "low": 0.1460552053440051,
+      "high": 0.25544044374612745
     }
   },
   {
     "test": "mix_js",
     "perturbation": "transition +0.1",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.08,
-    "type_i_interval": {
-      "low": 0.049840585889759974,
-      "high": 0.12598948826714396
-    },
-    "power": 0.985,
-    "power_interval": {
-      "low": 0.9568342712073097,
-      "high": 0.9948857622067417
-    }
-  },
-  {
-    "test": "mix_js",
-    "perturbation": "dwell x1.25",
     "hosts": 10,
     "hours": 8.0,
     "seeds": 200,
@@ -407,87 +389,15 @@
       "low": 0.03465219425433187,
       "high": 0.1019316929576627
     },
-    "power": 0.06,
+    "power": 0.99,
     "power_interval": {
-      "low": 0.03465219425433187,
-      "high": 0.1019316929576627
+      "low": 0.9642782382838231,
+      "high": 0.9972533418664555
     }
   },
   {
     "test": "mix_js",
-    "perturbation": "rate x1.25 at 10h",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.09,
-    "type_i_interval": {
-      "low": 0.05768744886219316,
-      "high": 0.13776571876716542
-    },
-    "power": 0.085,
-    "power_interval": {
-      "low": 0.05374575017747561,
-      "high": 0.13189587071565567
-    }
-  },
-  {
-    "test": "transition_g",
-    "perturbation": "transition +0.1",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.05,
-    "type_i_interval": {
-      "low": 0.02738264560076393,
-      "high": 0.08957814813877599
-    },
-    "power": 1.0,
-    "power_interval": {
-      "low": 0.9811546736227335,
-      "high": 1.0
-    }
-  },
-  {
-    "test": "transition_g",
     "perturbation": "dwell x1.25",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.055,
-    "type_i_interval": {
-      "low": 0.03098534170345884,
-      "high": 0.0957869987723084
-    },
-    "power": 0.06,
-    "power_interval": {
-      "low": 0.03465219425433187,
-      "high": 0.1019316929576627
-    }
-  },
-  {
-    "test": "transition_g",
-    "perturbation": "rate x1.25 at 10h",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.065,
-    "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
-    },
-    "power": 0.065,
-    "power_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
-    }
-  },
-  {
-    "test": "rate_error",
-    "perturbation": "transition +0.1",
     "hosts": 10,
     "hours": 8.0,
     "seeds": 200,
@@ -497,32 +407,14 @@
       "low": 0.04597491718438201,
       "high": 0.12004361023629456
     },
-    "power": 0.23,
+    "power": 0.07,
     "power_interval": {
-      "low": 0.17709343259068805,
-      "high": 0.2930830436530359
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
     }
   },
   {
-    "test": "rate_error",
-    "perturbation": "dwell x1.25",
-    "hosts": 10,
-    "hours": 8.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.065,
-    "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
-    },
-    "power": 0.1,
-    "power_interval": {
-      "low": 0.06567044866909588,
-      "high": 0.1494058124327174
-    }
-  },
-  {
-    "test": "rate_error",
+    "test": "mix_js",
     "perturbation": "rate x1.25 at 10h",
     "hosts": 10,
     "hours": 8.0,
@@ -533,10 +425,118 @@
       "low": 0.03465219425433187,
       "high": 0.1019316929576627
     },
-    "power": 0.435,
+    "power": 0.08,
     "power_interval": {
-      "low": 0.36815725502699076,
-      "high": 0.504292637402054
+      "low": 0.049840585889759974,
+      "high": 0.12598948826714396
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "transition +0.1",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.06,
+    "type_i_interval": {
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
+    },
+    "power": 1.0,
+    "power_interval": {
+      "low": 0.9811546736227335,
+      "high": 1.0
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "dwell x1.25",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.045,
+    "type_i_interval": {
+      "low": 0.023852543001492997,
+      "high": 0.0832967040018196
+    },
+    "power": 0.055,
+    "power_interval": {
+      "low": 0.03098534170345884,
+      "high": 0.0957869987723084
+    }
+  },
+  {
+    "test": "transition_g",
+    "perturbation": "rate x1.25 at 10h",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.06,
+    "type_i_interval": {
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
+    },
+    "power": 0.07,
+    "power_interval": {
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "transition +0.1",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.065,
+    "type_i_interval": {
+      "low": 0.03837635464915299,
+      "high": 0.10801907929906895
+    },
+    "power": 0.26,
+    "power_interval": {
+      "low": 0.20413830063574687,
+      "high": 0.32490745602534116
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "dwell x1.25",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.065,
+    "type_i_interval": {
+      "low": 0.03837635464915299,
+      "high": 0.10801907929906895
+    },
+    "power": 0.14,
+    "power_interval": {
+      "low": 0.09866982633455634,
+      "high": 0.1948988086570756
+    }
+  },
+  {
+    "test": "rate_error",
+    "perturbation": "rate x1.25 at 10h",
+    "hosts": 10,
+    "hours": 8.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.07,
+    "type_i_interval": {
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
+    },
+    "power": 0.42,
+    "power_interval": {
+      "low": 0.35373599161616726,
+      "high": 0.4892792606041954
     }
   },
   {
@@ -546,15 +546,15 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.07,
+    "type_i": 0.085,
     "type_i_interval": {
-      "low": 0.042152171828342806,
-      "high": 0.11405480885610647
+      "low": 0.05374575017747561,
+      "high": 0.13189587071565567
     },
-    "power": 0.94,
+    "power": 0.945,
     "power_interval": {
-      "low": 0.8980683070423372,
-      "high": 0.9653478057456681
+      "low": 0.9042130012276914,
+      "high": 0.9690146582965411
     }
   },
   {
@@ -564,15 +564,15 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.065,
+    "type_i": 0.08,
     "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
+      "low": 0.049840585889759974,
+      "high": 0.12598948826714396
     },
-    "power": 0.585,
+    "power": 0.6,
     "power_interval": {
-      "low": 0.5157391490134403,
-      "high": 0.6510571455024242
+      "low": 0.53083672039262,
+      "high": 0.6653942143319266
     }
   },
   {
@@ -587,10 +587,10 @@
       "low": 0.042152171828342806,
       "high": 0.11405480885610647
     },
-    "power": 0.345,
+    "power": 0.37,
     "power_interval": {
-      "low": 0.2825979437674894,
-      "high": 0.4132441074094632
+      "low": 0.30612608409859116,
+      "high": 0.4387737007594981
     }
   },
   {
@@ -600,28 +600,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.09,
+    "type_i": 0.07,
     "type_i_interval": {
-      "low": 0.05768744886219316,
-      "high": 0.13776571876716542
-    },
-    "power": 0.98,
-    "power_interval": {
-      "low": 0.9497129130941735,
-      "high": 0.9921955735836505
-    }
-  },
-  {
-    "test": "gap_ks",
-    "perturbation": "dwell x1.25",
-    "hosts": 20,
-    "hours": 12.0,
-    "seeds": 200,
-    "alpha": 0.05,
-    "type_i": 0.065,
-    "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
     },
     "power": 0.985,
     "power_interval": {
@@ -631,20 +613,38 @@
   },
   {
     "test": "gap_ks",
+    "perturbation": "dwell x1.25",
+    "hosts": 20,
+    "hours": 12.0,
+    "seeds": 200,
+    "alpha": 0.05,
+    "type_i": 0.08,
+    "type_i_interval": {
+      "low": 0.049840585889759974,
+      "high": 0.12598948826714396
+    },
+    "power": 0.99,
+    "power_interval": {
+      "low": 0.9642782382838231,
+      "high": 0.9972533418664555
+    }
+  },
+  {
+    "test": "gap_ks",
     "perturbation": "rate x1.25 at 10h",
     "hosts": 20,
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.06,
+    "type_i": 0.07,
     "type_i_interval": {
-      "low": 0.03465219425433187,
-      "high": 0.1019316929576627
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
     },
-    "power": 0.36,
+    "power": 0.355,
     "power_interval": {
-      "low": 0.2966919730456654,
-      "high": 0.42858471833996925
+      "low": 0.2919862754043116,
+      "high": 0.42347886924509565
     }
   },
   {
@@ -654,10 +654,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.07,
+    "type_i": 0.065,
     "type_i_interval": {
-      "low": 0.042152171828342806,
-      "high": 0.11405480885610647
+      "low": 0.03837635464915299,
+      "high": 0.10801907929906895
     },
     "power": 1.0,
     "power_interval": {
@@ -672,15 +672,15 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.085,
+    "type_i": 0.06,
     "type_i_interval": {
-      "low": 0.05374575017747561,
-      "high": 0.13189587071565567
+      "low": 0.03465219425433187,
+      "high": 0.1019316929576627
     },
-    "power": 0.045,
+    "power": 0.065,
     "power_interval": {
-      "low": 0.023852543001492997,
-      "high": 0.0832967040018196
+      "low": 0.03837635464915299,
+      "high": 0.10801907929906895
     }
   },
   {
@@ -690,10 +690,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.07,
+    "type_i": 0.075,
     "type_i_interval": {
-      "low": 0.042152171828342806,
-      "high": 0.11405480885610647
+      "low": 0.04597491718438201,
+      "high": 0.12004361023629456
     },
     "power": 0.065,
     "power_interval": {
@@ -708,10 +708,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.065,
+    "type_i": 0.055,
     "type_i_interval": {
-      "low": 0.03837635464915299,
-      "high": 0.10801907929906895
+      "low": 0.03098534170345884,
+      "high": 0.0957869987723084
     },
     "power": 1.0,
     "power_interval": {
@@ -726,10 +726,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.055,
+    "type_i": 0.07,
     "type_i_interval": {
-      "low": 0.03098534170345884,
-      "high": 0.0957869987723084
+      "low": 0.042152171828342806,
+      "high": 0.11405480885610647
     },
     "power": 0.06,
     "power_interval": {
@@ -744,15 +744,15 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.06,
+    "type_i": 0.065,
     "type_i_interval": {
-      "low": 0.03465219425433187,
-      "high": 0.1019316929576627
+      "low": 0.03837635464915299,
+      "high": 0.10801907929906895
     },
-    "power": 0.075,
+    "power": 0.055,
     "power_interval": {
-      "low": 0.04597491718438201,
-      "high": 0.12004361023629456
+      "low": 0.03098534170345884,
+      "high": 0.0957869987723084
     }
   },
   {
@@ -762,10 +762,10 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.07,
+    "type_i": 0.08,
     "type_i_interval": {
-      "low": 0.042152171828342806,
-      "high": 0.11405480885610647
+      "low": 0.049840585889759974,
+      "high": 0.12598948826714396
     },
     "power": 0.655,
     "power_interval": {
@@ -785,10 +785,10 @@
       "low": 0.06166310271738653,
       "high": 0.1436016116481994
     },
-    "power": 0.235,
+    "power": 0.24,
     "power_interval": {
-      "low": 0.18157433415232588,
-      "high": 0.29841368882762537
+      "low": 0.1860661599241369,
+      "high": 0.30373340979204166
     }
   },
   {
@@ -798,15 +798,15 @@
     "hours": 12.0,
     "seeds": 200,
     "alpha": 0.05,
-    "type_i": 0.075,
+    "type_i": 0.1,
     "type_i_interval": {
-      "low": 0.04597491718438201,
-      "high": 0.12004361023629456
+      "low": 0.06567044866909588,
+      "high": 0.1494058124327174
     },
-    "power": 0.695,
+    "power": 0.715,
     "power_interval": {
-      "low": 0.6280144790202163,
-      "high": 0.7546358436926496
+      "low": 0.6488465397039482,
+      "high": 0.7730499699538271
     }
   }
 ]
