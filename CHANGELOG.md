@@ -35,6 +35,12 @@ no version numbers.
   scenario that passes the checks, a provenance and a report of the unmapped. Recovery tests
   on the simulator hold the estimates against the generating scenario, through its
   projection where it has a silent state. The daemon test fits `linux_slice` back from Zeek.
+- **fit**: a run of ours is fitted on the clock its agents kept. The sensor stamps the wall
+  clock while the agents read the rate curve from the scenario's `start`; the fit moves the
+  events of a run that carries `run.json` by that difference before labelling, and the
+  report says so. Found by the two-hour `office_slice` round trip (section 11), whose
+  numbers are the design's: the chain identical to the simulation's, the dwell means within
+  half a percent of it once the clock is right.
 - **stats**: the calibration table regenerated at the shipped 200 permutation rounds, with
   the reading of its numbers and of its type-I rates recorded in section 9: the small
   excess over the level survived six controls without a mechanism and is stated as a
