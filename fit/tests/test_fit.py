@@ -9,13 +9,14 @@ import pytest
 
 from tiergen.check import run_checks
 from tiergen.cli.main import main
-from tiergen.core.codec import from_json
+from tiergen.core.codec import from_json, to_json
 from tiergen.core.ir import Scenario
 from tiergen.core.loader import load_scenario
 from tiergen.core.resources import DictResources, DirResources
 from tiergen.fit import Fitted, fit_run, projection
 from tiergen.fit.behaviour import fit_behaviour, operational
 from tiergen.impls._base import load_impls
+from tiergen.interfaces import RunRecord
 from tiergen.interfaces.registry import load_infra, load_sensors
 from tiergen.sim import simulate, write
 from tiergen.stats import Stream
@@ -90,6 +91,33 @@ def test_the_rate_curve_is_recovered_over_a_day_and_the_dwell_with_it(tmp_path: 
         assert value == pytest.approx(CURVE[hour], abs=0.15), hour
     assert f.dwell[0].family == "exponential"
     assert f.dwell[0].params[0] == pytest.approx(10.0, rel=0.15)
+
+
+def test_a_run_of_ours_is_fitted_on_the_clock_its_agents_kept(tmp_path: Path) -> None:
+    """The sensor stamps the wall clock; the agents read the rate curve from ``start``. A
+    run.json says when the agents started, and the fit moves the events accordingly."""
+    h = office(3, idle=False, rate=CURVE)
+    sim = simulate(h.scenario, DictResources(h.resources), duration_s=2 * 3600)
+    write(sim, tmp_path / "run")
+    epoch = datetime.fromisoformat(h.scenario.start).timestamp()
+    late = epoch + 8 * 3600  # the run happened at 16:00 local, the scenario says 08:00
+    for name in ("sensors/sim/all/events.jsonl",):
+        path = tmp_path / "run" / name
+        moved: list[str] = []
+        for line in path.read_text().splitlines():
+            e = json.loads(line)
+            key = "start" if "five_tuple" in e else "ts"
+            e[key] = e[key] + 8 * 3600
+            moved.append(json.dumps(e))
+        path.write_text("\n".join(moved) + "\n")
+    (tmp_path / "run" / "run.json").write_text(
+        json.dumps(to_json(RunRecord("office-x", "office", late, 7200.0, {})))
+    )
+    summary = fit_run(tmp_path / "run", "sim", tmp_path / "out")
+    assert summary.shift_s == pytest.approx(-8 * 3600)
+    [f] = summary.fits
+    assert [h for h, seen in enumerate(f.curve.observed) if seen] == [8, 9]
+    assert "moved by -28800 s" in (tmp_path / "out" / "fit-report.md").read_text()
 
 
 def test_what_the_data_do_not_determine_is_a_named_placeholder() -> None:

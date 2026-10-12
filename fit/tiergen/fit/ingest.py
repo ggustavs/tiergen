@@ -10,7 +10,7 @@ what was not mapped and why.
 import json
 from collections import Counter
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from tiergen.core.codec import decode
@@ -45,7 +45,10 @@ class Labelled:
     app_coverage: float | None
 
 
-def read_events(run_dir: Path, sensor: str) -> Iterator[Event]:
+def read_events(run_dir: Path, sensor: str, shift_s: float = 0.0) -> Iterator[Event]:
+    """The sensor's events over every capture point, timestamps moved by ``shift_s``: a run
+    of ours keeps scenario time from the scenario's ``start`` while the sensor stamps the
+    wall clock, so the fit of such a run moves the events onto the clock the agents kept."""
     root = run_dir / "sensors" / sensor
     paths = sorted(root.glob(f"*/{EVENTS}"))
     if not paths:
@@ -54,7 +57,14 @@ def read_events(run_dir: Path, sensor: str) -> Iterator[Event]:
         with path.open(encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    yield decode(ConnEvent | AppEvent, json.loads(line))
+                    event = decode(ConnEvent | AppEvent, json.loads(line))
+                    if shift_s:
+                        event = (
+                            replace(event, start=event.start + shift_s)
+                            if isinstance(event, ConnEvent)
+                            else replace(event, ts=event.ts + shift_s)
+                        )
+                    yield event
 
 
 def _dedupe(conns: Iterable[ConnEvent]) -> list[ConnEvent]:

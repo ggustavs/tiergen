@@ -20,7 +20,12 @@ def _matrix(f: Fitted) -> list[str]:
 
 
 def render(
-    scenario: str, sensor: str, labelled: Labelled, fits: Sequence[Fitted], tz_name: str
+    scenario: str,
+    sensor: str,
+    labelled: Labelled,
+    fits: Sequence[Fitted],
+    tz_name: str,
+    shift_s: float = 0.0,
 ) -> str:
     lines = [
         f"# Fit of {scenario} from sensor {sensor}",
@@ -43,6 +48,11 @@ def render(
         "- application events on HTTP connections: "
         + ("not applicable" if labelled.app_coverage is None else f"{labelled.app_coverage:.2f}"),
     ]
+    if shift_s:
+        lines.append(
+            f"- a run of ours: timestamps moved by {shift_s:.0f} s onto the scenario clock its "
+            "agents kept, so the rate curve's hours are the ones they ran under"
+        )
     if labelled.unmapped.by_reason:
         lines.append(
             "- unmapped connections: "
