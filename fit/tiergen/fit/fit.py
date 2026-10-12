@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from tiergen.core.addressing import AddressPlan
@@ -12,9 +13,11 @@ from tiergen.fit import emit, report
 from tiergen.fit.behaviour import Fitted, fit_behaviour
 from tiergen.fit.ingest import Labelled, candidates_of, label, read_events
 from tiergen.fit.vocabulary import Vocabulary, vocabulary
+from tiergen.interfaces import RunRecord
 from tiergen.stats.streams import local_tz
 
 REPORT = "fit-report.md"
+RUN = "run.json"
 
 
 class FitError(RuntimeError):
@@ -23,10 +26,14 @@ class FitError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class Summary:
+    """``shift_s`` is what the events' timestamps were moved by: nonzero for a run of ours,
+    whose agents kept scenario time while the sensor stamped the wall clock."""
+
     scenario: Scenario
     labelled: Labelled
     fits: list[Fitted]
     out: Path
+    shift_s: float
 
 
 def _read[T](cls: type[T], path: Path) -> T:
@@ -43,7 +50,11 @@ def fit_run(run_dir: Path, sensor: str, out: Path) -> Summary:
     if not programs:
         raise FitError(f"{run_dir}: no programs; was it written by tiergen build?")
     vocab: Vocabulary = vocabulary(programs, plan.addresses)
-    labelled = label(read_events(run_dir, sensor), vocab)
+    shift_s = 0.0
+    if (run_dir / RUN).is_file():
+        record = _read(RunRecord, run_dir / RUN)
+        shift_s = datetime.fromisoformat(scenario.start).timestamp() - record.started
+    labelled = label(read_events(run_dir, sensor, shift_s), vocab)
     tz = local_tz(scenario.start)
     fits: list[Fitted] = []
     maps: list[dict[str, Action | None]] = []
@@ -66,9 +77,10 @@ def fit_run(run_dir: Path, sensor: str, out: Path) -> Summary:
         json.dumps(to_json(fitted_scenario), indent=2) + "\n", encoding="utf-8"
     )
     (out / REPORT).write_text(
-        report.render(scenario.name, sensor, labelled, fits, scenario.start[-6:]), encoding="utf-8"
+        report.render(scenario.name, sensor, labelled, fits, scenario.start[-6:], shift_s),
+        encoding="utf-8",
     )
-    return Summary(scenario, labelled, fits, out)
+    return Summary(scenario, labelled, fits, out, shift_s)
 
 
 def _state_order(programs: list[Program], kind: str, behaviour: str) -> tuple[str, ...]:
