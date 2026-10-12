@@ -383,6 +383,12 @@ wheels = [
 ]
 
 [[package]]
+name = "libvirt-python"
+version = "12.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/9e/7211301d1d53acfaa5f99bec4af279e575c31e0aca7e2fe84a5aaa73d8f9/libvirt_python-12.8.0.tar.gz", hash = "sha256:ab24a102ebf99b913ddc3459031aa71a48b0b1cdbb0f423b4ea278052791ac8a", size = 256610, upload-time = "2026-10-01T09:08:40.762Z" }
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -964,11 +970,17 @@ name = "tiergen-infra-libvirt"
 version = "0.0.1"
 source = { editable = "backends/infra/libvirt" }
 dependencies = [
+    { name = "libvirt-python", marker = "sys_platform == 'linux'" },
+    { name = "tiergen-infra-base" },
     { name = "tiergen-interfaces" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tiergen-interfaces", editable = "interfaces" }]
+requires-dist = [
+    { name = "libvirt-python", marker = "sys_platform == 'linux'", specifier = ">=11" },
+    { name = "tiergen-infra-base", editable = "backends/infra/_base" },
+    { name = "tiergen-interfaces", editable = "interfaces" },
+]
 
 [[package]]
 name = "tiergen-interfaces"

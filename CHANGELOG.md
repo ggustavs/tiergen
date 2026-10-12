@@ -90,6 +90,17 @@ no version numbers.
   four; the join tolerance is 1 s for hosts on the capture host's clock; the run id is the
   scenario name and the UTC start second; the manifest replaces the `lock.json` once
   planned. The attribution collector's image digest is now kept in the run state.
+- **backends/infra/libvirt**, **interfaces**, **runtime**, **cli**: the libvirt backend (M1
+  task 10, the Linux half). Guests are transient domains cloned from template volumes in
+  the `tiergen` pool, on the run's bridges with the planned MACs, handed the run on a
+  CD-ROM and driven through the QEMU guest agent: the bootstrap on the ISO sets addresses
+  by MAC and starts the agent held at its gate, `start` writes the gate, `collect` pulls
+  the outputs, `quiesce` turns offloads off, and the guest's clock against the host's is
+  its offset in `offsets.json`. `InfraBackend.collect` is new, a no-op for Docker, called
+  before `down`; `HostState` carries a measured clock offset. `scripts/templates/build.py`
+  makes the Linux agent template from a Debian 13 cloud image with cloud-init;
+  `scripts/templates/README.md` has the media. `libvirt-python` is the binding, Linux only
+  by marker, so the Windows CI job stays as it was; the Linux jobs install `libvirt-dev`.
 - **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
   Suricata run as pinned images through the daemon over each capture point's pcap, with the
   scenario's configuration mounted and the image digest recorded; `tiergen sensors run`

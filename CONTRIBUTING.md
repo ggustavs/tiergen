@@ -31,6 +31,13 @@ before the switch are not listed until it is switched back. CI's runners set it 
 `setfacl` (package `acl`) must be installed; `up` uses it to let the remapped root into the run
 directory.
 
+The tests marked `vm` need the system libvirt (`qemu:///system`, your user in the `libvirt`
+group), `xorriso`, and the `tiergen` storage pool with its templates, which
+`scripts/templates/build.py` makes (`scripts/templates/README.md` has the media). They skip
+otherwise and CI never runs them. The libvirt backend's binding, `libvirt-python`, builds
+against the host's libvirt headers at `uv sync` (`libvirt-dev` on Debian and Ubuntu, part
+of `libvirt` on Arch); on Windows it is left out.
+
 ## Before you push
 
 ```
