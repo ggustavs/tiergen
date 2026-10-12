@@ -26,10 +26,12 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from tiergen.backends.infra._base.members import MEMBERS, workspace_root
-from tiergen.backends.infra.libvirt._client import LibvirtClient
+from tiergen.backends.infra.libvirt._client import Exec, LibvirtClient
 from tiergen.backends.infra.libvirt.backend import DISK_GIB, POOL, POOL_PATH, domain_xml
 from tiergen.backends.infra.libvirt.iso import write_iso
 from tiergen.interfaces import BackendError
@@ -42,15 +44,22 @@ PROVISION_TIMEOUT_S = 1800.0
 INSTALL_TIMEOUT_S = 5400.0
 """From the domain's start to the guest agent's first answer: Setup, its reboots, the first
 logon and the guest agent's install."""
-BOOT_KEYS_S = 30.0
-"""How long to keep pressing a key so the install CD boots: its boot loader waits a few
-seconds for one and otherwise falls through to the empty disk."""
-KEY_SPACE = 57
+BOOT_KEYS_S = 60.0
+"""How long to keep pressing Enter so the install CD boots: its boot loader waits a few
+seconds for a key and otherwise falls through to the empty disk, and the Server ISO then
+shows a boot menu that waits for Enter with no timeout."""
+KEY_ENTER = 28
 BUILD_LABEL = "TGBUILD"
 PASSWORD = "Tiergen-2026!"
 """The build account's password, also the built-in Administrator's. A template never leaves
 the host, and every run is on isolated bridges."""
 POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+CMD = "C:\\Windows\\System32\\cmd.exe"
+SHUTDOWN = "C:\\Windows\\System32\\shutdown.exe"
+GUEST_BUILD = "C:\\tiergen-build"
+DOMAIN = "hq.tiergen.test"
+"""The forest a DC template serves: under ``.test``, which never resolves outside."""
+NETBIOS = "HQ"
 REQUIRED = ("qemu-guest-agent", "python3", "python3-httpx", "nmap", "nginx", "ethtool", "libbpf1")
 CLEANUP = (
     "rm -f /etc/netplan/50-cloud-init.yaml /run/systemd/network/10-netplan-* && "
@@ -202,17 +211,70 @@ def answer_file(index: int, drivers: str, computer: str) -> str:
     return text
 
 
-def _fail_windows(client: LibvirtClient, domain: str, build: str, template: str, why: str) -> None:
+@dataclass(frozen=True, slots=True)
+class Forest:
+    """What a DC build promotes its guest to: the address its NIC keeps, the forest's DNS
+    and NetBIOS names. ``hq_lan`` pins its DC at 10.10.0.10."""
+
+    address: str
+    prefix: int
+    domain: str
+    netbios: str
+
+
+def _fail_windows(client: LibvirtClient, domain: str, volumes: Sequence[str], why: str) -> None:
     detail = ""
-    for log in ("C:\\tiergen-build\\setup.log", "C:\\tiergen-build\\provision.log"):
+    for log in ("setup.log", "provision.log", "promote.log", "join.log"):
         with contextlib.suppress(BackendError):
-            text = client.guest_read(domain, log).decode("utf-8", "replace")
+            text = client.guest_read(domain, f"{GUEST_BUILD}\\{log}").decode("utf-8", "replace")
             detail += f"\n--- {log}\n" + "\n".join(text.splitlines()[-40:])
     with contextlib.suppress(BackendError):
         client.destroy_domain(domain)
-    client.delete_volume(POOL, build)
-    client.delete_volume(POOL, template)
+    for volume in volumes:
+        with contextlib.suppress(BackendError):
+            client.delete_volume(POOL, volume)
     raise BackendError(f"{domain}: {why}{detail}")
+
+
+def run_script(
+    client: LibvirtClient,
+    domain: str,
+    script: str,
+    args: Sequence[str] = (),
+    timeout_s: float = PROVISION_TIMEOUT_S,
+) -> Exec:
+    """``windows/<script>`` written into the guest's build directory through the agent and
+    run there by PowerShell as SYSTEM with ``args``."""
+    target = f"{GUEST_BUILD}\\{script}"
+    client.guest_exec(domain, CMD, ["/c", "mkdir", GUEST_BUILD])
+    client.guest_write(domain, target, (HERE / "windows" / script).read_bytes())
+    return client.guest_exec(
+        domain,
+        POWERSHELL,
+        ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", target, *args],
+        timeout_s=timeout_s,
+    )
+
+
+def reboot(client: LibvirtClient, domain: str, timeout_s: float = 900.0) -> bool:
+    """Restart the guest and wait until its agent answers again."""
+    client.guest_exec(domain, SHUTDOWN, ["/r", "/t", "3", "/f"])
+    deadline = time.monotonic() + timeout_s
+    while client.agent_ready(domain, 1.0):
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(1.0)
+    return client.agent_ready(domain, max(deadline - time.monotonic(), 1.0))
+
+
+def power_off(client: LibvirtClient, domain: str, timeout_s: float = 600.0) -> bool:
+    client.guest_exec(domain, SHUTDOWN, ["/s", "/t", "3", "/f"])
+    deadline = time.monotonic() + timeout_s
+    while domain in client.domains():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(2)
+    return True
 
 
 def windows(
@@ -225,7 +287,10 @@ def windows(
     virtio: Path,
     python: Path,
     sysmon: Path,
+    forest: Forest | None = None,
 ) -> None:
+    """A Windows template by unattended install and provisioning; with ``forest``, a DC:
+    the guest is promoted to a new forest's first domain controller before it shuts down."""
     template = f"template-{name}.qcow2"
     if template in client.volumes(POOL):
         print(f"{template} exists in pool {POOL}; delete it first to rebuild")
@@ -264,14 +329,13 @@ def windows(
     )
     client.create_domain(xml)
     began = time.monotonic()
+    volumes = (build, template)
     while time.monotonic() - began < BOOT_KEYS_S:
-        client.send_key(domain, KEY_SPACE)
+        client.send_key(domain, KEY_ENTER)
         time.sleep(0.5)
     print(f"{domain} installing (VNC on 127.0.0.1); the guest agent answers after first logon")
     if not client.agent_ready(domain, INSTALL_TIMEOUT_S):
-        _fail_windows(
-            client, domain, build, template, f"no guest agent within {INSTALL_TIMEOUT_S:g} s"
-        )
+        _fail_windows(client, domain, volumes, f"no guest agent within {INSTALL_TIMEOUT_S:g} s")
     print(f"guest agent up after {time.monotonic() - began:.0f} s; provisioning")
     done = client.guest_exec(
         domain,
@@ -287,16 +351,121 @@ def windows(
     )
     if done.exit_code != 0:
         _fail_windows(
-            client, domain, build, template, f"provisioning ended with {done.exit_code}: {done.err}"
+            client, domain, volumes, f"provisioning ended with {done.exit_code}: {done.err}"
         )
     print(done.out.strip())
-    client.guest_exec(domain, "C:\\Windows\\System32\\shutdown.exe", ["/s", "/t", "5", "/f"])
-    while domain in client.domains():
-        if time.monotonic() - began > INSTALL_TIMEOUT_S + PROVISION_TIMEOUT_S:
-            _fail_windows(client, domain, build, template, "did not power off")
-        time.sleep(2)
+    if forest is not None:
+        done = run_script(
+            client,
+            domain,
+            "promote.ps1",
+            [
+                "-Address", forest.address, "-Prefix", str(forest.prefix),
+                "-Domain", forest.domain, "-NetBios", forest.netbios, "-Password", PASSWORD,
+            ],
+        )  # fmt: skip
+        if done.exit_code != 0:
+            _fail_windows(client, domain, volumes, f"promotion ended with {done.exit_code}")
+        print(done.out.strip())
+        if not reboot(client, domain):
+            _fail_windows(client, domain, volumes, "no guest agent after the promotion's reboot")
+        done = run_script(client, domain, "dc-ready.ps1", ["-Domain", forest.domain])
+        if done.exit_code != 0:
+            _fail_windows(client, domain, volumes, f"the DC is not ready: {done.err.strip()}")
+        print(f"{forest.domain} served by {computer}")
+    if not power_off(client, domain):
+        _fail_windows(client, domain, volumes, "did not power off")
     client.delete_volume(POOL, build)
     print(f"{template} ready in pool {POOL} after {time.monotonic() - began:.0f} s")
+
+
+def join(
+    client: LibvirtClient,
+    dc: str,
+    workstation: str,
+    name: str,
+    forest: Forest,
+    address: str,
+) -> None:
+    """The workstation template joined to the DC template's forest, kept as a pair:
+    ``template-<name>-dc`` and ``template-<name>-ws``, overlays on the two templates, both
+    disks as they were when the join was done. A run clones the pair together; the
+    workstation's machine account lives in the DC's directory, so neither works without
+    the other."""
+    pair = {"dc": f"template-{name}-dc.qcow2", "ws": f"template-{name}-ws.qcow2"}
+    have = set(client.volumes(POOL))
+    if set(pair.values()) & have:
+        print(f"{' or '.join(pair.values())} exists in pool {POOL}; delete both to rebuild")
+        return
+    bases = {"dc": f"template-{dc}.qcow2", "ws": f"template-{workstation}.qcow2"}
+    for base in bases.values():
+        if base not in have:
+            raise BackendError(f"{base} is missing; build it first")
+    network, bridge = f"tiergen-build-{name}", f"tg-build-{name}"[:15]
+    domains = {role: f"tiergen-build-{name}-{role}" for role in pair}
+    for role, volume in pair.items():
+        client.clone(POOL, volume, bases[role], DISK_GIB["windows"])
+    client.create_network(network, bridge)
+    began = time.monotonic()
+    try:
+        for i, (role, domain) in enumerate(domains.items()):
+            mac = f"52:54:00:7e:00:{i + 1:02x}"
+            client.create_domain(
+                domain_xml(
+                    domain, "tiergen template build", "windows", pair[role], (), [(bridge, mac)]
+                )
+            )
+        for domain in domains.values():
+            if not client.agent_ready(domain, 600):
+                raise BackendError(f"{domain}: no guest agent")
+        done = run_script(
+            client,
+            domains["dc"],
+            "dc-ready.ps1",
+            ["-Domain", forest.domain, "-Address", forest.address],
+        )
+        if done.exit_code != 0:
+            raise BackendError(f"the DC is not ready: {done.err.strip()}")
+        done = run_script(
+            client,
+            domains["ws"],
+            "join.ps1",
+            [
+                "-Address", address.split("/")[0], "-Prefix", address.split("/")[1],
+                "-Dns", forest.address, "-Domain", forest.domain,
+                "-User", "Administrator", "-Password", PASSWORD,
+            ],
+        )  # fmt: skip
+        if done.exit_code != 0:
+            log = client.guest_read(domains["ws"], f"{GUEST_BUILD}\\join.log")
+            raise BackendError(f"the join failed:\n{log.decode('utf-8', 'replace')[-3000:]}")
+        print(done.out.strip())
+        if not reboot(client, domains["ws"]):
+            raise BackendError("no guest agent after the join's reboot")
+        done = run_script(client, domains["ws"], "joined.ps1", ["-Domain", forest.domain])
+        if done.exit_code != 0:
+            raise BackendError(f"the workstation is not in {forest.domain}: {done.err.strip()}")
+        print(done.out.strip())
+        for role in ("ws", "dc"):
+            if not power_off(client, domains[role]):
+                raise BackendError(f"{domains[role]} did not power off")
+    except BackendError:
+        for domain in domains.values():
+            with contextlib.suppress(BackendError):
+                client.destroy_domain(domain)
+        for volume in pair.values():
+            with contextlib.suppress(BackendError):
+                client.delete_volume(POOL, volume)
+        raise
+    finally:
+        with contextlib.suppress(BackendError):
+            client.destroy_network(network)
+    print(f"{pair['dc']} and {pair['ws']} ready after {time.monotonic() - began:.0f} s")
+
+
+def _forest(text: str, domain: str, netbios: str) -> Forest:
+    address, _, prefix = text.partition("/")
+    return Forest(address, int(prefix or 24), domain, netbios)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -307,15 +476,35 @@ def main(argv: list[str] | None = None) -> int:
     lin = sub.add_parser("linux", help="the Linux agent template from a Debian cloud image")
     lin.add_argument("--image", type=Path, required=True, help="a genericcloud qcow2")
     lin.add_argument("--name", default="linux-agent")
-    win = sub.add_parser("windows", help="a Windows template by unattended install")
-    win.add_argument("--iso", type=Path, required=True, help="the Windows installation ISO")
-    win.add_argument("--name", default="windows-agent")
-    win.add_argument("--index", type=int, default=1, help="the image in install.wim")
-    win.add_argument("--drivers", default="w10", help="virtio-win's directory for the OS")
-    win.add_argument("--computer", default="TIERGEN-WS", help="the computer name")
-    win.add_argument("--virtio", type=Path, default=MEDIA / "virtio-win" / "virtio-win-0.1.302.iso")
-    win.add_argument("--python", type=Path, default=MEDIA / "windows" / "python-3.12.10-amd64.exe")
-    win.add_argument("--sysmon", type=Path, default=MEDIA / "windows" / "Sysmon.zip")
+    for kind, help_, name, index, drivers, computer in (
+        ("windows", "the Windows workstation", "windows-agent", 1, "w10", "TIERGEN-WS"),
+        ("dc", "a Windows domain controller", "win2022-dc", 1, "2k22", "TIERGEN-DC"),
+    ):
+        win = sub.add_parser(kind, help=f"{help_} template by unattended install")
+        win.add_argument("--iso", type=Path, required=True, help="the Windows installation ISO")
+        win.add_argument("--name", default=name)
+        win.add_argument("--index", type=int, default=index, help="the image in install.wim")
+        win.add_argument("--drivers", default=drivers, help="virtio-win's directory for the OS")
+        win.add_argument("--computer", default=computer, help="the computer name")
+        win.add_argument(
+            "--virtio", type=Path, default=MEDIA / "virtio-win" / "virtio-win-0.1.302.iso"
+        )
+        win.add_argument(
+            "--python", type=Path, default=MEDIA / "windows" / "python-3.12.10-amd64.exe"
+        )
+        win.add_argument("--sysmon", type=Path, default=MEDIA / "windows" / "Sysmon.zip")
+        if kind == "dc":
+            win.add_argument("--address", default="10.10.0.10/24", help="the DC's, kept")
+            win.add_argument("--domain", default=DOMAIN)
+            win.add_argument("--netbios", default=NETBIOS)
+    pair = sub.add_parser("join", help="the workstation joined to the DC, kept as a pair")
+    pair.add_argument("--dc", default="win2022-dc")
+    pair.add_argument("--workstation", default="windows-agent")
+    pair.add_argument("--name", default="hq")
+    pair.add_argument("--dc-address", default="10.10.0.10/24")
+    pair.add_argument("--address", default="10.10.0.21/24", help="the workstation's, for the join")
+    pair.add_argument("--domain", default=DOMAIN)
+    pair.add_argument("--netbios", default=NETBIOS)
     parser.add_argument("--pool-path", default=POOL_PATH)
     args = parser.parse_args(argv)
     try:
@@ -323,6 +512,9 @@ def main(argv: list[str] | None = None) -> int:
         client.ensure_pool(POOL, args.pool_path)
         if args.kind == "linux":
             linux(client, args.image, args.name)
+        elif args.kind == "join":
+            forest = _forest(args.dc_address, args.domain, args.netbios)
+            join(client, args.dc, args.workstation, args.name, forest, args.address)
         else:
             windows(
                 client,
@@ -334,6 +526,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.virtio,
                 args.python,
                 args.sysmon,
+                _forest(args.address, args.domain, args.netbios) if args.kind == "dc" else None,
             )
     except BackendError as err:
         print(f"build: {err}", file=sys.stderr)

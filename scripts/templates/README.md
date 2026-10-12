@@ -66,7 +66,8 @@ empty 64 GB disk. Three CDs: the Windows ISO, virtio-win, and a build CD (`TGBUI
 script writes with `windows/autounattend.xml` at its root, `windows/setup.ps1`,
 `windows/provision.ps1`, `windows/sysmon.xml`, the Python installer, Sysmon, and the
 agent's third-party wheels for CPython 3.12 on Windows, pinned by `uv.lock`. The install
-CD's boot loader waits for a key, so the script presses one for the first half minute. In
+CD's boot loader waits for a key and the Server ISO's boot menu for Enter, so the script
+presses Enter for the first minute. In
 WinPE the answer file loads virtio's storage, network and serial drivers, so the installed
 system boots from the virtio disk the backend gives every clone; it partitions for UEFI,
 sets the time zone to UTC (libvirt's real-time clock is UTC), and creates the `tiergen`
@@ -83,4 +84,28 @@ together stays joined. The build has a VNC display on the host's loopback
 (`virsh -c qemu:///system vncdisplay tiergen-build-windows-agent`) for watching it. Install
 media and virtio-win stay in the pool as `media-*` volumes for the next build.
 
-The domain controller (Server 2022, promoted) and the join come next.
+### The domain controller and the joined pair
+
+```
+uv run python scripts/templates/build.py dc --iso ~/.local/share/tiergen/media/server2022-eval.iso
+uv run python scripts/templates/build.py join
+```
+
+`dc` builds `template-win2022-dc.qcow2` the same way from Server 2022 Standard Server Core
+(image 1 of the evaluation ISO; 2 is the desktop edition, 3 and 4 Datacenter), with
+virtio's `2k22` drivers, then through the agent `windows/promote.ps1`: the address `hq_lan`
+pins for its DC, `10.10.0.10/24`, static on the template's one NIC with itself as name
+server; AD DS; a new forest, `hq.tiergen.test` (NetBIOS `HQ`, under `.test`, which never
+resolves outside); a reboot; and `windows/dc-ready.ps1`, which waits until the directory,
+KDC, DNS, Netlogon and AD Web Services run and the DC finds itself in its own DNS. The
+domain's Administrator has the build password.
+
+`join` clones the DC and the workstation templates onto a private bridge, waits for the
+DC, joins the workstation with `windows/join.ps1` (address `10.10.0.21/24`, the DC as name
+server, `Add-Computer` as the domain's Administrator), reboots it, and checks the domain
+and the secure channel with `windows/joined.ps1`. Both disks are kept as they are then,
+`template-hq-dc.qcow2` and `template-hq-ws.qcow2`, overlays on the two templates: the
+workstation's machine account lives in that DC's directory, so a run clones the pair
+together and neither works with another's partner. One joined workstation has one
+computer name and one machine account, so a scenario with several Windows workstations
+needs as many joins; M1's slice has one.
