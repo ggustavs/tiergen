@@ -1,13 +1,15 @@
 # Examples
 
-Three versions of one small Active Directory LAN, a three-host Linux slice, an office of
-five workstations, and an organisation of two teams, written with the builders in `tiergen.core.dsl`. Each directory holds a `scenario.py` and the `models/` it refers to.
+Three versions of one small Active Directory LAN, a three-host Linux slice and its VM
+variant, an office of five workstations, and an organisation of two teams, written with the
+builders in `tiergen.core.dsl`. Each directory holds a `scenario.py` and the `models/` it refers to.
 
 | directory | what it shows | `tiergen check` |
 |---|---|---|
 | `hq_lan/` | a well-formed scenario | passes |
 | `hq_lan_capgap/` | `fit` relied on a capability the label sensor lacks | passes with a check 14 warning |
 | `linux_slice/` | a workstation, a web server and an attacker, all Linux containers; written inline, topology included | passes |
+| `vm_slice/` | `linux_slice` without the attacker, the workstation a libvirt guest browsing a container web server on the same bridge | passes |
 | `office_slice/` | five workstations over three request paths with a daily rate curve, two web servers and an attacker, all Linux containers: the fit's round trip on a real run | passes |
 | `two_teams/` | one organisation, two teams built by a function on three VLANs behind one forwarding host, captured at a tagged trunk SPAN; each team's workstations wired to their own file server | passes |
 | `hq_lan_broken/` | six deliberate mistakes, listed at the top of its `scenario.py` | fails checks 1, 4, 5, 9, 10 and 12 |
@@ -50,8 +52,13 @@ through the ACL `up` sets. The collector runs as a privileged container on the h
 `run` builds its image and the agent's, which takes a few minutes, and the first `assemble`
 pulls the two sensor images.
 
-The other scenarios bind Windows VMs to libvirt, which has no runtime yet, so they build but
-do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
+`vm_slice` runs the same way with libvirt as well: the Linux agent template in the
+`tiergen` pool (`scripts/templates/README.md`) and xorriso on the host. The workstation is a
+guest on the web server's bridge, its collector runs inside it, and its outputs come back
+through the guest agent into the same places, plus `run1/attrib/guests/`.
+
+The other scenarios bind Windows VMs to libvirt, which has no Windows runtime yet, so they
+build but do not come up in full. `two_teams`' Linux half does, with its routes: `tiergen infra up`
 brings up the file servers, the attacker and `core_router`, and a connection from one team's
 file server to the other's crosses the router.
 

@@ -101,6 +101,21 @@ no version numbers.
   makes the Linux agent template from a Debian 13 cloud image with cloud-init;
   `scripts/templates/README.md` has the media. `libvirt-python` is the binding, Linux only
   by marker, so the Windows CI job stays as it was; the Linux jobs install `libvirt-dev`.
+- **backends/attrib**, **runtime/scheduler**, **backends/assemble**, **cli**, **examples**:
+  attribution in a Linux guest. `linux_ebpf_guest` takes the collector binary out of its
+  image, writes it into each Linux agent guest through the guest agent and runs it there on
+  the agent's cgroup subtree at depth 1; `stop` pulls its events back. Which attribution
+  backend instruments which host is now keyed by infrastructure backend and platform, so a
+  libvirt run with Windows guests says which platform is unattributed instead of skipping
+  the backend whole; `assemble` reads the manifests to know. The Docker facade can copy a
+  file out of an image. The Linux template carries `libbpf1`. `examples/vm_slice` is a
+  Linux VM workstation browsing a container web server, and its `vm` test takes it through
+  `run`, `assemble` and `fit`. `assemble` moves each host's invocation and attribution
+  records onto the capture host's clock by its measured offset before the join; the
+  libvirt backend measured guest offsets and nothing applied them, which a guest 1.6 s
+  behind showed by labelling nothing. Planned was the binary on the run ISO; it goes through
+  `guest-file-write` instead, since the collector belongs to the attribution backend and
+  the ISO to the infrastructure backend, and neither should know the other.
 - **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
   Suricata run as pinned images through the daemon over each capture point's pcap, with the
   scenario's configuration mounted and the image digest recorded; `tiergen sensors run`

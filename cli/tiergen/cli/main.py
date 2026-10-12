@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from tiergen.backends.assemble import AssembleError, assemble
-from tiergen.backends.attrib._base import BY_INFRA
+from tiergen.backends.attrib._base import backends_for, uncovered
 from tiergen.backends.infra._base import build_manifests
 from tiergen.backends.predict import predict, render
 from tiergen.backends.sensor._base import SensorError
@@ -336,7 +336,13 @@ def _sensors(run_dir: Path) -> int:
 def _attrib(verb: str, run_dir: Path) -> int:
     try:
         run = points.load_run(run_dir)
-        wanted = {BY_INFRA[b] for b in run.states if b in BY_INFRA}
+        manifests = {
+            b: from_json(
+                RunManifest, json.loads((run_dir / f"manifest.{b}.json").read_text("utf-8"))
+            )
+            for b in run.states
+        }
+        wanted = {name for m in manifests.values() for name in backends_for(m)}
         backends = load_attrib_backends(only=wanted)
         missing = sorted(wanted - set(backends))
         if missing:
@@ -345,24 +351,24 @@ def _attrib(verb: str, run_dir: Path) -> int:
             )
             return UNUSABLE
         for infra, state in run.states.items():
-            if infra not in BY_INFRA:
+            manifest = manifests[infra]
+            for platform in sorted(uncovered(manifest)):
                 print(
-                    f"{infra}: no attribution backend for its hosts; their traffic is unattributed"
+                    f"{infra}: no attribution backend for its {platform} hosts; their traffic "
+                    "is unattributed"
                 )
-                continue
-            backend = backends[BY_INFRA[infra]]
-            if verb == "start":
-                manifest = from_json(
-                    RunManifest, json.loads((run_dir / f"manifest.{infra}.json").read_text("utf-8"))
-                )
-                backend.start(manifest, state, run_dir)
-                # The collector's image went into the state; keep the file current.
-                _dump(state, run_dir / f"state.{infra}.json")
-                print(f"{BY_INFRA[infra]}: recording {len(state.hosts)} host(s) of {infra}")
-            else:
-                backend.stop(run_dir)
-                count = sum(1 for _ in backend.records(run_dir))
-                print(f"{BY_INFRA[infra]}: stopped, {count} record(s)")
+            for name, platforms in sorted(backends_for(manifest).items()):
+                backend = backends[name]
+                if verb == "start":
+                    backend.start(manifest, state, run_dir)
+                    # The collector's image went into the state; keep the file current.
+                    _dump(state, run_dir / f"state.{infra}.json")
+                    covered = sum(1 for h in manifest.hosts if h.platform in platforms)
+                    print(f"{name}: recording {covered} host(s) of {infra}")
+                else:
+                    backend.stop(run_dir)
+                    count = sum(1 for _ in backend.records(run_dir))
+                    print(f"{name}: stopped, {count} record(s)")
     except (OSError, CodecError, BackendError, points.CaptureError) as err:
         print(f"tiergen: {err}", file=sys.stderr)
         return UNUSABLE

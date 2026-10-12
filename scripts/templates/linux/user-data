@@ -19,6 +19,9 @@ packages:
   - nginx
   - ethtool
   - iproute2
+  # The attribution collector runs inside the guest, linked against libbpf (which brings
+  # libelf and zlib along).
+  - libbpf1
 chpasswd:
   expire: false
   users:

@@ -29,7 +29,7 @@ HERE = Path(__file__).parent
 NAT = "default"
 AGENT_TIMEOUT_S = 900.0
 PROVISION_TIMEOUT_S = 1800.0
-REQUIRED = ("qemu-guest-agent", "python3", "python3-httpx", "nmap", "nginx", "ethtool")
+REQUIRED = ("qemu-guest-agent", "python3", "python3-httpx", "nmap", "nginx", "ethtool", "libbpf1")
 CLEANUP = (
     "rm -f /etc/netplan/50-cloud-init.yaml /run/systemd/network/10-netplan-* && "
     "touch /etc/cloud/cloud-init.disabled && cloud-init clean --logs && "
@@ -59,7 +59,14 @@ def _fail(client: LibvirtClient, domain: str, seed: str, template: str, why: str
     detail = ""
     try:
         done = client.guest_exec(
-            domain, "/bin/sh", ["-c", "tail -40 /var/log/cloud-init-output.log"]
+            domain,
+            "/bin/sh",
+            [
+                "-c",
+                "cloud-init status --long;"
+                " grep -E 'WARNING|ERROR' /var/log/cloud-init.log | tail -20;"
+                " tail -40 /var/log/cloud-init-output.log",
+            ],
         )
         detail = "\n" + done.out
     except BackendError:

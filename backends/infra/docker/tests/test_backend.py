@@ -201,6 +201,9 @@ class FakeClient:
     def logs(self, container: str) -> str:
         return ""
 
+    def archive(self, image: str, path: str) -> bytes:
+        return b""
+
 
 def test_up_creates_networks_then_containers_attached_one_network_at_a_time(
     tmp_path: Path,

@@ -40,6 +40,10 @@ def test_office_slice_is_well_formed() -> None:
     assert _check("office_slice") == []
 
 
+def test_vm_slice_is_well_formed() -> None:
+    assert _check("vm_slice") == []
+
+
 def test_two_teams_is_well_formed_and_each_team_reaches_its_own_server() -> None:
     assert _check("two_teams") == []
     s = load_scenario(EXAMPLES / "two_teams" / "scenario.py")

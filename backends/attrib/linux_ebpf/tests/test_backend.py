@@ -106,7 +106,7 @@ class FakeDaemon:
         return "the collector said something"
 
 
-def _line(ev: str, cg: int, container: int, **f: object) -> str:
+def line(ev: str, cg: int, container: int, **f: object) -> str:
     base: dict[str, object] = {
         "ev": ev,
         "ts_ns": 1_700_000_000_000_000_000,
@@ -125,7 +125,7 @@ def _line(ev: str, cg: int, container: int, **f: object) -> str:
     return json.dumps(base) + "\n"
 
 
-START = _line("start", 0, 0, proto="other", src="", dst="", sport=0, dport=0)
+START = line("start", 0, 0, proto="other", src="", dst="", sport=0, dport=0)
 
 
 def test_start_finds_the_cgroups_and_runs_the_collector_on_them(tmp_path: Path) -> None:
@@ -170,10 +170,10 @@ def test_start_finds_the_cgroups_and_runs_the_collector_on_them(tmp_path: Path) 
 def test_records_join_the_events_to_the_run_containers(tmp_path: Path) -> None:
     events = (
         START
-        + _line("connect", 5001, 1001, sk=7)
-        + _line("close", 5001, 1001, sk=7, ts_ns=1_700_000_001_000_000_000)
-        + _line("packet", 6001, 1002, src="10.0.0.80")
-        + _line("connect", 1, 9999)
+        + line("connect", 5001, 1001, sk=7)
+        + line("close", 5001, 1001, sk=7, ts_ns=1_700_000_001_000_000_000)
+        + line("packet", 6001, 1002, src="10.0.0.80")
+        + line("connect", 1, 9999)
     )
     fake = FakeDaemon(events)
     backend = LinuxEbpf(lambda: fake, CGROUPS.__getitem__)  # type: ignore[arg-type]
