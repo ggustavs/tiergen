@@ -1,0 +1,32 @@
+#cloud-config
+# The Linux agent template: what a Debian cloud image needs to run tiergen-agent under the
+# libvirt backend. The agent's own packages come on each run's ISO; the tools and the guest
+# agent are baked in here, with internet, once. The build drives the rest through the
+# guest agent once it is up, and powers the guest off itself.
+hostname: tiergen-linux-agent
+package_update: true
+package_upgrade: false
+bootcmd:
+  # apt needs a name server; wait for the lease to bring one rather than fail on the first
+  # resolution, as the first build did.
+  - [sh, -c, "for i in $(seq 1 60); do getent hosts deb.debian.org >/dev/null 2>&1 && exit 0; sleep 2; done; echo 'no name resolution after 120 s' >&2"]
+packages:
+  - python3
+  - python3-pip
+  - python3-httpx
+  - qemu-guest-agent
+  - nmap
+  - nginx
+  - ethtool
+  - iproute2
+chpasswd:
+  expire: false
+  users:
+    - name: root
+      password: tiergen
+      type: text
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  # The agent starts its own nginx per run; the distribution's must not hold port 80.
+  - systemctl disable --now nginx
+  - rm -f /etc/nginx/sites-enabled/default

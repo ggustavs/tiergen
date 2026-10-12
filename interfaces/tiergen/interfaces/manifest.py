@@ -83,10 +83,14 @@ class RunManifest:
 
 @dataclass(frozen=True, slots=True)
 class HostState:
-    """What the substrate called a host once it existed: its name there, and its id."""
+    """What the substrate called a host once it existed: its name there, and its id.
+    ``clock_offset_s`` is seconds to add to the host's clock to get the capture host's,
+    measured by the backend where the host has a clock of its own (a guest), None where it
+    shares the capture host's kernel."""
 
     name: str
     id: str
+    clock_offset_s: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

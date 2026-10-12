@@ -58,6 +58,9 @@ class FakeInfra:
     def start(self, manifest: RunManifest, state: RunState) -> None:
         self.seen.append(f"start {manifest.run}")
 
+    def collect(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+        self.seen.append(f"collect {manifest.run}")
+
     def down(self, manifest: RunManifest) -> None:
         self.seen.append(f"down {manifest.run}")
 
@@ -151,6 +154,7 @@ def test_a_run_goes_up_in_order_waits_its_time_and_comes_down_in_reverse(run_dir
         "start linux_slice",
         "capture stop",
         "attrib stop",
+        "collect linux_slice",
         "down linux_slice",
     ]
     assert record == from_json(RunRecord, json.loads((run_dir / RUN).read_text()))
@@ -194,6 +198,7 @@ def test_a_failure_on_the_way_up_takes_down_what_came_up_and_leaves_no_record(
         "quiesce linux_slice",
         "capture start lan-span",
         "attrib stop",
+        "collect linux_slice",
         "down linux_slice",
     ]
     assert not (run_dir / RUN).exists()

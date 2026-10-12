@@ -1,13 +1,20 @@
 [project]
 name = "tiergen-infra-libvirt"
 version = "0.0.1"
-description = "libvirt: Linux and Windows virtual machines under KVM."
+description = "libvirt: Linux and Windows virtual machines under KVM, reached through the QEMU guest agent."
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
-dependencies = ["tiergen-interfaces"]
+dependencies = [
+    "tiergen-interfaces",
+    "tiergen-infra-base",
+    "libvirt-python>=11; sys_platform == 'linux'",
+]
 
 [project.entry-points."tiergen.infra"]
 libvirt = "tiergen.backends.infra.libvirt:DESCRIPTOR"
+
+[project.entry-points."tiergen.infra.backends"]
+libvirt = "tiergen.backends.infra.libvirt.backend:LibvirtBackend"
 
 [build-system]
 requires = ["hatchling"]
