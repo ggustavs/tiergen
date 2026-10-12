@@ -18,15 +18,13 @@ something that identifies the connection the System process then opens?
 
 import argparse
 import json
-import re
 import sys
 import time
-import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
+
+from etw import Event, images, parse_time, read_trace, sysmon
 
 from tiergen.backends.infra.docker._client import DaemonClient
 from tiergen.backends.infra.docker.backend import DockerBackend
@@ -43,7 +41,6 @@ MAC = "52:54:00:4d:00:15"
 USER = "tiergen"
 PASSWORD = "Tiergen-2026!"
 POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
-NS = "{http://schemas.microsoft.com/win/2004/08/events/event}"
 
 LAN = NetworkSpec("lan", "10.77.0.0/24", "10.77.0.1", "data", True, "tg-measure-smb")
 SAMBA = HostSpec(
@@ -102,90 +99,12 @@ def measure(out: Path) -> None:
         z.extractall(out / "result")
 
 
-@dataclass
-class Event:
-    provider: str
-    id: int
-    task: str
-    time: datetime
-    pid: int
-    activity: str
-    data: dict[str, str] = field(default_factory=dict[str, str])
-
-
-def _time(text: str) -> datetime:
-    """Windows' timestamps: seven fractional digits, which fromisoformat cuts to six, and
-    either a ``Z`` or an offset."""
-    text = re.sub(r"(\.\d{6})\d+", r"\1", text.strip())
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    parsed = datetime.fromisoformat(text)
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
-
-
-def read_trace(path: Path) -> list[Event]:
-    """tracerpt's XML: the header's process id is the context the event was logged in."""
-    events: list[Event] = []
-    for ev in ET.parse(path).getroot().iter(f"{NS}Event"):
-        system = ev.find(f"{NS}System")
-        if system is None:
-            continue
-        provider = system.find(f"{NS}Provider")
-        execution = system.find(f"{NS}Execution")
-        created = system.find(f"{NS}TimeCreated")
-        correlation = system.find(f"{NS}Correlation")
-        if provider is None or execution is None or created is None:
-            continue
-        info = ev.find(f"{NS}RenderingInfo")
-        task = info.findtext(f"{NS}Task", "") if info is not None else ""
-        data = {d.get("Name", f"#{i}"): (d.text or "") for i, d in enumerate(ev.iter(f"{NS}Data"))}
-        events.append(
-            Event(
-                provider.get("Name", ""),
-                int(system.findtext(f"{NS}EventID", "0")),
-                task or "",
-                _time(created.get("SystemTime", "")),
-                int(execution.get("ProcessID", "0")),
-                correlation.get("ActivityID", "") if correlation is not None else "",
-                data,
-            )
-        )
-    return sorted(events, key=lambda e: e.time)
-
-
-def processes(events: list[Event]) -> tuple[dict[int, str], dict[int, int]]:
-    """Image and parent by process id, from Kernel-Process's starts."""
-    image: dict[int, str] = {4: "System"}
-    parent: dict[int, int] = {}
-    for e in events:
-        if e.provider == "Microsoft-Windows-Kernel-Process" and e.id == 1:
-            pid = int(e.data.get("ProcessID", "0"))
-            image[pid] = e.data.get("ImageName", "?").rsplit("\\", 1)[-1]
-            parent[pid] = int(e.data.get("ParentProcessID", "0"))
-    return image, parent
-
-
-def sysmon(path: Path) -> list[tuple[int, dict[str, str]]]:
-    """Sysmon's events from ``wevtutil qe /f:xml``: (event id, data)."""
-    if not path.is_file() or path.stat().st_size < 64:
-        return []
-    found: list[tuple[int, dict[str, str]]] = []
-    for ev in ET.parse(path).getroot().iter(f"{NS}Event"):
-        data = {d.get("Name", ""): (d.text or "") for d in ev.iter(f"{NS}Data")}
-        found.append((int(ev.findtext(f"{NS}System/{NS}EventID", "0")), data))
-    return found
-
-
 def report(out: Path) -> str:
     result = out / "result"
     events = read_trace(result / "trace.xml")
     actions = json.loads((result / "actions.json").read_text("utf-8-sig"))
-    image, parent = processes(events)
     logged = sysmon(result / "sysmon.xml")
-    for eid, data in logged:
-        # Processes that started before the trace are named from Sysmon's creations.
-        if eid == 1 and int(data.get("ProcessId", "0")) not in image:
-            image[int(data["ProcessId"])] = data.get("Image", "?").rsplit("\\", 1)[-1]
+    image, parent = images(events, logged)
 
     def descends(pid: int, root: int) -> bool:
         seen: set[int] = set()
@@ -271,7 +190,7 @@ def report(out: Path) -> str:
         )
     lines += ["", "## Each action's events", ""]
     for a in actions:
-        start, end = _time(a["start"]), _time(a["end"])
+        start, end = parse_time(a["start"]), parse_time(a["end"])
         lines += [f"### {a['action']} (pid {a['pid']}, exit {a['exit']})", ""]
         for e in events:
             if not (start <= e.time <= end) or e.provider.endswith("Kernel-File"):

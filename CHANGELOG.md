@@ -138,6 +138,13 @@ no version numbers.
   build now presses instead of a space. Clones of the pair boot together, so the
   workstation looks for its DC before the DC serves and does not look again soon; whatever
   waits for the domain resets the secure channel until it holds.
+- **design**: what Windows reports of Kerberos. `scripts/measure/windows_kerberos.py` traces
+  the joined pair while fresh processes and a domain user's logon ask for tickets: the KDC
+  connections belong to `lsass.exe` and no decodable event names the process behind one,
+  while the DC's audit names each exchange's account and service by the client's port, and
+  the DNS client provider names the asking process per query. The design records the
+  proposal for Windows attribution that follows. The measurement scripts share
+  `scripts/measure/etw.py`.
 - **design**: what Windows reports of SMB. `scripts/measure/windows_smb.py` brings a Samba
   container and a Windows clone up through the backends, traces the SMB client,
   Kernel-Network, Kernel-Process, Kernel-File, Kerberos and LSA providers while fresh
