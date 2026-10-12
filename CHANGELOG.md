@@ -127,6 +127,15 @@ no version numbers.
   match Sysmon's network events to the invocation's process, but the native SMB client's
   connections belong to `System` and Kerberos's to `lsass.exe`, so the templates come
   first and what Windows reports of the two is measured before the agent is written.
+- **design**: what Windows reports of SMB. `scripts/measure/windows_smb.py` brings a Samba
+  container and a Windows clone up through the backends, traces the SMB client,
+  Kernel-Network, Kernel-Process, Kernel-File, Kerberos and LSA providers while fresh
+  processes use a share, and reports which events name which process. The SMB client logs
+  each request in the asking process's context with the connection's handle and the
+  message id, and the handle leads to the 5-tuple, so attribution works per request; but
+  one connection, opened by `System`, carried every action and some of the host's own
+  requests (session setup from `System`, a Defender scan), so SMB cannot be labelled per
+  connection. The design records the proposals; Kerberos comes with the DC.
 - **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
   Suricata run as pinned images through the daemon over each capture point's pcap, with the
   scenario's configuration mounted and the image digest recorded; `tiergen sensors run`
