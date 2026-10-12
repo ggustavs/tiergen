@@ -181,6 +181,18 @@ class LibvirtClient:
         except self._libvirt.libvirtError as err:
             raise BackendError(f"cannot clone {backing!r} as {name!r}: {err}") from err
 
+    def create_volume(self, pool: str, name: str, capacity_gib: int) -> None:
+        """An empty qcow2 volume. Only the template build needs it, to install onto."""
+        xml = (
+            f"<volume type='file'><name>{name}</name>"
+            f"<capacity unit='GiB'>{capacity_gib}</capacity>"
+            "<target><format type='qcow2'/></target></volume>"
+        )
+        try:
+            self._pool(pool).createXML(xml, 0)
+        except self._libvirt.libvirtError as err:
+            raise BackendError(f"cannot create volume {name!r}: {err}") from err
+
     def delete_volume(self, pool: str, name: str) -> None:
         try:
             self._pool(pool).storageVolLookupByName(name).delete(0)
@@ -247,6 +259,15 @@ class LibvirtClient:
             self._domain(name).destroy()
         except self._libvirt.libvirtError as err:
             raise BackendError(f"cannot destroy domain {name!r}: {err}") from err
+
+    def send_key(self, domain: str, keycode: int) -> None:
+        """Press and release one key on the guest's keyboard (a Linux input keycode). Only
+        the template build needs it, to pass an installer's boot prompt."""
+        lv = self._libvirt
+        try:
+            self._domain(domain).sendKey(lv.VIR_KEYCODE_SET_LINUX, 50, [keycode], 1, 0)
+        except lv.libvirtError as err:
+            raise BackendError(f"{domain}: cannot send a key: {err}") from err
 
     # -- the guest agent -------------------------------------------------------------------
 

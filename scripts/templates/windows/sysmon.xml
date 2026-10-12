@@ -1,0 +1,26 @@
+<!--
+  The templates' Sysmon configuration: every process creation and termination, network
+  connection and DNS query, which is what attribution and the measurement read; the
+  high-volume event types are switched off by an empty include.
+-->
+<Sysmon schemaversion="4.50">
+  <HashAlgorithms>sha256</HashAlgorithms>
+  <EventFiltering>
+    <ProcessCreate onmatch="exclude"/>
+    <ProcessTerminate onmatch="exclude"/>
+    <NetworkConnect onmatch="exclude"/>
+    <DnsQuery onmatch="exclude"/>
+    <FileCreateTime onmatch="include"/>
+    <DriverLoad onmatch="include"/>
+    <ImageLoad onmatch="include"/>
+    <CreateRemoteThread onmatch="include"/>
+    <RawAccessRead onmatch="include"/>
+    <ProcessAccess onmatch="include"/>
+    <FileCreate onmatch="include"/>
+    <RegistryEvent onmatch="include"/>
+    <FileCreateStreamHash onmatch="include"/>
+    <PipeEvent onmatch="include"/>
+    <WmiEvent onmatch="include"/>
+    <FileDelete onmatch="include"/>
+  </EventFiltering>
+</Sysmon>
