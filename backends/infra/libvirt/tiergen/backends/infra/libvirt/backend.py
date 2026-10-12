@@ -51,6 +51,7 @@ QUIESCE = (
 )
 
 Wheels = Callable[[Path], None]
+IsoWriter = Callable[[Path, Path], None]
 
 
 def domain_name(run: str, instance: str) -> str:
@@ -179,12 +180,14 @@ class LibvirtBackend:
         self,
         client: Callable[[], Client] = LibvirtClient,
         wheels: Wheels = build_wheels,
+        iso: IsoWriter = write_iso,
         pool_path: str = POOL_PATH,
         agent_timeout_s: float = AGENT_TIMEOUT_S,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._connect = client
         self._wheels = wheels
+        self._iso = iso
         self._pool_path = pool_path
         self._agent_timeout_s = agent_timeout_s
         self._clock = clock
@@ -300,7 +303,7 @@ class LibvirtBackend:
         for wheel in wheels.iterdir():
             (stage / "wheels" / wheel.name).write_bytes(wheel.read_bytes())
         iso = tmp / f"{flat_id(host.instance)}.iso"
-        write_iso(iso, stage)
+        self._iso(iso, stage)
         return iso
 
     def start(self, manifest: RunManifest, state: RunState) -> None:

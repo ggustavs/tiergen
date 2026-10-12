@@ -9,11 +9,13 @@ import pytest
 from tiergen.backends.infra.libvirt._client import Exec
 from tiergen.backends.infra.libvirt.backend import (
     POOL,
+    IsoWriter,
     LibvirtBackend,
     derived_mac,
     domain_name,
     template_volume,
 )
+from tiergen.backends.infra.libvirt.iso import write_iso
 from tiergen.interfaces import (
     Attachment,
     BackendError,
@@ -148,9 +150,14 @@ def fake_wheels(into: Path) -> None:
     (into / "tiergen_core-0.0.1-py3-none-any.whl").write_bytes(b"not really a wheel")
 
 
-def _backend(fake: FakeClient) -> LibvirtBackend:
+def fake_iso(target: Path, root: Path) -> None:
+    """Stands in for xorriso: the staged tree's file list, which the real test checks."""
+    target.write_text("\n".join(sorted(str(p.relative_to(root)) for p in root.rglob("*"))))
+
+
+def _backend(fake: FakeClient, iso: IsoWriter = fake_iso) -> LibvirtBackend:
     return LibvirtBackend(
-        lambda: fake, wheels=fake_wheels, pool_path="/pool", clock=lambda: fake.time
+        lambda: fake, wheels=fake_wheels, iso=iso, pool_path="/pool", clock=lambda: fake.time
     )
 
 
@@ -217,7 +224,7 @@ def test_the_run_iso_carries_the_run_the_host_entry_the_wheels_and_the_bootstrap
         bridges={"tg-lan", "tg-mgmt"},
         templates=["template-linux-agent.qcow2", "template-win2022-dc.qcow2"],
     )
-    _backend(fake).up(MANIFEST, run_dir, start=False)
+    _backend(fake, iso=write_iso).up(MANIFEST, run_dir, start=False)
     iso = tmp_path / "ws.iso"
     iso.write_bytes(fake.uploaded["tiergen-r-lab-ws-0-run.iso"])
     listing = _iso_listing(iso)
