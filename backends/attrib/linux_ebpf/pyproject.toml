@@ -4,10 +4,11 @@ version = "0.0.1"
 description = "Attribution for Linux containers: eBPF on the capture host, through the Docker daemon."
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
-dependencies = ["tiergen-attrib-base", "tiergen-infra-docker"]
+dependencies = ["tiergen-attrib-base", "tiergen-infra-docker", "tiergen-infra-libvirt"]
 
 [project.entry-points."tiergen.attrib"]
 linux_ebpf = "tiergen.backends.attrib.linux_ebpf.backend:LinuxEbpf"
+linux_ebpf_guest = "tiergen.backends.attrib.linux_ebpf.guest:LinuxEbpfGuest"
 
 [build-system]
 requires = ["hatchling"]

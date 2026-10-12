@@ -32,8 +32,8 @@ address on the NAT, `192.168.122.250`, with public name servers, matched by inte
 rather than MAC; a host firewall such as `ufw` with a drop policy swallows a guest's DHCP
 and DNS requests into `virbr0` while forwarding still works, which stalled the first
 builds, so neither is relied on):
-Python, pip, httpx, nmap, nginx, ethtool and the QEMU guest agent, the distribution's nginx
-disabled, root's password `tiergen` for the console when something needs looking at. Once
+Python, pip, httpx, nmap, nginx, ethtool, the QEMU guest agent and `libbpf1` for the
+attribution collector, the distribution's nginx disabled, root's password `tiergen` for the console when something needs looking at. Once
 the agent answers, the build waits for cloud-init through it, checks the packages, reads
 cloud-init's log back when something failed, removes the build's network configuration and
 disables cloud-init so a run's guest inherits neither, and powers the guest off; the volume

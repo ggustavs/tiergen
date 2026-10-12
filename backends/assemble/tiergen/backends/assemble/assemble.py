@@ -9,8 +9,8 @@ which images; a run brought up by hand has its state files instead, until ``infr
 """
 
 import json
-from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from tiergen.backends.assemble.conformance import conformance
@@ -23,7 +23,7 @@ from tiergen.backends.assemble.manifest import (
     sha256,
     tool_versions,
 )
-from tiergen.backends.attrib._base import BY_INFRA
+from tiergen.backends.attrib._base import backends_for
 from tiergen.backends.sensor._base.drive import EVENTS, Readings, run_sensors
 from tiergen.core.addressing import AddressPlan
 from tiergen.core.codec import decode, from_json, to_json
@@ -32,7 +32,13 @@ from tiergen.core.ir import Scenario
 from tiergen.core.program import Program
 from tiergen.core.records import InvocationRecord
 from tiergen.core.resources import DirResources
-from tiergen.interfaces import AttributionBackend, AttributionRecord, RunRecord, RunState
+from tiergen.interfaces import (
+    AttributionBackend,
+    AttributionRecord,
+    RunManifest,
+    RunRecord,
+    RunState,
+)
 from tiergen.interfaces.registry import SensorFactory, load_attrib_backends, load_sensor_runtime
 from tiergen.runtime.capture.dumpcap import SUMMARY, CaptureState
 from tiergen.runtime.capture.offsets import OFFSETS, ClockOffset
@@ -44,9 +50,10 @@ MANIFEST = "manifest.json"
 CONFORMANCE = "conformance.md"
 SHARED_TOLERANCE_S = 1.0
 """How far apart the agent's stamp, the kernel's and the sensor's may be for one connection
-when every host shares the capture host's clock: scheduling and the sensor's own
-timestamping, never a clock offset. A host with its own clock gets a tolerance from its
-measured offset (phase B); until then its presence stops the assembly."""
+once all three are on the capture host's clock: scheduling and the sensor's own
+timestamping, never a clock offset. A host with a clock of its own has its records moved by
+its measured offset first (``on_capture_clock``); what remains of it is the measurement's
+error, milliseconds through the guest agent, and the drift over the run."""
 
 AttribLoader = Callable[[set[str]], Mapping[str, AttributionBackend]]
 
@@ -106,7 +113,8 @@ def invocations(run_dir: Path) -> list[InvocationRecord]:
 def attribution(
     run_dir: Path, states: Mapping[str, RunState], loader: AttribLoader
 ) -> list[AttributionRecord]:
-    wanted = {BY_INFRA[b] for b in states if b in BY_INFRA}
+    manifests = [_read(RunManifest, run_dir / f"manifest.{b}.json") for b in sorted(states)]
+    wanted = {name for m in manifests for name in backends_for(m)}
     backends = loader(wanted)
     missing = sorted(wanted - set(backends))
     if missing:
@@ -117,7 +125,8 @@ def attribution(
     return found
 
 
-def tolerance(run_dir: Path) -> float:
+def clock_offsets(run_dir: Path) -> dict[str, float]:
+    """Every host's offset from the capture host's clock, seconds to add to its stamps."""
     offsets = _read(dict[str, ClockOffset], run_dir / "capture" / OFFSETS)
     unmeasured = sorted(i for i, o in offsets.items() if o.offset_s is None)
     if unmeasured:
@@ -125,7 +134,24 @@ def tolerance(run_dir: Path) -> float:
             f"the clock offset of {', '.join(unmeasured)} is unmeasured; the join cannot place "
             "their intervals on the capture"
         )
-    return SHARED_TOLERANCE_S
+    return {i: o.offset_s for i, o in offsets.items() if o.offset_s is not None}
+
+
+def on_capture_clock(
+    offsets: Mapping[str, float],
+    ran: Iterable[InvocationRecord],
+    records: Iterable[AttributionRecord],
+) -> tuple[list[InvocationRecord], list[AttributionRecord]]:
+    """Invocation and attribution records are stamped on the clock of the host they were
+    made on. A host's measured offset goes into its invocation records' clock stamps, which
+    the join adds, and moves its attribution records, which carry none; a container's offset
+    is 0, so only guests move."""
+    moved_ran = [replace(r, clock=replace(r.clock, offset=offsets[r.key.instance])) for r in ran]
+    moved = [
+        replace(r, start=r.start + offsets[r.instance], end=r.end + offsets[r.instance])
+        for r in records
+    ]
+    return moved_ran, moved
 
 
 def connections(
@@ -157,9 +183,12 @@ def assemble(
     plan = _read(AddressPlan, run_dir / "addresses.json")
     instance_of = {a: i for i, by_segment in plan.addresses.items() for a in by_segment.values()}
     programs = [_read(Program, p) for p in sorted(run_dir.glob("program.*.json"))]
-    ran = invocations(run_dir)
-    records = attribution(run_dir, record.states, attribution_loader)
-    tolerance_s = tolerance(run_dir)
+    ran, records = on_capture_clock(
+        clock_offsets(run_dir),
+        invocations(run_dir),
+        attribution(run_dir, record.states, attribution_loader),
+    )
+    tolerance_s = SHARED_TOLERANCE_S
     known = signatures(programs)
     joined = join(
         connections(run_dir, scenario, capture),

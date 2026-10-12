@@ -9,7 +9,9 @@ daemon-wide, so every name is prefixed with the run.
 """
 
 import contextlib
+import io
 import subprocess
+import tarfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal, Protocol
@@ -138,6 +140,10 @@ class Client(Protocol):
 
     def pid(self, container: str) -> int:
         """The host pid of a running container's init process."""
+        ...
+
+    def archive(self, image: str, path: str) -> bytes:
+        """The bytes of one file at ``path`` inside ``image``, read without running it."""
         ...
 
     def logs(self, container: str) -> str:
@@ -385,6 +391,25 @@ class DaemonClient:
             return
         except docker.errors.APIError as err:
             raise BackendError(f"cannot stop helper {name!r}: {err}") from err
+
+    def archive(self, image: str, path: str) -> bytes:
+        container = None
+        try:
+            container = self._d.containers.create(image)
+            stream, _ = container.get_archive(path)
+            data = b"".join(stream)
+        except docker.errors.APIError as err:
+            raise BackendError(f"cannot read {path} from {image!r}: {err}") from err
+        finally:
+            if container is not None:
+                with contextlib.suppress(docker.errors.APIError):
+                    container.remove(force=True)
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            member = next((m for m in tar.getmembers() if m.isfile()), None)
+            extracted = tar.extractfile(member) if member is not None else None
+            if extracted is None:
+                raise BackendError(f"{path} is not a file in {image!r}")
+            return extracted.read()
 
     def pid(self, container: str) -> int:
         try:

@@ -1,5 +1,6 @@
 import json
 from collections.abc import Iterator, Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,15 @@ from tiergen.core.records import AttributionKey, ClockStamp, InvocationRecord, L
 from tiergen.core.resolve import Resolver
 from tiergen.core.resources import DirResources
 from tiergen.core.routing import plan_routes
-from tiergen.interfaces import AttributionRecord, HostState, RunManifest, RunRecord, RunState
+from tiergen.interfaces import (
+    Attachment,
+    AttributionRecord,
+    HostSpec,
+    HostState,
+    RunManifest,
+    RunRecord,
+    RunState,
+)
 from tiergen.interfaces.capability import Capability, CapabilityInfo
 from tiergen.protocols import SIGNATURES
 from tiergen.runtime.capture.dumpcap import CaptureState, Running
@@ -170,6 +179,26 @@ def run_dir(tmp_path: Path) -> Path:
         {"tiergen/base-linux": "sha256:agent", "tiergen/attrib-collector": "sha256:collector"},
     )
     (run / "state.docker.json").write_text(json.dumps(to_json(state)))
+    manifest = RunManifest(
+        "linux_slice",
+        "docker",
+        (),
+        tuple(
+            HostSpec(
+                i,
+                i.split("/")[1].split("[")[0],
+                "linux",
+                f"linux_slice-{i}",
+                "tiergen/base-linux",
+                (),
+                (),
+                (Attachment("lan", plan.addresses[i]["lan"]),),
+                agent=True,
+            )
+            for i in (WS, WEB, ATK)
+        ),
+    )
+    (run / "manifest.docker.json").write_text(json.dumps(to_json(manifest)))
     return run
 
 
@@ -279,3 +308,43 @@ def test_an_unmeasured_clock_stops_the_join(run_dir: Path) -> None:
     write_offsets(run_dir / "capture", {WS: ClockOffset(None, "unmeasured")})
     with pytest.raises(AssembleError, match=r"offset of lab/workstation\[0\] is unmeasured"):
         _assemble(run_dir)
+
+
+def test_a_host_on_its_own_clock_is_moved_onto_the_capture_by_its_offset(run_dir: Path) -> None:
+    """The workstation as a guest whose clock runs 1.6 s behind the capture host's: its
+    records and its kernel's are stamped on that clock, beyond the tolerance from what the
+    sensor saw, and the measured offset brings them back."""
+    lag = 1.6
+    out = run_dir / "out" / "lab-workstation-0" / "invocations.jsonl"
+    late = [
+        _invocation(WS, "browse", "web_get", 1, 4242, 99.9 - lag, 101.0 - lag),
+        _invocation(WS, "browse", "web_get", 2, 4243, 150.0 - lag, 151.0 - lag),
+    ]
+    out.write_text("".join(json.dumps(to_json(r)) + "\n" for r in late))
+    write_offsets(
+        run_dir / "capture",
+        {
+            WS: ClockOffset(lag, "guest-agent"),
+            WEB: ClockOffset(0.0, "shared-kernel"),
+            ATK: ClockOffset(0.0, "shared-kernel"),
+        },
+    )
+
+    class GuestAttribution(FakeAttribution):
+        def records(self, run_dir: Path) -> Iterator[AttributionRecord]:
+            for r in super().records(run_dir):
+                yield replace(r, start=r.start - lag, end=r.end - lag) if r.instance == WS else r
+
+    plan = json.loads((run_dir / "addresses.json").read_text())
+    addresses = {i: by_seg["lan"] for i, by_seg in plan["addresses"].items()}
+    summary = assemble(
+        run_dir,
+        sensor_factory=lambda impl: lambda spec, point: FakeSensor(spec, point, addresses),
+        attribution_loader=lambda wanted: {"linux_ebpf": GuestAttribution(addresses)},
+    )
+    assert summary.labels == {"zeek": 2, "suricata": 2}
+    assert summary.flags == {"unattributed/no_attribution": 2, "failed/no_attribution": 1}
+    lines = (run_dir / "labels.zeek.jsonl").read_text().splitlines()
+    browsing = from_json(Label, json.loads(lines[0]))
+    assert browsing.key.action == "web_get"
+    assert browsing.observed == pytest.approx(100.0)

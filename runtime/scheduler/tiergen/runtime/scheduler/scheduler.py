@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from tiergen.backends.attrib._base import BY_INFRA
+from tiergen.backends.attrib._base import backends_for, uncovered
 from tiergen.core.codec import from_json, to_json
 from tiergen.core.ir import Scenario
 from tiergen.interfaces import (
@@ -116,7 +116,7 @@ def run_scenario(
     missing = sorted({m.backend for m in found} - set(infra))
     if missing:
         raise SchedulerError(f"no runtime installed for backend(s): {', '.join(missing)}")
-    wanted = {BY_INFRA[m.backend] for m in found if m.backend in BY_INFRA}
+    wanted = {name for m in found for name in backends_for(m)}
     attrib = ports.attrib(wanted)
     missing = sorted(wanted - set(attrib))
     if missing:
@@ -132,15 +132,18 @@ def run_scenario(
             _dump(states[manifest.backend], _state_file(run_dir, manifest.backend))
             log(f"{manifest.backend}: {len(manifest.hosts)} host(s) up, agents held")
         for manifest in found:
-            if manifest.backend not in BY_INFRA:
-                log(f"{manifest.backend}: no attribution backend; its traffic is unattributed")
-                continue
-            name = BY_INFRA[manifest.backend]
-            attrib[name].start(manifest, states[manifest.backend], run_dir)
-            undo.append(partial(attrib[name].stop, run_dir))
-            # The collector's image went into the state; keep the file current.
-            _dump(states[manifest.backend], _state_file(run_dir, manifest.backend))
-            log(f"{name}: recording {len(manifest.hosts)} host(s) of {manifest.backend}")
+            for platform in sorted(uncovered(manifest)):
+                log(
+                    f"{manifest.backend}: no attribution backend for its {platform} hosts; "
+                    "their traffic is unattributed"
+                )
+            for name, platforms in sorted(backends_for(manifest).items()):
+                attrib[name].start(manifest, states[manifest.backend], run_dir)
+                undo.append(partial(attrib[name].stop, run_dir))
+                # The collector's image went into the state; keep the file current.
+                _dump(states[manifest.backend], _state_file(run_dir, manifest.backend))
+                covered = sum(1 for h in manifest.hosts if h.platform in platforms)
+                log(f"{name}: recording {covered} host(s) of {manifest.backend}")
         run = points.load_run(run_dir)
         capture_points = points.capture_points(run.scenario, run.topology, run.bridges)
         for manifest in found:
