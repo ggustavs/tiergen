@@ -78,6 +78,12 @@ class InfraBackend(Protocol):
         is undone on failure; the caller brings the run down."""
         ...
 
+    def collect(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+        """Bring what the hosts wrote into ``run_dir/out/<instance>`` before they go: a
+        no-op where that directory is a mount, a copy out of a guest otherwise. Called
+        after the capture and the collector have stopped, before ``down``."""
+        ...
+
     def down(self, manifest: RunManifest) -> None:
         """Stop and remove everything of this run, whether or not ``up`` completed."""
         ...

@@ -113,6 +113,9 @@ class DockerBackend:
     def start(self, manifest: RunManifest, state: RunState) -> None:
         self._start(self._connect(), manifest, state)
 
+    def collect(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+        """Nothing to do: an agent host writes straight into ``run_dir/out`` through its mount."""
+
     def down(self, manifest: RunManifest) -> None:
         self._remove(self._connect(), manifest.run)
 

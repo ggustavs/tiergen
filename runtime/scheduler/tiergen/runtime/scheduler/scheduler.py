@@ -78,9 +78,13 @@ def _state_file(run_dir: Path, backend: str) -> Path:
     return run_dir / f"state.{backend}.json"
 
 
-def _down(backend: InfraBackend, manifest: RunManifest, state_file: Path) -> None:
-    backend.down(manifest)
-    state_file.unlink(missing_ok=True)
+def _down(backend: InfraBackend, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+    """Collect what the hosts wrote, then take them down and drop the state file."""
+    try:
+        backend.collect(manifest, state, run_dir)
+    finally:
+        backend.down(manifest)
+        _state_file(run_dir, manifest.backend).unlink(missing_ok=True)
 
 
 def _unwind(undo: list[Callable[[], None]], log: Log) -> Exception | None:
@@ -124,7 +128,7 @@ def run_scenario(
         for manifest in found:
             backend = infra[manifest.backend]
             states[manifest.backend] = backend.up(manifest, run_dir, start=False)
-            undo.append(partial(_down, backend, manifest, _state_file(run_dir, manifest.backend)))
+            undo.append(partial(_down, backend, manifest, states[manifest.backend], run_dir))
             _dump(states[manifest.backend], _state_file(run_dir, manifest.backend))
             log(f"{manifest.backend}: {len(manifest.hosts)} host(s) up, agents held")
         for manifest in found:

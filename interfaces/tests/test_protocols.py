@@ -66,6 +66,9 @@ class NoInfra:
     def start(self, manifest: RunManifest, state: RunState) -> None:
         self.seen.append(f"start {manifest.run}")
 
+    def collect(self, manifest: RunManifest, state: RunState, run_dir: Path) -> None:
+        self.seen.append(f"collect {manifest.run}")
+
     def down(self, manifest: RunManifest) -> None:
         self.seen.append(f"down {manifest.run}")
 

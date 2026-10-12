@@ -1,8 +1,9 @@
 """Per-host clock offsets, written beside the captures so the join never guesses.
 
 A Docker host shares the capture host's kernel clock, so its offset is zero by
-construction and the method says so. A VM's clock is its own; measuring it is phase B's,
-and until then its entry says ``unmeasured`` with no number rather than a zero.
+construction and the method says so. A guest's clock is its own: its backend measures it
+through the guest agent at ``up`` and the entry says ``guest-agent``; a guest whose backend
+measured nothing says ``unmeasured`` with no number rather than a zero.
 """
 
 import json
@@ -26,14 +27,17 @@ class ClockOffset:
 
 
 def offsets(states: Mapping[str, RunState]) -> dict[str, ClockOffset]:
+    """A container's offset is zero by construction; a guest's is what its backend measured
+    through the guest agent, and ``unmeasured`` where it measured nothing."""
     found: dict[str, ClockOffset] = {}
     for backend, state in states.items():
-        for instance in state.hosts:
-            found[instance] = (
-                ClockOffset(0.0, "shared-kernel")
-                if backend == "docker"
-                else ClockOffset(None, "unmeasured")
-            )
+        for instance, host in state.hosts.items():
+            if backend == "docker":
+                found[instance] = ClockOffset(0.0, "shared-kernel")
+            elif host.clock_offset_s is not None:
+                found[instance] = ClockOffset(host.clock_offset_s, "guest-agent")
+            else:
+                found[instance] = ClockOffset(None, "unmeasured")
     return found
 
 

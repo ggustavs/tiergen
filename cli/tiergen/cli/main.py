@@ -27,7 +27,7 @@ from tiergen.core.resources import DirResources
 from tiergen.core.routing import plan_routes
 from tiergen.fit import FitError, fit_run
 from tiergen.impls._base import load_impls
-from tiergen.interfaces import BackendError, RunManifest
+from tiergen.interfaces import BackendError, RunManifest, RunState
 from tiergen.interfaces.registry import (
     load_attrib_backends,
     load_infra,
@@ -304,8 +304,12 @@ def _infra(verb: str, run_dir: Path) -> int:
             if verb == "up":
                 _dump(backend.up(manifest, run_dir), run_dir / f"state.{manifest.backend}.json")
             else:
+                state_file = run_dir / f"state.{manifest.backend}.json"
+                if state_file.is_file():
+                    state = from_json(RunState, json.loads(state_file.read_text("utf-8")))
+                    backend.collect(manifest, state, run_dir)
                 backend.down(manifest)
-                (run_dir / f"state.{manifest.backend}.json").unlink(missing_ok=True)
+                state_file.unlink(missing_ok=True)
             print(f"{manifest.backend}: {verb} {manifest.run}, {len(manifest.hosts)} host(s)")
     except BackendError as err:
         print(f"tiergen: {err}", file=sys.stderr)
