@@ -177,8 +177,12 @@ def domain_xml(
         if windows
         else "<clock offset='utc'/>"
     )
+    # The video device gets a slot of its own: placed by libvirt it takes the first one and
+    # moves every root port, so a guest built with a display would meet its NIC behind a
+    # different bridge in a run, as a new adapter without the template's configuration.
     screen = (
-        "<graphics type='vnc' autoport='yes' listen='127.0.0.1'/><video><model type='vga'/></video>"
+        "<graphics type='vnc' autoport='yes' listen='127.0.0.1'/><video><model type='vga'/>"
+        "<address type='pci' domain='0x0000' bus='0x00' slot='0x0a' function='0x0'/></video>"
         if display
         else ""
     )

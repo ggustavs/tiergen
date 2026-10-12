@@ -13,6 +13,7 @@ from tiergen.backends.infra.libvirt.backend import (
     LibvirtBackend,
     derived_mac,
     domain_name,
+    domain_xml,
     template_volume,
 )
 from tiergen.backends.infra.libvirt.iso import write_iso
@@ -366,3 +367,21 @@ def _iso_file(iso: Path, path: str, into: Path) -> str:
         check=True,
     )
     return into.read_text()
+
+
+def test_a_build_display_keeps_the_devices_where_a_run_has_them() -> None:
+    """The template build's video card has a slot of its own, so the root ports, and the
+    NIC behind the first of them, are where a run's domain without a display puts them."""
+    built = domain_xml(
+        "b", "d", "windows", "t.qcow2", ("a.iso", "b.iso"), (), nat="default", display=True
+    )
+    run = domain_xml(
+        "r", "d", "windows", "c.qcow2", ("run.iso",), [("tg-lan", "52:54:00:00:00:01")]
+    )
+    assert (
+        "<video><model type='vga'/><address type='pci' domain='0x0000' bus='0x00' slot='0x0a'"
+        in built
+    )
+    assert "<video" not in run
+    assert built.count("<disk type='volume' device='cdrom'>") == 2
+    assert "<target dev='sdb' bus='sata'/>" in built

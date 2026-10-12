@@ -127,6 +127,17 @@ no version numbers.
   match Sysmon's network events to the invocation's process, but the native SMB client's
   connections belong to `System` and Kerberos's to `lsass.exe`, so the templates come
   first and what Windows reports of the two is measured before the agent is written.
+- **backends/infra/libvirt**: the Windows DC template and the joined pair.
+  `scripts/templates/build.py dc` builds Server 2022 Core the same way and promotes it to
+  the first DC of `hq.tiergen.test` on the address `hq_lan` pins; `build.py join` clones it
+  with the workstation template onto a private bridge, joins the workstation, and keeps
+  both disks as a pair of templates that a run clones together. Found on the way: the
+  build's video card moved the PCI root ports, so a clone without a display met its NIC
+  behind another bridge, as a new adapter without the DC's static address; the build's
+  video now has a slot of its own. The Server ISO's boot menu waits for Enter, which the
+  build now presses instead of a space. Clones of the pair boot together, so the
+  workstation looks for its DC before the DC serves and does not look again soon; whatever
+  waits for the domain resets the secure channel until it holds.
 - **design**: what Windows reports of SMB. `scripts/measure/windows_smb.py` brings a Samba
   container and a Windows clone up through the backends, traces the SMB client,
   Kernel-Network, Kernel-Process, Kernel-File, Kerberos and LSA providers while fresh

@@ -89,3 +89,52 @@ def test_a_windows_clone_boots_on_virtio_and_answers_through_its_agent(
     assert name not in client.domains()
     assert not [v for v in client.volumes(POOL) if v.startswith("tiergen-wintest-")]
     assert not [n for n in client.networks() if n.startswith("tiergen-wintest-")]
+
+
+def test_the_joined_pair_comes_up_together_in_its_domain(
+    client: LibvirtClient, tmp_path: Path
+) -> None:
+    """The DC and the workstation joined to it (``build.py dc`` and ``build.py join``),
+    cloned together: the DC keeps the address it was promoted on, and the workstation's
+    secure channel to it works once reset. The two boot together, so the workstation looks
+    for its DC before the DC serves and does not look again soon on its own."""
+    have = client.volumes(POOL)
+    if not {"template-hq-dc.qcow2", "template-hq-ws.qcow2"} <= set(have):
+        pytest.skip("the joined pair is not in the pool")
+    lan = NetworkSpec("lan", "10.10.0.0/24", "10.10.0.1", "data", True, "tg-pairtest-lan")
+    dc = HostSpec(
+        "hq/dc[0]", "dc", "windows", "dc", "hq-dc", (), (),
+        (Attachment("lan", "10.10.0.10", "52:54:00:0b:00:0a"),),
+    )  # fmt: skip
+    ws = HostSpec(
+        "hq/ws[0]", "ws", "windows", "ws", "hq-ws", (), (),
+        (Attachment("lan", "10.10.0.21", "52:54:00:0b:00:15"),),
+    )  # fmt: skip
+    manifest = RunManifest("pairtest", "libvirt", (lan,), (dc, ws))
+    run_dir = tmp_path / "r"
+    run_dir.mkdir()
+    backend = LibvirtBackend(agent_timeout_s=600)
+    try:
+        began = time.monotonic()
+        backend.up(manifest, run_dir, start=False)
+        checked = client.guest_exec(
+            domain_name("pairtest", ws.instance),
+            POWERSHELL,
+            [
+                "-NoProfile",
+                "-Command",
+                "$d = (Get-Date).AddSeconds(300);"
+                " while (-not (Test-ComputerSecureChannel -ErrorAction SilentlyContinue))"
+                " { if ((Get-Date) -gt $d) { exit 1 }; nltest /sc_reset:hq.tiergen.test | Out-Null;"
+                " Start-Sleep 5 };"
+                " (Get-CimInstance Win32_ComputerSystem).Domain;"
+                " (Test-NetConnection 10.10.0.10 -Port 389 -InformationLevel Quiet)",
+            ],
+            timeout_s=400,
+        )
+        assert checked.exit_code == 0, checked.err
+        assert checked.out.split() == ["hq.tiergen.test", "True"]
+        print(f"joined pair up with a secure channel in {time.monotonic() - began:.0f} s")
+    finally:
+        backend.down(manifest)
+    assert not [v for v in client.volumes(POOL) if v.startswith("tiergen-pairtest-")]
