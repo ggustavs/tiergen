@@ -193,6 +193,11 @@ def test_up_clones_templates_writes_run_isos_and_starts_domains_on_the_bridges(
     assert "volume='tiergen-r-lab-ws-0-run.iso'" in xml
     assert "<memory unit='MiB'>2048</memory>" in xml
     assert "<memory unit='MiB'>4096</memory>" in fake.xml["tiergen-r-hq-dc-0"]
+    # The disk boots before the run ISO; only the Windows guest gets Hyper-V enlightenments.
+    assert xml.index("<boot order='1'/>") < xml.index("<boot order='2'/>")
+    assert "<hyperv" not in xml
+    assert "<hyperv mode='custom'>" in fake.xml["tiergen-r-hq-dc-0"]
+    assert "<timer name='hypervclock' present='yes'/>" in fake.xml["tiergen-r-hq-dc-0"]
     assert json.loads(fake.domains_["tiergen-r-lab-ws-0"]) == {
         "tiergen.run": "r",
         "tiergen.instance": "lab/ws[0]",

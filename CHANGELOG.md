@@ -116,6 +116,17 @@ no version numbers.
   behind showed by labelling nothing. Planned was the binary on the run ISO; it goes through
   `guest-file-write` instead, since the collector belongs to the attribution backend and
   the ISO to the infrastructure backend, and neither should know the other.
+- **backends/infra/libvirt**: the Windows workstation template. `scripts/templates/build.py
+  windows` installs Windows 10 LTSC unattended onto an empty disk with virtio's drivers
+  loaded in WinPE, so clones boot on virtio; the guest agent comes at first logon, then
+  Python 3.12, the agent's third-party wheels and Sysmon through it, all from a build CD,
+  so the build uses no network. `domain_xml` takes several CD-ROMs, boots the disk first
+  and the first CD after it, gives Windows guests the Hyper-V enlightenments and clock, and
+  can add a loopback VNC display for a build. The facade can press a key (the install CD's
+  boot prompt) and make an empty volume. The plan changed here: Windows attribution was to
+  match Sysmon's network events to the invocation's process, but the native SMB client's
+  connections belong to `System` and Kerberos's to `lsass.exe`, so the templates come
+  first and what Windows reports of the two is measured before the agent is written.
 - **backends/sensor**, **interfaces**, **cli**, **examples**: the sensors (M1 task 8). Zeek and
   Suricata run as pinned images through the daemon over each capture point's pcap, with the
   scenario's configuration mounted and the image digest recorded; `tiergen sensors run`

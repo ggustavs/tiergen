@@ -136,14 +136,18 @@ def domain_xml(
     description: str,
     platform: str,
     disk: str,
-    iso: str,
+    isos: Sequence[str],
     attachments: Sequence[tuple[str, str]],
     nat: str | None = None,
+    display: bool = False,
 ) -> str:
-    """A q35 UEFI guest with virtio devices: its clone as ``disk``, the run ISO as a SATA
-    CD-ROM, one virtio NIC per (bridge, mac), and the guest agent channel. With ``nat``, a
-    libvirt network name, one NIC on that network instead: how a template is built with
-    internet."""
+    """A q35 UEFI guest with virtio devices: its clone as ``disk``, each of ``isos`` as a
+    SATA CD-ROM in order (a run has one, the run ISO), one virtio NIC per (bridge, mac), and
+    the guest agent channel. The disk boots first and the first CD-ROM after it, so an
+    empty disk installs from that CD and the next boot is the installed system. With
+    ``nat``, a libvirt network name, one NIC on that network instead: how a template is
+    built. With ``display``, a VNC display on the host's loopback, to watch a build. A
+    Windows guest gets the Hyper-V enlightenments and clock it runs best with."""
     nics = (
         f"<interface type='network'><source network='{nat}'/><model type='virtio'/></interface>"
         if nat is not None
@@ -153,19 +157,43 @@ def domain_xml(
             for bridge, mac in attachments
         )
     )
+    after_disk = "<boot order='2'/>"
+    cdroms = "".join(
+        "<disk type='volume' device='cdrom'><driver name='qemu' type='raw'/>"
+        f"<source pool='{POOL}' volume='{iso}'/><target dev='sd{'abcdef'[i]}' bus='sata'/>"
+        f"<readonly/>{after_disk if i == 0 else ''}</disk>"
+        for i, iso in enumerate(isos)
+    )
+    windows = platform == "windows"
+    hyperv = (
+        "<hyperv mode='custom'><relaxed state='on'/><vapic state='on'/>"
+        "<spinlocks state='on' retries='8191'/><vpindex state='on'/><synic state='on'/>"
+        "<stimer state='on'/></hyperv>"
+        if windows
+        else ""
+    )
+    clock = (
+        "<clock offset='utc'><timer name='hypervclock' present='yes'/></clock>"
+        if windows
+        else "<clock offset='utc'/>"
+    )
+    screen = (
+        "<graphics type='vnc' autoport='yes' listen='127.0.0.1'/><video><model type='vga'/></video>"
+        if display
+        else ""
+    )
     return (
         f"<domain type='kvm'><name>{name}</name><description>{description}</description>"
         f"<memory unit='MiB'>{MEMORY_MIB[platform]}</memory><vcpu>{VCPUS}</vcpu>"
         "<os firmware='efi'><type arch='x86_64' machine='q35'>hvm</type>"
         "<firmware><feature enabled='no' name='secure-boot'/></firmware></os>"
-        "<features><acpi/><apic/></features><cpu mode='host-passthrough'/>"
-        "<clock offset='utc'/><on_poweroff>destroy</on_poweroff><on_crash>destroy</on_crash>"
+        f"<features><acpi/><apic/>{hyperv}</features><cpu mode='host-passthrough'/>"
+        f"{clock}<on_poweroff>destroy</on_poweroff><on_crash>destroy</on_crash>"
         "<devices><emulator>/usr/bin/qemu-system-x86_64</emulator>"
         f"<disk type='volume' device='disk'><driver name='qemu' type='qcow2'/>"
-        f"<source pool='{POOL}' volume='{disk}'/><target dev='vda' bus='virtio'/></disk>"
-        f"<disk type='volume' device='cdrom'><driver name='qemu' type='raw'/>"
-        f"<source pool='{POOL}' volume='{iso}'/><target dev='sda' bus='sata'/><readonly/></disk>"
-        f"{nics}"
+        f"<source pool='{POOL}' volume='{disk}'/><target dev='vda' bus='virtio'/>"
+        "<boot order='1'/></disk>"
+        f"{cdroms}{nics}{screen}"
         "<channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>"
         "<serial type='pty'/><console type='pty'/>"
         "<rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>"
@@ -244,7 +272,7 @@ class LibvirtBackend:
                             description,
                             host.platform,
                             f"{name}.qcow2",
-                            f"{name}-run.iso",
+                            (f"{name}-run.iso",),
                             [(bridges[a.network], a.mac) for a in attachments],
                         )
                     )
