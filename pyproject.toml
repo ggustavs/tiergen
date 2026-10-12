@@ -147,7 +147,10 @@ exclude = ["*.md"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
-markers = ["docker: needs a reachable Docker daemon; skipped otherwise"]
+markers = [
+    "docker: needs a reachable Docker daemon; skipped otherwise",
+    "vm: needs the system libvirt with the tiergen pool and its templates; skipped otherwise",
+]
 # check/tests/support.py, runtime/behaviour/tests/loop_support.py and
 # runtime/agent_linux/tests/agent_support.py are shared by their test modules.
 pythonpath = ["check/tests", "runtime/behaviour/tests", "runtime/agent_linux/tests"]

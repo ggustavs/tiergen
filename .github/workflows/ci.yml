@@ -18,6 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -27,6 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv sync --locked
       - run: uv run pyright
 
@@ -42,6 +46,8 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: ${{ matrix.python }}
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv sync --locked
       - name: Agent hosts need the daemon's user-namespace remap (design decision 4.19)
         run: |
@@ -98,6 +104,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv lock --check
       - run: uv run --frozen python scripts/check_stubs.py
 
@@ -108,6 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.1.0
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv sync --locked
       - name: Agent hosts need the daemon's user-namespace remap (design decision 4.19)
         run: |
@@ -138,6 +148,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.1.0
+      - name: libvirt headers for the binding the libvirt backend builds against
+        run: sudo apt-get -o DPkg::Lock::Timeout=180 install -y -qq libvirt-dev pkg-config >/dev/null
       - run: uv sync --locked
       # Checkout leaves HEAD detached; commit-check reads the branch name from git.
       - run: git switch -c "$HEAD_REF"

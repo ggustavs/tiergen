@@ -1,0 +1,15 @@
+version: 2
+# The build's own network, on libvirt's default NAT: a static address with public name
+# servers, so neither the host's DHCP nor its DNS is in the path (a host firewall that
+# drops UDP into virbr0 stalled the first builds on both). A run's guest never sees this:
+# the build removes it, and the run's bootstrap sets addresses from the manifest.
+ethernets:
+  nat:
+    match:
+      name: "en*"
+    addresses: [192.168.122.250/24]
+    routes:
+      - to: default
+        via: 192.168.122.1
+    nameservers:
+      addresses: [1.1.1.1, 9.9.9.9]
